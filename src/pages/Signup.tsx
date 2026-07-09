@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { GraduationCap, Mail, Lock, User, ArrowLeft, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
+import { lovable } from "@/integrations/lovable";
 import { useToast } from "@/hooks/use-toast";
 
 const Signup = () => {
@@ -29,6 +30,9 @@ const Signup = () => {
             full_name: name,
           },
           emailRedirectTo: `${window.location.origin}/dashboard`,
+        } as any,
+      } as any).then(r => r).catch(e => ({ error: e })) as any;
+      // no-op wrapper removed below
         },
       });
 
