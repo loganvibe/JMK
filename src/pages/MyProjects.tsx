@@ -394,19 +394,37 @@ const MyProjects = () => {
                         <p className="text-xs text-muted-foreground">
                           PDF, DOCX, DOC up to 10MB
                         </p>
-                        <Button variant="outline" size="sm" className="mt-4">
-                          Choose Files
+                        <input
+                          id={`attach-${activeProject.id}`}
+                          type="file"
+                          className="hidden"
+                          accept=".pdf,.doc,.docx,.txt"
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) toast({ title: "File attached", description: `${f.name} added to this project.` });
+                          }}
+                        />
+                        <Button variant="outline" size="sm" className="mt-4" asChild>
+                          <label htmlFor={`attach-${activeProject.id}`} className="cursor-pointer">Choose Files</label>
                         </Button>
                       </div>
                     </div>
 
                     {/* Actions */}
                     <div className="flex items-center justify-between pt-4 border-t border-border">
-                      <Button variant="ghost" className="text-destructive">
+                      <Button
+                        variant="ghost"
+                        className="text-destructive"
+                        onClick={() => {
+                          setProjects(projects.filter((p) => p.id !== activeProject.id));
+                          setSelectedProject(null);
+                          toast({ title: "Project removed", description: "The project has been removed from your list." });
+                        }}
+                      >
                         <Trash2 className="w-4 h-4 mr-2" />
                         Remove Project
                       </Button>
-                      <Button variant="accent">
+                      <Button variant="accent" onClick={() => navigate("/modify-project")}>
                         <Sparkles className="w-4 h-4 mr-2" />
                         Get AI Help
                       </Button>
