@@ -30,9 +30,6 @@ const Signup = () => {
             full_name: name,
           },
           emailRedirectTo: `${window.location.origin}/dashboard`,
-        } as any,
-      } as any).then(r => r).catch(e => ({ error: e })) as any;
-      // no-op wrapper removed below
         },
       });
 
@@ -55,13 +52,12 @@ const Signup = () => {
 
   const handleGoogleSignup = async () => {
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: `${window.location.origin}/dashboard`,
-        },
+      const result = await lovable.auth.signInWithOAuth("google", {
+        redirect_uri: window.location.origin,
       });
-      if (error) throw error;
+      if (result.error) throw result.error;
+      if (result.redirected) return;
+      navigate("/dashboard");
     } catch (error: any) {
       toast({
         title: "Google signup failed",
