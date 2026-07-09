@@ -180,6 +180,13 @@ const MyProjects = () => {
                 </Badge>
               </Link>
               <Link
+                to="/modify-project"
+                className="flex items-center gap-3 px-4 py-3 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              >
+                <Sparkles className="w-5 h-5" />
+                Modify Project
+              </Link>
+              <Link
                 to="/pricing"
                 className="flex items-center gap-3 px-4 py-3 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
               >
