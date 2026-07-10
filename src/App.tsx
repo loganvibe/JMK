@@ -10,6 +10,7 @@ import Dashboard from "./pages/Dashboard";
 import MyProjects from "./pages/MyProjects";
 import ModifyProject from "./pages/ModifyProject";
 import Pricing from "./pages/Pricing";
+import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
