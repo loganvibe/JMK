@@ -14,7 +14,192 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      activity_log: {
+        Row: {
+          action: string
+          created_at: string
+          description: string | null
+          entity_id: string | null
+          entity_type: string | null
+          id: string
+          user_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          description?: string | null
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+          user_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          description?: string | null
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      ai_usage: {
+        Row: {
+          created_at: string
+          credits_limit: number
+          credits_used: number
+          id: string
+          month: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          credits_limit?: number
+          credits_used?: number
+          id?: string
+          month?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          credits_limit?: number
+          credits_used?: number
+          id?: string
+          month?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          academic_level: string | null
+          avatar_url: string | null
+          course: string | null
+          created_at: string
+          department: string | null
+          email: string | null
+          faculty: string | null
+          full_name: string | null
+          graduation_year: number | null
+          id: string
+          university: string | null
+          updated_at: string
+        }
+        Insert: {
+          academic_level?: string | null
+          avatar_url?: string | null
+          course?: string | null
+          created_at?: string
+          department?: string | null
+          email?: string | null
+          faculty?: string | null
+          full_name?: string | null
+          graduation_year?: number | null
+          id: string
+          university?: string | null
+          updated_at?: string
+        }
+        Update: {
+          academic_level?: string | null
+          avatar_url?: string | null
+          course?: string | null
+          created_at?: string
+          department?: string | null
+          email?: string | null
+          faculty?: string | null
+          full_name?: string | null
+          graduation_year?: number | null
+          id?: string
+          university?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      projects: {
+        Row: {
+          chapters_completed: number
+          created_at: string
+          department: string | null
+          description: string | null
+          id: string
+          notes: string | null
+          progress: Json
+          progress_percent: number
+          status: string
+          title: string
+          topic_type: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          chapters_completed?: number
+          created_at?: string
+          department?: string | null
+          description?: string | null
+          id?: string
+          notes?: string | null
+          progress?: Json
+          progress_percent?: number
+          status?: string
+          title: string
+          topic_type?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          chapters_completed?: number
+          created_at?: string
+          department?: string | null
+          description?: string | null
+          id?: string
+          notes?: string | null
+          progress?: Json
+          progress_percent?: number
+          status?: string
+          title?: string
+          topic_type?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      subscriptions: {
+        Row: {
+          created_at: string
+          expires_at: string | null
+          id: string
+          provider: string | null
+          status: string
+          tier: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          provider?: string | null
+          status?: string
+          tier?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          provider?: string | null
+          status?: string
+          tier?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
