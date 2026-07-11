@@ -119,48 +119,181 @@ export type Database = {
         }
         Relationships: []
       }
+      project_ai_history: {
+        Row: {
+          action: string | null
+          ai_response: string | null
+          chapter: string | null
+          created_at: string
+          id: string
+          project_id: string
+          section_type: string | null
+          user_id: string
+          user_request: string | null
+        }
+        Insert: {
+          action?: string | null
+          ai_response?: string | null
+          chapter?: string | null
+          created_at?: string
+          id?: string
+          project_id: string
+          section_type?: string | null
+          user_id: string
+          user_request?: string | null
+        }
+        Update: {
+          action?: string | null
+          ai_response?: string | null
+          chapter?: string | null
+          created_at?: string
+          id?: string
+          project_id?: string
+          section_type?: string | null
+          user_id?: string
+          user_request?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_ai_history_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_sections: {
+        Row: {
+          chapter: string
+          content: string | null
+          created_at: string
+          id: string
+          order_index: number
+          project_id: string
+          section_type: string
+          status: string
+          title: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          chapter: string
+          content?: string | null
+          created_at?: string
+          id?: string
+          order_index?: number
+          project_id: string
+          section_type: string
+          status?: string
+          title?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          chapter?: string
+          content?: string | null
+          created_at?: string
+          id?: string
+          order_index?: number
+          project_id?: string
+          section_type?: string
+          status?: string
+          title?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_sections_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       projects: {
         Row: {
+          abstract: string | null
           chapters_completed: number
+          course: string | null
           created_at: string
           department: string | null
           description: string | null
+          difficulty_level: string | null
+          expected_outcome: string | null
           id: string
+          methodology: string | null
           notes: string | null
+          objectives: string | null
+          problem_statement: string | null
           progress: Json
           progress_percent: number
+          project_area: string | null
+          project_type: string | null
+          research_field: string | null
+          research_questions: string | null
+          scope: string | null
           status: string
           title: string
+          topic: string | null
           topic_type: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          abstract?: string | null
           chapters_completed?: number
+          course?: string | null
           created_at?: string
           department?: string | null
           description?: string | null
+          difficulty_level?: string | null
+          expected_outcome?: string | null
           id?: string
+          methodology?: string | null
           notes?: string | null
+          objectives?: string | null
+          problem_statement?: string | null
           progress?: Json
           progress_percent?: number
+          project_area?: string | null
+          project_type?: string | null
+          research_field?: string | null
+          research_questions?: string | null
+          scope?: string | null
           status?: string
           title: string
+          topic?: string | null
           topic_type?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          abstract?: string | null
           chapters_completed?: number
+          course?: string | null
           created_at?: string
           department?: string | null
           description?: string | null
+          difficulty_level?: string | null
+          expected_outcome?: string | null
           id?: string
+          methodology?: string | null
           notes?: string | null
+          objectives?: string | null
+          problem_statement?: string | null
           progress?: Json
           progress_percent?: number
+          project_area?: string | null
+          project_type?: string | null
+          research_field?: string | null
+          research_questions?: string | null
+          scope?: string | null
           status?: string
           title?: string
+          topic?: string | null
           topic_type?: string | null
           updated_at?: string
           user_id?: string
