@@ -250,17 +250,22 @@ const MyProjects = () => {
       <main className="flex-1 overflow-auto">
         <div className="p-6 lg:p-8">
           {/* Header */}
-          <div className="mb-8">
-            <motion.h1
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="text-2xl sm:text-3xl font-heading font-bold text-foreground mb-2"
-            >
-              My Projects
-            </motion.h1>
-            <p className="text-muted-foreground">
-              Track your saved projects and monitor your progress.
-            </p>
+          <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <motion.h1
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-2xl sm:text-3xl font-heading font-bold text-foreground mb-2"
+              >
+                My Projects
+              </motion.h1>
+              <p className="text-muted-foreground">
+                Track your saved projects and monitor your progress.
+              </p>
+            </div>
+            <Button variant="accent" asChild>
+              <Link to="/projects/new"><Sparkles className="w-4 h-4 mr-2" />Create New Project</Link>
+            </Button>
           </div>
 
           {projects.length > 0 ? (
