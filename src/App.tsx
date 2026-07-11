@@ -11,6 +11,8 @@ import MyProjects from "./pages/MyProjects";
 import ModifyProject from "./pages/ModifyProject";
 import Pricing from "./pages/Pricing";
 import Profile from "./pages/Profile";
+import CreateProject from "./pages/CreateProject";
+import ProjectWorkspace from "./pages/ProjectWorkspace";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -30,6 +32,8 @@ const App = () => (
           <Route path="/modify-project" element={<ModifyProject />} />
           <Route path="/pricing" element={<Pricing />} />
           <Route path="/profile" element={<Profile />} />
+          <Route path="/projects/new" element={<CreateProject />} />
+          <Route path="/projects/:id" element={<ProjectWorkspace />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

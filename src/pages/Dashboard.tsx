@@ -354,20 +354,26 @@ const Dashboard = () => {
                 <h2 className="font-heading font-semibold text-foreground flex items-center gap-2">
                   <BookOpen className="w-5 h-5 text-accent" /> Active Projects
                 </h2>
-                <Button variant="ghost" size="sm" asChild>
-                  <Link to="/my-projects">View all <ChevronRight className="w-4 h-4 ml-1" /></Link>
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button variant="accent" size="sm" asChild>
+                    <Link to="/projects/new"><Sparkles className="w-4 h-4 mr-1" />New Project</Link>
+                  </Button>
+                  <Button variant="ghost" size="sm" asChild>
+                    <Link to="/my-projects">View all <ChevronRight className="w-4 h-4 ml-1" /></Link>
+                  </Button>
+                </div>
               </div>
               {projects.length === 0 ? (
                 <div className="text-center py-10 text-sm text-muted-foreground">
-                  No projects yet — save a topic below to get started.
+                  No projects yet —{" "}
+                  <Link to="/projects/new" className="text-accent underline">create your first project</Link>.
                 </div>
               ) : (
                 <div className="space-y-3">
                   {projects.slice(0, 4).map((p) => (
                     <Link
                       key={p.id}
-                      to="/my-projects"
+                      to={`/projects/${p.id}`}
                       className="block p-4 rounded-xl border border-border hover:border-accent/50 transition-colors"
                     >
                       <div className="flex items-start justify-between gap-3 mb-2">
