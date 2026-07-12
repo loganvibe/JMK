@@ -163,6 +163,158 @@ export type Database = {
           },
         ]
       }
+      project_documents: {
+        Row: {
+          analysis: Json | null
+          created_at: string
+          extracted_content: string | null
+          file_name: string
+          file_size: number | null
+          file_type: string | null
+          file_url: string
+          id: string
+          project_id: string | null
+          updated_at: string
+          upload_status: string
+          user_id: string
+        }
+        Insert: {
+          analysis?: Json | null
+          created_at?: string
+          extracted_content?: string | null
+          file_name: string
+          file_size?: number | null
+          file_type?: string | null
+          file_url: string
+          id?: string
+          project_id?: string | null
+          updated_at?: string
+          upload_status?: string
+          user_id: string
+        }
+        Update: {
+          analysis?: Json | null
+          created_at?: string
+          extracted_content?: string | null
+          file_name?: string
+          file_size?: number | null
+          file_type?: string | null
+          file_url?: string
+          id?: string
+          project_id?: string | null
+          updated_at?: string
+          upload_status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_documents_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_refinement_requests: {
+        Row: {
+          created_at: string
+          document_id: string | null
+          id: string
+          project_id: string | null
+          refinement_status: string
+          updated_at: string
+          user_answers: Json
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          document_id?: string | null
+          id?: string
+          project_id?: string | null
+          refinement_status?: string
+          updated_at?: string
+          user_answers?: Json
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          document_id?: string | null
+          id?: string
+          project_id?: string | null
+          refinement_status?: string
+          updated_at?: string
+          user_answers?: Json
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_refinement_requests_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "project_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_refinement_requests_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_section_versions: {
+        Row: {
+          change_summary: string | null
+          created_at: string
+          id: string
+          new_content: string | null
+          old_content: string | null
+          project_id: string | null
+          section_id: string | null
+          source: string | null
+          user_id: string
+        }
+        Insert: {
+          change_summary?: string | null
+          created_at?: string
+          id?: string
+          new_content?: string | null
+          old_content?: string | null
+          project_id?: string | null
+          section_id?: string | null
+          source?: string | null
+          user_id: string
+        }
+        Update: {
+          change_summary?: string | null
+          created_at?: string
+          id?: string
+          new_content?: string | null
+          old_content?: string | null
+          project_id?: string | null
+          section_id?: string | null
+          source?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_section_versions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_section_versions_section_id_fkey"
+            columns: ["section_id"]
+            isOneToOne: false
+            referencedRelation: "project_sections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       project_sections: {
         Row: {
           chapter: string
