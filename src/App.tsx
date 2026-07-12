@@ -13,6 +13,7 @@ import Pricing from "./pages/Pricing";
 import Profile from "./pages/Profile";
 import CreateProject from "./pages/CreateProject";
 import ProjectWorkspace from "./pages/ProjectWorkspace";
+import RefineProject from "./pages/RefineProject";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -34,6 +35,7 @@ const App = () => (
           <Route path="/profile" element={<Profile />} />
           <Route path="/projects/new" element={<CreateProject />} />
           <Route path="/projects/:id" element={<ProjectWorkspace />} />
+          <Route path="/refine" element={<RefineProject />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
