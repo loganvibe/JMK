@@ -354,9 +354,12 @@ const Dashboard = () => {
                 <h2 className="font-heading font-semibold text-foreground flex items-center gap-2">
                   <BookOpen className="w-5 h-5 text-accent" /> Active Projects
                 </h2>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <Button variant="accent" size="sm" asChild>
                     <Link to="/projects/new"><Sparkles className="w-4 h-4 mr-1" />New Project</Link>
+                  </Button>
+                  <Button variant="outline" size="sm" asChild>
+                    <Link to="/refine"><Sparkles className="w-4 h-4 mr-1" />Refine Existing</Link>
                   </Button>
                   <Button variant="ghost" size="sm" asChild>
                     <Link to="/my-projects">View all <ChevronRight className="w-4 h-4 ml-1" /></Link>
