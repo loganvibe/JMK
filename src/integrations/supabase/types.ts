@@ -74,6 +74,111 @@ export type Database = {
         }
         Relationships: []
       }
+      courses: {
+        Row: {
+          code: string | null
+          created_at: string
+          department_id: string | null
+          id: string
+          level: string | null
+          name: string
+        }
+        Insert: {
+          code?: string | null
+          created_at?: string
+          department_id?: string | null
+          id?: string
+          level?: string | null
+          name: string
+        }
+        Update: {
+          code?: string | null
+          created_at?: string
+          department_id?: string | null
+          id?: string
+          level?: string | null
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "courses_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      departments: {
+        Row: {
+          ai_guidance: string | null
+          common_methodologies: string[] | null
+          created_at: string
+          description: string | null
+          faculty_id: string | null
+          id: string
+          name: string
+          specializations: string[] | null
+        }
+        Insert: {
+          ai_guidance?: string | null
+          common_methodologies?: string[] | null
+          created_at?: string
+          description?: string | null
+          faculty_id?: string | null
+          id?: string
+          name: string
+          specializations?: string[] | null
+        }
+        Update: {
+          ai_guidance?: string | null
+          common_methodologies?: string[] | null
+          created_at?: string
+          description?: string | null
+          faculty_id?: string | null
+          id?: string
+          name?: string
+          specializations?: string[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "departments_faculty_id_fkey"
+            columns: ["faculty_id"]
+            isOneToOne: false
+            referencedRelation: "faculties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      faculties: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          university_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          university_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          university_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "faculties_university_id_fkey"
+            columns: ["university_id"]
+            isOneToOne: false
+            referencedRelation: "universities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           academic_level: string | null
@@ -163,6 +268,47 @@ export type Database = {
           },
         ]
       }
+      project_citations: {
+        Row: {
+          created_at: string
+          formatted: string
+          id: string
+          metadata: Json | null
+          project_id: string | null
+          source_type: string | null
+          style: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          formatted: string
+          id?: string
+          metadata?: Json | null
+          project_id?: string | null
+          source_type?: string | null
+          style?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          formatted?: string
+          id?: string
+          metadata?: Json | null
+          project_id?: string | null
+          source_type?: string | null
+          style?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_citations_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       project_documents: {
         Row: {
           analysis: Json | null
@@ -211,6 +357,47 @@ export type Database = {
             foreignKeyName: "project_documents_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_memory: {
+        Row: {
+          citation_style: string | null
+          formatting_preference: string | null
+          id: string
+          memory: Json | null
+          notes: string | null
+          project_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          citation_style?: string | null
+          formatting_preference?: string | null
+          id?: string
+          memory?: Json | null
+          notes?: string | null
+          project_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          citation_style?: string | null
+          formatting_preference?: string | null
+          id?: string
+          memory?: Json | null
+          notes?: string | null
+          project_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_memory_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: true
             referencedRelation: "projects"
             referencedColumns: ["id"]
           },
@@ -452,6 +639,30 @@ export type Database = {
         }
         Relationships: []
       }
+      research_fields: {
+        Row: {
+          created_at: string
+          department_hint: string | null
+          description: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          department_hint?: string | null
+          description?: string | null
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          department_hint?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
       subscriptions: {
         Row: {
           created_at: string
@@ -485,15 +696,116 @@ export type Database = {
         }
         Relationships: []
       }
+      supervisor_feedback: {
+        Row: {
+          analysis: Json | null
+          created_at: string
+          id: string
+          project_id: string | null
+          raw_feedback: string
+          source: string | null
+          user_id: string
+        }
+        Insert: {
+          analysis?: Json | null
+          created_at?: string
+          id?: string
+          project_id?: string | null
+          raw_feedback: string
+          source?: string | null
+          user_id: string
+        }
+        Update: {
+          analysis?: Json | null
+          created_at?: string
+          id?: string
+          project_id?: string | null
+          raw_feedback?: string
+          source?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supervisor_feedback_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      universities: {
+        Row: {
+          city: string | null
+          country: string | null
+          created_at: string
+          formatting_preferences: Json | null
+          id: string
+          name: string
+          short_name: string | null
+          type: string | null
+          updated_at: string
+        }
+        Insert: {
+          city?: string | null
+          country?: string | null
+          created_at?: string
+          formatting_preferences?: Json | null
+          id?: string
+          name: string
+          short_name?: string | null
+          type?: string | null
+          updated_at?: string
+        }
+        Update: {
+          city?: string | null
+          country?: string | null
+          created_at?: string
+          formatting_preferences?: Json | null
+          id?: string
+          name?: string
+          short_name?: string | null
+          type?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "user"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -620,6 +932,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "user"],
+    },
   },
 } as const
