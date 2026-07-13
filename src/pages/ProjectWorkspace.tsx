@@ -15,6 +15,7 @@ import {
   Circle,
   BookOpen,
 } from "lucide-react";
+import AcademicAssistant from "@/components/project/AcademicAssistant";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -33,6 +34,7 @@ type SectionRow = {
 
 const CHAPTERS: { key: string; label: string; sections: string[] }[] = [
   { key: "overview", label: "Overview", sections: [] },
+  { key: "assistant", label: "Academic Assistant", sections: [] },
   { key: "topic", label: "Topic", sections: ["Topic", "Abstract"] },
   {
     key: "chapter1",
@@ -323,6 +325,8 @@ const ProjectWorkspace = () => {
               totalSectionsCount={totalSectionsCount}
               completedCount={completedCount}
             />
+          ) : activeChapter === "assistant" ? (
+            <AcademicAssistant user={user} profile={profile} project={project} sections={sections as any} />
           ) : (
             <motion.div
               key={activeChapter}
