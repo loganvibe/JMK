@@ -188,7 +188,7 @@ const DefensePreparation = ({ user, profile, project, sections }: Props) => {
     URL.revokeObjectURL(url);
   };
 
-  const readinessScore = readiness?.score ?? Math.round((checklistPercent + (evalResult?.overall_score ?? 0)) / (evalResult ? 2 : 1)) || checklistPercent;
+  const readinessScore = readiness?.score ?? (Math.round((checklistPercent + (evalResult?.overall_score ?? 0)) / (evalResult ? 2 : 1)) || checklistPercent);
 
   return (
     <div className="space-y-6">
