@@ -109,6 +109,124 @@ export type Database = {
           },
         ]
       }
+      defense_question_bank: {
+        Row: {
+          category: string
+          created_at: string
+          department: string | null
+          difficulty: string
+          id: string
+          question: string
+          sample_answer: string | null
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          department?: string | null
+          difficulty?: string
+          id?: string
+          question: string
+          sample_answer?: string | null
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          department?: string | null
+          difficulty?: string
+          id?: string
+          question?: string
+          sample_answer?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      defense_sessions: {
+        Row: {
+          answers: Json
+          created_at: string
+          feedback: Json | null
+          id: string
+          project_id: string
+          questions: Json
+          score: number | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          answers?: Json
+          created_at?: string
+          feedback?: Json | null
+          id?: string
+          project_id: string
+          questions?: Json
+          score?: number | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          answers?: Json
+          created_at?: string
+          feedback?: Json | null
+          id?: string
+          project_id?: string
+          questions?: Json
+          score?: number | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "defense_sessions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      defense_summaries: {
+        Row: {
+          content: Json
+          created_at: string
+          id: string
+          project_id: string
+          summary_type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          content?: Json
+          created_at?: string
+          id?: string
+          project_id: string
+          summary_type: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          content?: Json
+          created_at?: string
+          id?: string
+          project_id?: string
+          summary_type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "defense_summaries_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       departments: {
         Row: {
           ai_guidance: string | null
@@ -261,6 +379,47 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "project_ai_history_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_checklists: {
+        Row: {
+          checklist_item: string
+          completed: boolean
+          created_at: string
+          id: string
+          project_id: string
+          sort_order: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          checklist_item: string
+          completed?: boolean
+          created_at?: string
+          id?: string
+          project_id: string
+          sort_order?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          checklist_item?: string
+          completed?: boolean
+          created_at?: string
+          id?: string
+          project_id?: string
+          sort_order?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_checklists_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
