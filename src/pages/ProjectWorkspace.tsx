@@ -16,6 +16,7 @@ import {
   BookOpen,
 } from "lucide-react";
 import AcademicAssistant from "@/components/project/AcademicAssistant";
+import DefensePreparation from "@/components/project/DefensePreparation";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -70,7 +71,7 @@ const CHAPTERS: { key: string; label: string; sections: string[] }[] = [
     sections: ["Summary", "Conclusion", "Recommendations"],
   },
   { key: "references", label: "References", sections: ["References"] },
-  { key: "defense", label: "Defense Preparation", sections: ["Defense Preparation"] },
+  { key: "defense", label: "Defense Preparation", sections: [] },
 ];
 
 const totalSectionsCount = CHAPTERS.reduce((n, c) => n + c.sections.length, 0);
@@ -327,6 +328,8 @@ const ProjectWorkspace = () => {
             />
           ) : activeChapter === "assistant" ? (
             <AcademicAssistant user={user} profile={profile} project={project} sections={sections as any} />
+          ) : activeChapter === "defense" ? (
+            <DefensePreparation user={user} profile={profile} project={project} sections={sections as any} />
           ) : (
             <motion.div
               key={activeChapter}
