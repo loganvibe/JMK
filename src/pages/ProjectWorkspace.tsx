@@ -16,6 +16,7 @@ import {
   BookOpen,
 } from "lucide-react";
 import AcademicAssistant from "@/components/project/AcademicAssistant";
+import DefensePreparation from "@/components/project/DefensePreparation";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
