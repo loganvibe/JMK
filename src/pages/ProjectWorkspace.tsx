@@ -328,6 +328,8 @@ const ProjectWorkspace = () => {
             />
           ) : activeChapter === "assistant" ? (
             <AcademicAssistant user={user} profile={profile} project={project} sections={sections as any} />
+          ) : activeChapter === "defense" ? (
+            <DefensePreparation user={user} profile={profile} project={project} sections={sections as any} />
           ) : (
             <motion.div
               key={activeChapter}
