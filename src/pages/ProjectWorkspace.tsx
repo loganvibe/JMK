@@ -71,7 +71,7 @@ const CHAPTERS: { key: string; label: string; sections: string[] }[] = [
     sections: ["Summary", "Conclusion", "Recommendations"],
   },
   { key: "references", label: "References", sections: ["References"] },
-  { key: "defense", label: "Defense Preparation", sections: ["Defense Preparation"] },
+  { key: "defense", label: "Defense Preparation", sections: [] },
 ];
 
 const totalSectionsCount = CHAPTERS.reduce((n, c) => n + c.sections.length, 0);
