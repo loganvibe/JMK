@@ -207,9 +207,16 @@ const Dashboard = () => {
               <Link to="/profile" className="flex items-center gap-3 px-4 py-3 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
                 <UserIcon className="w-5 h-5" /> Profile
               </Link>
-              <Link to="/pricing" className="flex items-center gap-3 px-4 py-3 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
-                <CreditCard className="w-5 h-5" /> Subscription
+              <Link to="/billing" className="flex items-center gap-3 px-4 py-3 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
+                <CreditCard className="w-5 h-5" /> Billing
               </Link>
+              <Link to="/services" className="flex items-center gap-3 px-4 py-3 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
+                <BookOpen className="w-5 h-5" /> Custom Services
+              </Link>
+              <Link to="/pricing" className="flex items-center gap-3 px-4 py-3 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
+                <Crown className="w-5 h-5" /> Plans
+              </Link>
+
             </nav>
 
             <div className="p-4 border-t border-border">
