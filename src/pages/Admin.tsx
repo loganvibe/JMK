@@ -1,27 +1,44 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Loader2, Plus, Trash2, ShieldCheck, GraduationCap } from "lucide-react";
+import {
+  ArrowLeft, Loader2, Plus, Trash2, ShieldCheck, GraduationCap,
+  TrendingUp, Users, Wallet, Briefcase, Sparkles,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { formatNaira } from "@/hooks/useEntitlements";
+
+const REQUEST_STATUSES = ["pending", "reviewing", "quoted", "accepted", "in_progress", "completed", "rejected"];
 
 const Admin = () => {
   const nav = useNavigate();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [tab, setTab] = useState("universities");
+  const [tab, setTab] = useState("revenue");
 
   const [universities, setUniversities] = useState<any[]>([]);
   const [departments, setDepartments] = useState<any[]>([]);
   const [fields, setFields] = useState<any[]>([]);
 
+  const [txns, setTxns] = useState<any[]>([]);
+  const [subs, setSubs] = useState<any[]>([]);
+  const [usage, setUsage] = useState<any[]>([]);
+  const [requests, setRequests] = useState<any[]>([]);
+  const [quote, setQuote] = useState<Record<string, { price: string; note: string; status: string }>>({});
+
   const [newUni, setNewUni] = useState({ name: "", short_name: "", city: "", type: "Federal" });
   const [newDept, setNewDept] = useState({ name: "", description: "", specializations: "", common_methodologies: "", ai_guidance: "" });
   const [newField, setNewField] = useState({ name: "", department_hint: "", description: "" });
+
 
   useEffect(() => {
     (async () => {
