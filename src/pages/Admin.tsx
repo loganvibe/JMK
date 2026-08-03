@@ -40,6 +40,16 @@ const Admin = () => {
   const [newField, setNewField] = useState({ name: "", department_hint: "", description: "" });
 
 
+  const loadBusiness = async () => {
+    const [{ data: t }, { data: s }, { data: au }, { data: r }] = await Promise.all([
+      supabase.from("payment_transactions").select("*").order("created_at", { ascending: false }).limit(200),
+      supabase.from("user_subscriptions").select("*, subscription_plans(name, slug, price)").order("created_at", { ascending: false }).limit(200),
+      supabase.from("ai_usage_logs").select("feature, credits_used, created_at").order("created_at", { ascending: false }).limit(500),
+      supabase.from("service_requests").select("*").order("created_at", { ascending: false }).limit(100),
+    ]);
+    setTxns(t ?? []); setSubs(s ?? []); setUsage(au ?? []); setRequests(r ?? []);
+  };
+
   useEffect(() => {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -53,9 +63,34 @@ const Admin = () => {
         supabase.from("research_fields").select("*").order("name"),
       ]);
       setUniversities(u ?? []); setDepartments(d ?? []); setFields(f ?? []);
+      await loadBusiness();
       setLoading(false);
     })();
   }, [nav]);
+
+  const saveQuote = async (r: any) => {
+    const q = quote[r.id] ?? { price: "", note: "", status: r.status };
+    const payload: any = { status: q.status || r.status };
+    if (q.price !== "") payload.admin_price = Number(q.price);
+    if (q.note !== "") payload.admin_note = q.note;
+
+    const { error } = await supabase.from("service_requests").update(payload).eq("id", r.id);
+    if (error) return toast({ title: "Update failed", description: error.message, variant: "destructive" });
+
+    await supabase.from("notifications").insert({
+      user_id: r.user_id,
+      title: payload.admin_price != null ? "Your custom service quote is ready" : "Service request updated",
+      body: payload.admin_price != null
+        ? `We quoted ${formatNaira(Number(payload.admin_price))} for "${r.category}".`
+        : `Status changed to ${payload.status}.`,
+      type: "info",
+      link: "/services",
+    });
+
+    toast({ title: "Request updated" });
+    loadBusiness();
+  };
+
 
   const addUni = async () => {
     if (!newUni.name.trim()) return;
