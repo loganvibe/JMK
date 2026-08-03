@@ -14,6 +14,8 @@ import Profile from "./pages/Profile";
 import CreateProject from "./pages/CreateProject";
 import ProjectWorkspace from "./pages/ProjectWorkspace";
 import RefineProject from "./pages/RefineProject";
+import Billing from "./pages/Billing";
+import Services from "./pages/Services";
 import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
 
@@ -37,6 +39,8 @@ const App = () => (
           <Route path="/projects/new" element={<CreateProject />} />
           <Route path="/projects/:id" element={<ProjectWorkspace />} />
           <Route path="/refine" element={<RefineProject />} />
+          <Route path="/billing" element={<Billing />} />
+          <Route path="/services" element={<Services />} />
           <Route path="/admin" element={<Admin />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
