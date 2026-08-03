@@ -159,17 +159,107 @@ const Admin = () => {
           <div className="flex items-center gap-2">
             <Link to="/dashboard" className="text-muted-foreground hover:text-foreground"><ArrowLeft className="w-4 h-4" /></Link>
             <GraduationCap className="w-5 h-5 text-accent" />
-            <h1 className="font-heading font-bold">Academic Management</h1>
+            <h1 className="font-heading font-bold">Admin Console</h1>
           </div>
         </div>
       </header>
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
         <Tabs value={tab} onValueChange={setTab}>
-          <TabsList>
+          <TabsList className="flex-wrap h-auto">
+            <TabsTrigger value="revenue">Revenue</TabsTrigger>
+            <TabsTrigger value="requests">Service requests</TabsTrigger>
             <TabsTrigger value="universities">Universities</TabsTrigger>
             <TabsTrigger value="departments">Departments</TabsTrigger>
             <TabsTrigger value="fields">Research fields</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="revenue" className="space-y-6 mt-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <Metric icon={<Wallet className="w-5 h-5 text-accent" />} label="Total revenue"
+                value={formatNaira(txns.filter((t) => t.status === "success").reduce((s, t) => s + Number(t.amount || 0), 0))} />
+              <Metric icon={<TrendingUp className="w-5 h-5 text-accent" />} label="Successful payments"
+                value={String(txns.filter((t) => t.status === "success").length)} />
+              <Metric icon={<Users className="w-5 h-5 text-accent" />} label="Active subscribers"
+                value={String(subs.filter((s) => s.status === "active").length)} />
+              <Metric icon={<Sparkles className="w-5 h-5 text-accent" />} label="AI credits used"
+                value={String(usage.reduce((s, u) => s + (u.credits_used || 0), 0))} />
+            </div>
+
+            <div>
+              <h3 className="font-heading font-semibold mb-2">Subscribers by plan</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {Object.entries(
+                  subs.filter((s) => s.status === "active").reduce((acc: Record<string, number>, s) => {
+                    const n = s.subscription_plans?.name ?? "Unknown";
+                    acc[n] = (acc[n] ?? 0) + 1;
+                    return acc;
+                  }, {}),
+                ).map(([name, count]) => (
+                  <div key={name} className="border border-border rounded-lg p-3 bg-background">
+                    <p className="text-sm text-muted-foreground">{name}</p>
+                    <p className="text-xl font-heading font-bold">{count as number}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <h3 className="font-heading font-semibold mb-2">Recent transactions</h3>
+              <div className="space-y-1">
+                {txns.slice(0, 20).map((t) => (
+                  <div key={t.id} className="flex items-center justify-between border border-border rounded-lg p-3 bg-background">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{t.metadata?.plan_slug ?? t.transaction_type}</p>
+                      <p className="text-xs text-muted-foreground truncate">{new Date(t.created_at).toLocaleString()} · {t.reference}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-semibold">{formatNaira(Number(t.amount))}</p>
+                      <Badge variant={t.status === "success" ? "default" : t.status === "pending" ? "secondary" : "destructive"}>{t.status}</Badge>
+                    </div>
+                  </div>
+                ))}
+                {txns.length === 0 && <p className="text-sm text-muted-foreground">No transactions yet.</p>}
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="requests" className="space-y-3 mt-4">
+            {requests.length === 0 && <p className="text-sm text-muted-foreground">No custom service requests yet.</p>}
+            {requests.map((r) => {
+              const q = quote[r.id] ?? { price: r.admin_price ?? "", note: r.admin_note ?? "", status: r.status };
+              return (
+                <div key={r.id} className="border border-border rounded-xl p-4 bg-background space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-medium flex items-center gap-2">
+                        <Briefcase className="w-4 h-4 text-accent" /> {r.category}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {r.department ?? "—"} · deadline {r.deadline ?? "none"} · {new Date(r.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <Badge variant="secondary">{r.status}</Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground whitespace-pre-wrap">{r.description}</p>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+                    <Input type="number" placeholder="Quote (₦)" value={String(q.price)}
+                      onChange={(e) => setQuote({ ...quote, [r.id]: { ...q, price: e.target.value } })} />
+                    <Input placeholder="Note to student" value={q.note}
+                      onChange={(e) => setQuote({ ...quote, [r.id]: { ...q, note: e.target.value } })} />
+                    <Select value={q.status} onValueChange={(v) => setQuote({ ...quote, [r.id]: { ...q, status: v } })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {REQUEST_STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <Button onClick={() => saveQuote(r)}>Save & notify</Button>
+                  </div>
+                </div>
+              );
+            })}
+          </TabsContent>
+
+
 
           <TabsContent value="universities" className="space-y-4 mt-4">
             <div className="grid grid-cols-1 md:grid-cols-5 gap-2 border border-border rounded-xl p-3 bg-muted/20">
