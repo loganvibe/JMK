@@ -312,6 +312,13 @@ const Admin = () => {
   );
 };
 
+const Metric = ({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) => (
+  <div className="border border-border rounded-xl p-4 bg-background">
+    <div className="flex items-center gap-2 mb-2">{icon}<span className="text-xs text-muted-foreground">{label}</span></div>
+    <p className="text-xl font-heading font-bold text-foreground">{value}</p>
+  </div>
+);
+
 const Row = ({ title, subtitle, onDelete }: { title: string; subtitle?: string; onDelete: () => void }) => (
   <div className="flex items-center justify-between border border-border rounded-lg p-3 bg-background">
     <div className="min-w-0">
