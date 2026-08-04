@@ -15,6 +15,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { formatNaira } from "@/hooks/useEntitlements";
+import AdminAnalytics from "@/components/admin/AdminAnalytics";
+
 
 const REQUEST_STATUSES = ["pending", "reviewing", "quoted", "accepted", "in_progress", "completed", "rejected"];
 
@@ -166,12 +168,19 @@ const Admin = () => {
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="flex-wrap h-auto">
+            <TabsTrigger value="analytics">Analytics</TabsTrigger>
             <TabsTrigger value="revenue">Revenue</TabsTrigger>
             <TabsTrigger value="requests">Service requests</TabsTrigger>
             <TabsTrigger value="universities">Universities</TabsTrigger>
             <TabsTrigger value="departments">Departments</TabsTrigger>
             <TabsTrigger value="fields">Research fields</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="analytics" className="mt-4">
+            <AdminAnalytics />
+          </TabsContent>
+
+
 
           <TabsContent value="revenue" className="space-y-6 mt-4">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

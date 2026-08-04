@@ -1,4 +1,5 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import { guard } from "../_shared/entitlements.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -18,6 +19,11 @@ Deno.serve(async (req) => {
     const projectText: string = (body?.projectText ?? "").toString().slice(0, 60000);
     const changes: string = (body?.changes ?? "").toString().slice(0, 4000);
     const newTopic: string = (body?.newTopic ?? "").toString().slice(0, 500);
+
+    // --- server-side auth, plan and credit enforcement ---
+    const access = await guard(req, "refinement", { projectId: body?.projectId ?? null });
+    await access.log();
+
 
     if (!projectText.trim() || !changes.trim()) {
       return new Response(
@@ -87,10 +93,10 @@ Produce the full refreshed project now.`;
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (e) {
+  } catch (e: any) {
     console.error("modify-project error", e);
-    return new Response(JSON.stringify({ error: "Unexpected server error" }), {
-      status: 500,
+    return new Response(JSON.stringify({ error: e?.message ?? "Unexpected server error" }), {
+      status: e?.status ?? 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
