@@ -303,6 +303,39 @@ export type Database = {
           },
         ]
       }
+      error_logs: {
+        Row: {
+          created_at: string
+          details: Json
+          id: string
+          message: string
+          scope: string
+          severity: string
+          source: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          details?: Json
+          id?: string
+          message: string
+          scope: string
+          severity?: string
+          source?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          details?: Json
+          id?: string
+          message?: string
+          scope?: string
+          severity?: string
+          source?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       faculties: {
         Row: {
           created_at: string
