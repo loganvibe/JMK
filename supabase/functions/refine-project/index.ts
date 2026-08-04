@@ -1,4 +1,5 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import { guard } from "../_shared/entitlements.ts";
 
 const MODEL = "google/gemini-3-flash-preview";
 
@@ -51,6 +52,11 @@ Deno.serve(async (req) => {
     const text: string = (body.text ?? "").toString().slice(0, 80000);
     const profile = body.profile ?? {};
     const answers = body.answers ?? {};
+
+    // --- server-side auth, plan and credit enforcement ---
+    const access = await guard(req, "refinement", { projectId: body.project_id ?? body.project?.id ?? null });
+    await access.log();
+
 
     if (action === "analyze") {
       const system = `You are an expert academic evaluator for Nigerian university final-year projects.

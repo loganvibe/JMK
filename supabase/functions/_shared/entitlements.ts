@@ -170,3 +170,43 @@ export async function enforce(
     },
   };
 }
+
+/** Ensures the given project belongs to the user. Throws AccessError otherwise. */
+export async function assertProjectOwnership(userId: string, projectId?: string | null) {
+  if (!projectId) return;
+  const db = adminClient();
+  const { data } = await db
+    .from("projects")
+    .select("id, user_id")
+    .eq("id", projectId)
+    .maybeSingle();
+  if (!data || data.user_id !== userId) {
+    throw new AccessError("You don't have access to this project.", 403, "forbidden");
+  }
+}
+
+/** Consistent JSON error response for edge functions. */
+export function accessErrorResponse(e: unknown, corsHeaders: Record<string, string>) {
+  const status = e instanceof AccessError ? e.status : 500;
+  const code = e instanceof AccessError ? e.code : "server_error";
+  const message = (e as any)?.message ?? "Unexpected server error";
+  console.error("edge function error", code, message);
+  return new Response(JSON.stringify({ error: message, code }), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+/**
+ * One-call guard: validates session, plan, chapter access, credits and project
+ * ownership. Returns the enforcement context (call `.log()` after success).
+ */
+export async function guard(
+  req: Request,
+  feature: FeatureKey,
+  opts: { projectId?: string | null; chapter?: string | null } = {},
+) {
+  const ctx = await enforce(req, feature, opts);
+  await assertProjectOwnership(ctx.user.id, opts.projectId ?? null);
+  return ctx;
+}

@@ -36,6 +36,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
+import OnboardingGuide from "@/components/onboarding/OnboardingGuide";
 
 const departments = [
   "Computer Science","Mechanical Engineering","Electrical Engineering","Civil Engineering",
@@ -77,6 +78,9 @@ const Dashboard = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [difficultyFilter, setDifficultyFilter] = useState("all");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [hideOnboarding, setHideOnboarding] = useState(
+    typeof window !== "undefined" && localStorage.getItem("jmk_hide_onboarding") === "1",
+  );
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -259,9 +263,9 @@ const Dashboard = () => {
       )}
 
       <main className="flex-1 overflow-auto">
-        <div className="p-6 lg:p-8 space-y-8">
+        <div className="p-4 sm:p-6 lg:p-8 space-y-6 lg:space-y-8">
           {/* Header */}
-          <div>
+          <div className="pl-12 lg:pl-0">
             <motion.h1
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -274,27 +278,23 @@ const Dashboard = () => {
             </p>
           </div>
 
-          {/* Profile completion banner */}
-          {!profileComplete && (
-            <motion.div
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="flex items-center justify-between gap-4 rounded-xl border border-accent/30 bg-accent/5 p-4"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-accent/15 flex items-center justify-center">
-                  <UserIcon className="w-5 h-5 text-accent" />
-                </div>
-                <div>
-                  <p className="font-medium text-foreground">Complete your academic profile</p>
-                  <p className="text-sm text-muted-foreground">Add your university, department and level for tailored recommendations.</p>
-                </div>
-              </div>
-              <Button variant="accent" size="sm" asChild>
-                <Link to="/profile">Complete Profile <ChevronRight className="w-4 h-4 ml-1" /></Link>
-              </Button>
-            </motion.div>
+          {/* Guided onboarding */}
+          {!hideOnboarding && (
+            <OnboardingGuide
+              state={{
+                hasProfile: !!profile?.full_name,
+                hasSchool: !!(profile?.university && profile?.department),
+                hasProject: projects.length > 0,
+                hasTopicContent: projects.some((p) => (p.progress_percent ?? 0) > 0),
+                usedAI: Number(aiUsage?.credits_used ?? 0) > 0,
+              }}
+              onDismiss={() => {
+                localStorage.setItem("jmk_hide_onboarding", "1");
+                setHideOnboarding(true);
+              }}
+            />
           )}
+
 
           {/* Top grid: student info + stats */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
