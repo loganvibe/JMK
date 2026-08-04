@@ -1,4 +1,5 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import { guard } from "../_shared/entitlements.ts";
 
 const MODEL = "google/gemini-3-flash-preview";
 
@@ -64,6 +65,14 @@ Deno.serve(async (req) => {
   try {
     const { action, project, profile, sections, payload } = await req.json();
     const ctx = projectContext({ project, profile, sections });
+
+    // --- server-side auth, plan and credit enforcement ---
+    const feature = action === "mock_question" || action === "mock_evaluate" || action === "mock"
+      ? "defense_simulation"
+      : "defense_basic";
+    const access = await guard(req, feature as any, { projectId: project?.id ?? null });
+    await access.log();
+
 
     if (action === "summary") {
       const type = payload?.type ?? "5min"; // '5min' | '10min'

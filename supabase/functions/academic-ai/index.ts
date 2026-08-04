@@ -1,4 +1,5 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import { guard } from "../_shared/entitlements.ts";
 
 const MODEL = "google/gemini-3-flash-preview";
 
@@ -100,6 +101,16 @@ Deno.serve(async (req) => {
       sections: body.sections,
     };
     const style: string = body.citation_style ?? ctx.memory?.citation_style ?? "APA7";
+
+    // --- server-side auth, plan and credit enforcement ---
+    const feature = action === "quality_check"
+      ? "quality_check"
+      : action?.startsWith("citation")
+      ? "citation"
+      : "academic_assist";
+    const access = await guard(req, feature as any, { projectId: body.project?.id ?? null });
+    await access.log();
+
 
     if (action === "research_assistant") {
       const question: string = body.question ?? "";
