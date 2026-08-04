@@ -36,6 +36,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
+import OnboardingGuide from "@/components/onboarding/OnboardingGuide";
 
 const departments = [
   "Computer Science","Mechanical Engineering","Electrical Engineering","Civil Engineering",
@@ -77,6 +78,9 @@ const Dashboard = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [difficultyFilter, setDifficultyFilter] = useState("all");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [hideOnboarding, setHideOnboarding] = useState(
+    typeof window !== "undefined" && localStorage.getItem("jmk_hide_onboarding") === "1",
+  );
   const navigate = useNavigate();
   const { toast } = useToast();
 
