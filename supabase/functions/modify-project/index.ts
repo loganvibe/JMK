@@ -93,10 +93,10 @@ Produce the full refreshed project now.`;
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (e) {
+  } catch (e: any) {
     console.error("modify-project error", e);
-    return new Response(JSON.stringify({ error: "Unexpected server error" }), {
-      status: 500,
+    return new Response(JSON.stringify({ error: e?.message ?? "Unexpected server error" }), {
+      status: e?.status ?? 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
