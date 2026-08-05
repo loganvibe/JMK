@@ -93,6 +93,28 @@ export async function reportError(
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
+ * Supabase's functions.invoke() collapses every non-2xx response into a generic
+ * "Edge Function returned a non-2xx status code" error. This digs the real
+ * message out of the response body so plan/credit errors reach the student.
+ */
+async function unwrapFunctionError(err: any): Promise<Error> {
+  const ctx = err?.context;
+  try {
+    if (ctx && typeof ctx.json === "function") {
+      const cloned = typeof ctx.clone === "function" ? ctx.clone() : ctx;
+      const body = await cloned.json();
+      if (body?.error) return Object.assign(new Error(String(body.error)), { code: body.code });
+    } else if (ctx && typeof ctx.text === "function") {
+      const text = await ctx.text();
+      if (text) return new Error(text);
+    }
+  } catch {
+    // fall through to the original error
+  }
+  return err instanceof Error ? err : new Error(String(err?.message ?? err));
+}
+
+/**
  * Invokes an edge function with one automatic retry on transient failures,
  * consistent error shape and automatic error logging.
  */
@@ -108,12 +130,15 @@ export async function invokeFunction<T = any>(
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       const { data, error } = await supabase.functions.invoke(name, { body });
-      if (error) throw error;
+      if (error) throw await unwrapFunctionError(error);
       if (data && (data as any).error) throw new Error((data as any).error);
       return data as T;
     } catch (err: any) {
       lastErr = err;
       const text = String(err?.message ?? "").toLowerCase();
+      const code = String(err?.code ?? "");
+      // Plan / credit / auth problems are final — never retry or hide them.
+      if (["upgrade_required", "credits_exhausted", "unauthenticated", "forbidden"].includes(code)) break;
       const transient =
         text.includes("failed to fetch") ||
         text.includes("timeout") ||
@@ -131,6 +156,7 @@ export async function invokeFunction<T = any>(
   await logError(scope, `${name}: ${(lastErr as any)?.message ?? "unknown"}`, { function: name });
   throw new Error(friendlyError(lastErr, scope));
 }
+
 
 export const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 const ALLOWED_EXT = [".pdf", ".doc", ".docx", ".txt", ".md"];
