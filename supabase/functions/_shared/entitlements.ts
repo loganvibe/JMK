@@ -122,12 +122,21 @@ export async function enforce(
     );
   }
 
-  // Free trial: only Chapter 1 of one project
+  // Free trial: only Chapter 1 of one project.
+  // Plan limits store keys like "chapter1"; the client sends labels like
+  // "Chapter 1: Introduction", so compare on the detected chapter number and
+  // never block un-numbered sections (Abstract, References, Defense…).
   const limits: any = plan.ai_limits ?? {};
+  const chapterKey = (text: string) => {
+    const m = /chapter\s*[-_]?\s*([1-9])/i.exec(String(text));
+    return m ? `chapter${m[1]}` : null;
+  };
   if (Array.isArray(limits.chapters) && opts.chapter) {
-    const key = String(opts.chapter).toLowerCase().replace(/[^a-z0-9]/g, "");
-    const allowed = limits.chapters.map((c: string) => c.toLowerCase().replace(/[^a-z0-9]/g, ""));
-    if (!allowed.includes(key)) {
+    const key = chapterKey(opts.chapter);
+    const allowed = limits.chapters
+      .map((c: string) => chapterKey(c))
+      .filter(Boolean) as string[];
+    if (key && allowed.length && !allowed.includes(key)) {
       throw new AccessError(
         `Your ${plan.name} only covers Chapter 1. Upgrade to unlock Chapters 2-5.`,
         402,
@@ -135,6 +144,7 @@ export async function enforce(
       );
     }
   }
+
 
   const limit = Number(limits.credits ?? 10);
   const used = await creditsUsedThisMonth(user.id);
