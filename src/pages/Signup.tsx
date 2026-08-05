@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { GraduationCap, Mail, Lock, User, ArrowLeft, Loader2 } from "lucide-react";
+import { GraduationCap, Mail, Lock, User, ArrowLeft, Loader2, MailCheck } from "lucide-react";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
@@ -14,41 +14,78 @@ const Signup = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [sentTo, setSentTo] = useState<string | null>(null);
+  const [resending, setResending] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!name.trim()) {
+      toast({ title: "Please enter your full name", variant: "destructive" });
+      return;
+    }
     setIsLoading(true);
 
     try {
-      const { error } = await supabase.auth.signUp({
-        email,
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
         password,
         options: {
-          data: {
-            full_name: name,
-          },
+          data: { full_name: name.trim() },
           emailRedirectTo: `${window.location.origin}/dashboard`,
         },
       });
 
       if (error) throw error;
 
+      // Email confirmation is on: signUp returns no session until the link is clicked.
+      if (data.session) {
+        navigate("/dashboard");
+        return;
+      }
+
+      setSentTo(email.trim());
       toast({
-        title: "Check your email!",
+        title: "Check your email",
         description: "We've sent you a confirmation link to verify your email address.",
       });
     } catch (error: any) {
+      const msg = String(error?.message ?? "");
       toast({
         title: "Signup failed",
-        description: error.message || "Please try again.",
+        description: /already registered|already exists/i.test(msg)
+          ? "That email already has an account. Try signing in instead."
+          : msg || "Please try again.",
         variant: "destructive",
       });
     } finally {
       setIsLoading(false);
     }
   };
+
+  const handleResend = async () => {
+    if (!sentTo) return;
+    setResending(true);
+    try {
+      const { error } = await supabase.auth.resend({
+        type: "signup",
+        email: sentTo,
+        options: { emailRedirectTo: `${window.location.origin}/dashboard` },
+      });
+      if (error) throw error;
+      toast({ title: "Verification email resent", description: `Sent again to ${sentTo}.` });
+    } catch (error: any) {
+      toast({
+        title: "Could not resend",
+        description: error?.message || "Please wait a moment and try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setResending(false);
+    }
+  };
+
 
   const handleGoogleSignup = async () => {
     try {
@@ -67,7 +104,43 @@ const Signup = () => {
     }
   };
 
+  if (sentTo) {
+    return (
+      <div className="min-h-screen bg-gradient-hero flex items-center justify-center p-4">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="w-full max-w-md"
+        >
+          <div className="bg-card rounded-2xl shadow-soft p-8 border border-border text-center space-y-4">
+            <div className="mx-auto w-12 h-12 rounded-xl bg-gradient-accent flex items-center justify-center shadow-glow">
+              <MailCheck className="w-7 h-7 text-accent-foreground" />
+            </div>
+            <h1 className="text-2xl font-heading font-bold text-foreground">Verify your email</h1>
+            <p className="text-sm text-muted-foreground">
+              We sent a confirmation link to <span className="font-medium text-foreground">{sentTo}</span>. Click it
+              to activate your account, then sign in. Remember to check your spam folder.
+            </p>
+            <Button variant="outline" className="w-full" onClick={handleResend} disabled={resending}>
+              {resending ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" /> Resending…
+                </>
+              ) : (
+                "Resend verification email"
+              )}
+            </Button>
+            <Link to="/login" className="block text-sm text-accent hover:underline">
+              Go to sign in
+            </Link>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
+
   return (
+
     <div className="min-h-screen bg-gradient-hero flex items-center justify-center p-4">
       {/* Back Button */}
       <Link

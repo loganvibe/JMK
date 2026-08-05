@@ -113,9 +113,17 @@ export function useEntitlements() {
   const canUseChapter = (chapter: string) => {
     const allowed = plan?.ai_limits?.chapters;
     if (!Array.isArray(allowed)) return true;
-    const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
-    return allowed.map(norm).includes(norm(chapter));
+    // Plans store "chapter1"; the UI passes labels like "Chapter 1: Introduction".
+    const key = (s: string) => {
+      const m = /chapter\s*[-_]?\s*([1-9])/i.exec(String(s));
+      return m ? `chapter${m[1]}` : null;
+    };
+    const wanted = key(chapter);
+    if (!wanted) return true; // Abstract, references, defense… are never chapter-gated
+    const list = allowed.map(key).filter(Boolean) as string[];
+    return !list.length || list.includes(wanted);
   };
+
 
   return {
     loading, plan, slug, rank, subscription, userId,

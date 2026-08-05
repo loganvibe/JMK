@@ -23,6 +23,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { invokeFunction } from "@/lib/errors";
 
 type Topic = {
   title: string;
@@ -101,10 +102,7 @@ const CreateProject = () => {
     setTopics([]);
     setSelectedIdx(null);
     try {
-      const { data, error } = await supabase.functions.invoke("project-ai", {
-        body: { action: "generate_topics", profile, inputs: form },
-      });
-      if (error) throw error;
+      const data = await invokeFunction<any>("project-ai", { action: "generate_topics", profile, inputs: form });
       const list: Topic[] = data?.topics ?? [];
       if (!list.length) throw new Error("No topics returned. Try again.");
       setTopics(list);

@@ -24,6 +24,7 @@ import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { invokeFunction } from "@/lib/errors";
 
 type SectionRow = {
   id?: string;
@@ -208,19 +209,16 @@ const ProjectWorkspace = () => {
         .filter((s) => chapterOrder.indexOf(s.chapter) <= currentIdx && s.content)
         .map((s) => ({ chapter: s.chapter, section: s.section_type, content: s.content ?? "" }));
 
-      const { data, error } = await supabase.functions.invoke("project-ai", {
-        body: {
-          action,
-          profile,
-          project,
-          chapter: currentChapter.label,
-          section: activeSection,
-          currentContent: draft,
-          instruction,
-          contextSections,
-        },
+      const data = await invokeFunction<any>("project-ai", {
+        action,
+        profile,
+        project,
+        chapter: currentChapter.label,
+        section: activeSection,
+        currentContent: draft,
+        instruction,
+        contextSections,
       });
-      if (error) throw error;
       const content: string = data?.content ?? "";
       if (!content) throw new Error("Empty AI response");
       setDraft(content);
