@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { extractTextFromFile } from "@/lib/extractText";
+import { invokeFunction } from "@/lib/errors";
 
 type Analysis = {
   title?: string;
@@ -147,11 +148,7 @@ const RefineProject = () => {
     }
     setAnalyzing(true);
     try {
-      const { data, error } = await supabase.functions.invoke("refine-project", {
-        body: { action: "analyze", text: extracted, profile },
-      });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      const data = await invokeFunction<any>("refine-project", { action: "analyze", text: extracted, profile });
       setAnalysis(data as Analysis);
       if (documentId) {
         await supabase.from("project_documents").update({ analysis: data, upload_status: "analyzed" }).eq("id", documentId);
@@ -192,10 +189,7 @@ const RefineProject = () => {
   const splitSections = async () => {
     setSplitting(true);
     try {
-      const { data, error } = await supabase.functions.invoke("refine-project", {
-        body: { action: "split_sections", text: extracted },
-      });
-      if (error) throw error;
+      const data = await invokeFunction<any>("refine-project", { action: "split_sections", text: extracted });
       const list: Section[] = (data?.sections ?? []).filter((s: any) => s?.content?.trim());
       setSections(list.length ? list : [{ chapter: "Full Document", section: "Content", content: extracted.slice(0, 8000) }]);
     } catch (e: any) {
@@ -210,18 +204,14 @@ const RefineProject = () => {
     setRefiningIdx(idx);
     try {
       const s = sections[idx];
-      const { data, error } = await supabase.functions.invoke("refine-project", {
-        body: {
-          action: "refine_section",
-          section: `${s.chapter} — ${s.section}`,
-          original: s.content,
-          instruction,
-          profile,
-          answers,
-        },
+      const data = await invokeFunction<any>("refine-project", {
+        action: "refine_section",
+        section: `${s.chapter} — ${s.section}`,
+        original: s.content,
+        instruction,
+        profile,
+        answers,
       });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
       const updated = [...sections];
       updated[idx] = { ...s, refined: data.new_content, changeSummary: data.change_summary, changes: data.changes ?? [] };
       setSections(updated);

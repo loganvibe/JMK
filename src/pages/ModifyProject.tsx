@@ -22,6 +22,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { invokeFunction } from "@/lib/errors";
 
 const ModifyProject = () => {
   const [user, setUser] = useState<any>(null);
@@ -85,11 +86,7 @@ const ModifyProject = () => {
     setIsGenerating(true);
     setOutput("");
     try {
-      const { data, error } = await supabase.functions.invoke("modify-project", {
-        body: { projectText, changes, newTopic },
-      });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      const data = await invokeFunction<any>("modify-project", { projectText, changes, newTopic });
       setOutput(data?.content ?? "");
       toast({
         title: "Your refreshed project is ready!",
