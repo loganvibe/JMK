@@ -14,41 +14,78 @@ const Signup = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [sentTo, setSentTo] = useState<string | null>(null);
+  const [resending, setResending] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!name.trim()) {
+      toast({ title: "Please enter your full name", variant: "destructive" });
+      return;
+    }
     setIsLoading(true);
 
     try {
-      const { error } = await supabase.auth.signUp({
-        email,
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
         password,
         options: {
-          data: {
-            full_name: name,
-          },
+          data: { full_name: name.trim() },
           emailRedirectTo: `${window.location.origin}/dashboard`,
         },
       });
 
       if (error) throw error;
 
+      // Email confirmation is on: signUp returns no session until the link is clicked.
+      if (data.session) {
+        navigate("/dashboard");
+        return;
+      }
+
+      setSentTo(email.trim());
       toast({
-        title: "Check your email!",
+        title: "Check your email",
         description: "We've sent you a confirmation link to verify your email address.",
       });
     } catch (error: any) {
+      const msg = String(error?.message ?? "");
       toast({
         title: "Signup failed",
-        description: error.message || "Please try again.",
+        description: /already registered|already exists/i.test(msg)
+          ? "That email already has an account. Try signing in instead."
+          : msg || "Please try again.",
         variant: "destructive",
       });
     } finally {
       setIsLoading(false);
     }
   };
+
+  const handleResend = async () => {
+    if (!sentTo) return;
+    setResending(true);
+    try {
+      const { error } = await supabase.auth.resend({
+        type: "signup",
+        email: sentTo,
+        options: { emailRedirectTo: `${window.location.origin}/dashboard` },
+      });
+      if (error) throw error;
+      toast({ title: "Verification email resent", description: `Sent again to ${sentTo}.` });
+    } catch (error: any) {
+      toast({
+        title: "Could not resend",
+        description: error?.message || "Please wait a moment and try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setResending(false);
+    }
+  };
+
 
   const handleGoogleSignup = async () => {
     try {
