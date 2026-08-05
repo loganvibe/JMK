@@ -9,7 +9,10 @@ import { LoadingState } from "@/components/common/States";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
+
 
 // Route-level code splitting keeps the first load light on mobile networks.
 const Dashboard = lazy(() => import("./pages/Dashboard"));
