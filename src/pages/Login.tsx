@@ -22,7 +22,7 @@ const Login = () => {
 
     try {
       const { error } = await supabase.auth.signInWithPassword({
-        email,
+        email: email.trim(),
         password,
       });
 
@@ -34,15 +34,19 @@ const Login = () => {
       });
       navigate("/dashboard");
     } catch (error: any) {
-      toast({
-        title: "Login failed",
-        description: error.message || "Please check your credentials and try again.",
-        variant: "destructive",
-      });
+      const raw = String(error?.message ?? "");
+      let description = raw || "Please check your credentials and try again.";
+      if (/email not confirmed/i.test(raw)) {
+        description = "Your email isn't verified yet. Open the confirmation link we sent you, then sign in.";
+      } else if (/invalid login credentials/i.test(raw)) {
+        description = "That email and password combination doesn't match an account.";
+      }
+      toast({ title: "Login failed", description, variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
   };
+
 
   const handleGoogleLogin = async () => {
     try {
