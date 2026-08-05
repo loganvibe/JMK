@@ -104,7 +104,43 @@ const Signup = () => {
     }
   };
 
+  if (sentTo) {
+    return (
+      <div className="min-h-screen bg-gradient-hero flex items-center justify-center p-4">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="w-full max-w-md"
+        >
+          <div className="bg-card rounded-2xl shadow-soft p-8 border border-border text-center space-y-4">
+            <div className="mx-auto w-12 h-12 rounded-xl bg-gradient-accent flex items-center justify-center shadow-glow">
+              <MailCheck className="w-7 h-7 text-accent-foreground" />
+            </div>
+            <h1 className="text-2xl font-heading font-bold text-foreground">Verify your email</h1>
+            <p className="text-sm text-muted-foreground">
+              We sent a confirmation link to <span className="font-medium text-foreground">{sentTo}</span>. Click it
+              to activate your account, then sign in. Remember to check your spam folder.
+            </p>
+            <Button variant="outline" className="w-full" onClick={handleResend} disabled={resending}>
+              {resending ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" /> Resending…
+                </>
+              ) : (
+                "Resend verification email"
+              )}
+            </Button>
+            <Link to="/login" className="block text-sm text-accent hover:underline">
+              Go to sign in
+            </Link>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
+
   return (
+
     <div className="min-h-screen bg-gradient-hero flex items-center justify-center p-4">
       {/* Back Button */}
       <Link
