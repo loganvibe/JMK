@@ -15,6 +15,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import ReactMarkdown from "react-markdown";
+import { invokeFunction } from "@/lib/errors";
 
 type Section = { chapter: string; section_type: string; content: string | null };
 type Props = {
@@ -104,11 +105,7 @@ const AcademicAssistant = ({ user, profile, project, sections }: Props) => {
   const call = async (action: string, extra: any = {}) => {
     setBusy(action);
     try {
-      const { data, error } = await supabase.functions.invoke("academic-ai", {
-        body: { action, ...baseCtx, ...extra },
-      });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      const data = await invokeFunction<any>("academic-ai", { action, ...baseCtx, ...extra });
       return data;
     } catch (e: any) {
       toast({ title: "AI request failed", description: e.message, variant: "destructive" });
