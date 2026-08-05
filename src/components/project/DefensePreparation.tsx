@@ -12,6 +12,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import ReactMarkdown from "react-markdown";
+import { invokeFunction } from "@/lib/errors";
 
 type Section = { chapter: string; section_type: string; content: string | null };
 type Props = { user: any; profile: any; project: any; sections: Section[] };
@@ -70,10 +71,7 @@ const DefensePreparation = ({ user, profile, project, sections }: Props) => {
   }, [project.id, user.id]);
 
   const callAI = async (action: string, payload?: any) => {
-    const { data, error } = await supabase.functions.invoke("defense-ai", {
-      body: { action, project, profile, sections, payload },
-    });
-    if (error) throw error;
+    const data = await invokeFunction<any>("defense-ai", { action, project, profile, sections, payload });
     return data?.content;
   };
 
