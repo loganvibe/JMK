@@ -3,11 +3,9 @@ import { guard } from "../_shared/entitlements.ts";
 import { callAI as sharedCallAI } from "../_shared/ai.ts";
 
 
-let currentModel: unknown = undefined;
-
-async function callAI(system: string, user: string, jsonMode = false) {
-  return await sharedCallAI(system, user, { model: currentModel, json: jsonMode });
-}
+const makeCallAI = (model: unknown) =>
+  (system: string, user: string, jsonMode = false) =>
+    sharedCallAI(system, user, { model, json: jsonMode });
 
 function parseJson(raw: string) {
   try { return JSON.parse(raw); } catch {
