@@ -11,11 +11,9 @@ type Ctx = {
   sections?: { chapter: string; section_type: string; content: string | null }[];
 };
 
-let currentModel: unknown = undefined;
-
-async function callAI(system: string, user: string, jsonMode = false) {
-  return await sharedCallAI(system, user, { model: currentModel, json: jsonMode });
-}
+const makeCallAI = (model: unknown) =>
+  (system: string, user: string, jsonMode = false) =>
+    sharedCallAI(system, user, { model, json: jsonMode });
 
 function parseJson(raw: string) {
   try { return JSON.parse(raw); } catch {
@@ -66,7 +64,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
     const body = await req.json();
-    currentModel = body?.model;
+    const callAI = makeCallAI((body as any)?.model);
     const action: string = body.action;
     const ctx: Ctx = {
       profile: body.profile,
