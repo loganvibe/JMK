@@ -20,7 +20,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { invokeFunction } from "@/lib/errors";
 import { getPreferredModel, modelLabel } from "@/lib/aiModels";
-import { extractText } from "@/lib/extractText";
+import { extractTextFromFile } from "@/lib/extractText";
 
 type Props = { user: any; profile: any; project: any; sections: any[] };
 
@@ -146,7 +146,7 @@ const ProModules = ({ user, profile, project, sections }: Props) => {
     if (!file) return;
     try {
       if (/\.(csv|txt|md)$/i.test(file.name)) setDataset(await file.text());
-      else setDataset(await extractText(file));
+      else setDataset(await extractTextFromFile(file));
       toast({ title: "Data loaded", description: file.name });
     } catch (e: any) {
       toast({ title: "Could not read file", description: e.message, variant: "destructive" });
