@@ -1,38 +1,12 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { guard } from "../_shared/entitlements.ts";
+import { callAI as sharedCallAI } from "../_shared/ai.ts";
 
-const MODEL = "google/gemini-3-flash-preview";
+
+let currentModel: unknown = undefined;
 
 async function callAI(system: string, user: string, jsonMode = false) {
-  const key = Deno.env.get("LOVABLE_API_KEY");
-  if (!key) throw new Error("Missing LOVABLE_API_KEY");
-  const body: any = {
-    model: MODEL,
-    messages: [
-      { role: "system", content: system },
-      { role: "user", content: user },
-    ],
-  };
-  if (jsonMode) body.response_format = { type: "json_object" };
-  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "Lovable-API-Key": key },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const t = await res.text();
-    console.error("AI gateway", res.status, t);
-    const status = res.status === 429 || res.status === 402 ? res.status : 500;
-    const msg =
-      res.status === 429
-        ? "AI is busy right now. Please try again shortly."
-        : res.status === 402
-        ? "AI credits exhausted. Please upgrade to continue."
-        : "AI request failed.";
-    throw Object.assign(new Error(msg), { status });
-  }
-  const data = await res.json();
-  return data?.choices?.[0]?.message?.content ?? "";
+  return await sharedCallAI(system, user, { model: currentModel, json: jsonMode });
 }
 
 function parseJson(raw: string) {
