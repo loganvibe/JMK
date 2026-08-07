@@ -29,6 +29,9 @@ export type FeatureKey =
   | "citation"
   | "defense_simulation"
   | "defense_basic"
+  | "originality"
+  | "literature"
+  | "data_analysis"
   | "export";
 
 export const FEATURE_MIN_RANK: Record<FeatureKey, number> = {
@@ -40,6 +43,9 @@ export const FEATURE_MIN_RANK: Record<FeatureKey, number> = {
   refinement: 1,
   defense_basic: 1,
   defense_simulation: 2,
+  originality: 1,
+  literature: 1,
+  data_analysis: 2,
   export: 1,
 };
 
@@ -52,6 +58,9 @@ export const FEATURE_LABEL: Record<FeatureKey, string> = {
   refinement: "AI project refinement",
   defense_basic: "Defense preparation",
   defense_simulation: "Mock defense simulation",
+  originality: "Originality checker",
+  literature: "Literature finder",
+  data_analysis: "Data analysis assistant",
   export: "PDF / Word export",
 };
 

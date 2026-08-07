@@ -1,5 +1,7 @@
 // Centralised error handling: friendly messages, logging and retry helpers.
 import { supabase } from "@/integrations/supabase/client";
+import { getPreferredModel } from "@/lib/aiModels";
+
 
 export type ErrorScope =
   | "ai"
@@ -127,10 +129,14 @@ export async function invokeFunction<T = any>(
   const scope = opts.scope ?? "ai";
   let lastErr: unknown;
 
+  // Every AI call carries the student's selected engine unless one is explicit.
+  const payload = { model: getPreferredModel(), ...body };
+
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      const { data, error } = await supabase.functions.invoke(name, { body });
+      const { data, error } = await supabase.functions.invoke(name, { body: payload });
       if (error) throw await unwrapFunctionError(error);
+
       if (data && (data as any).error) throw new Error((data as any).error);
       return data as T;
     } catch (err: any) {

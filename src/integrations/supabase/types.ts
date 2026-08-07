@@ -144,6 +144,56 @@ export type Database = {
           },
         ]
       }
+      data_analyses: {
+        Row: {
+          created_at: string
+          findings: Json
+          id: string
+          method: string | null
+          model: string | null
+          narrative: string | null
+          project_id: string
+          raw_input: string | null
+          tables: Json
+          title: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          findings?: Json
+          id?: string
+          method?: string | null
+          model?: string | null
+          narrative?: string | null
+          project_id: string
+          raw_input?: string | null
+          tables?: Json
+          title?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          findings?: Json
+          id?: string
+          method?: string | null
+          model?: string | null
+          narrative?: string | null
+          project_id?: string
+          raw_input?: string | null
+          tables?: Json
+          title?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "data_analyses_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       defense_question_bank: {
         Row: {
           category: string
@@ -365,6 +415,59 @@ export type Database = {
           },
         ]
       }
+      literature_sources: {
+        Row: {
+          authors: string | null
+          citation: string | null
+          created_at: string
+          id: string
+          project_id: string
+          relevance: string | null
+          summary: string | null
+          title: string
+          url: string | null
+          user_id: string
+          venue: string | null
+          year: string | null
+        }
+        Insert: {
+          authors?: string | null
+          citation?: string | null
+          created_at?: string
+          id?: string
+          project_id: string
+          relevance?: string | null
+          summary?: string | null
+          title: string
+          url?: string | null
+          user_id: string
+          venue?: string | null
+          year?: string | null
+        }
+        Update: {
+          authors?: string | null
+          citation?: string | null
+          created_at?: string
+          id?: string
+          project_id?: string
+          relevance?: string | null
+          summary?: string | null
+          title?: string
+          url?: string | null
+          user_id?: string
+          venue?: string | null
+          year?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "literature_sources_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           body: string | null
@@ -397,6 +500,59 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      originality_reports: {
+        Row: {
+          ai_likelihood: number
+          chapter: string | null
+          created_at: string
+          flagged: Json
+          id: string
+          model: string | null
+          originality_score: number
+          project_id: string
+          section_type: string | null
+          suggestions: Json
+          user_id: string
+          verdict: string | null
+        }
+        Insert: {
+          ai_likelihood?: number
+          chapter?: string | null
+          created_at?: string
+          flagged?: Json
+          id?: string
+          model?: string | null
+          originality_score?: number
+          project_id: string
+          section_type?: string | null
+          suggestions?: Json
+          user_id: string
+          verdict?: string | null
+        }
+        Update: {
+          ai_likelihood?: number
+          chapter?: string | null
+          created_at?: string
+          flagged?: Json
+          id?: string
+          model?: string | null
+          originality_score?: number
+          project_id?: string
+          section_type?: string | null
+          suggestions?: Json
+          user_id?: string
+          verdict?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "originality_reports_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       payment_transactions: {
         Row: {
@@ -452,6 +608,7 @@ export type Database = {
           full_name: string | null
           graduation_year: number | null
           id: string
+          preferred_model: string
           university: string | null
           updated_at: string
         }
@@ -466,6 +623,7 @@ export type Database = {
           full_name?: string | null
           graduation_year?: number | null
           id: string
+          preferred_model?: string
           university?: string | null
           updated_at?: string
         }
@@ -480,6 +638,7 @@ export type Database = {
           full_name?: string | null
           graduation_year?: number | null
           id?: string
+          preferred_model?: string
           university?: string | null
           updated_at?: string
         }
@@ -604,6 +763,88 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "project_citations_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_collaborators: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          owner_id: string
+          project_id: string
+          role: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          owner_id: string
+          project_id: string
+          role?: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          owner_id?: string
+          project_id?: string
+          role?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_collaborators_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_comments: {
+        Row: {
+          author_email: string | null
+          author_id: string
+          body: string
+          chapter: string | null
+          created_at: string
+          id: string
+          project_id: string
+          resolved: boolean
+          section_type: string | null
+        }
+        Insert: {
+          author_email?: string | null
+          author_id: string
+          body: string
+          chapter?: string | null
+          created_at?: string
+          id?: string
+          project_id: string
+          resolved?: boolean
+          section_type?: string | null
+        }
+        Update: {
+          author_email?: string | null
+          author_id?: string
+          body?: string
+          chapter?: string | null
+          created_at?: string
+          id?: string
+          project_id?: string
+          resolved?: boolean
+          section_type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_comments_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
@@ -1279,6 +1520,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_access_project: { Args: { _project_id: string }; Returns: boolean }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
