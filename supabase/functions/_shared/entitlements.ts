@@ -16,7 +16,10 @@ export type FeatureKey =
   | "academic_assist"
   | "citation"
   | "defense_simulation"
-  | "defense_basic";
+  | "defense_basic"
+  | "originality"
+  | "literature"
+  | "data_analysis";
 
 // minimum plan rank required + credit cost
 export const FEATURE_RULES: Record<FeatureKey, { minRank: number; credits: number; label: string }> = {
@@ -28,7 +31,11 @@ export const FEATURE_RULES: Record<FeatureKey, { minRank: number; credits: numbe
   refinement: { minRank: 1, credits: 3, label: "AI refinement" },
   defense_basic: { minRank: 1, credits: 1, label: "Defense preparation" },
   defense_simulation: { minRank: 2, credits: 3, label: "Mock defense simulation" },
+  originality: { minRank: 1, credits: 2, label: "Originality checker" },
+  literature: { minRank: 1, credits: 2, label: "Literature finder" },
+  data_analysis: { minRank: 2, credits: 3, label: "Data analysis assistant" },
 };
+
 
 export function adminClient() {
   return createClient(
