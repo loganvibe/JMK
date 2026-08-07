@@ -7,7 +7,12 @@ import {
   CheckCircle2, 
   Upload,
   Brain,
-  Download
+  Download,
+  ShieldCheck,
+  Library,
+  BarChart3,
+  Users,
+  Cpu
 } from "lucide-react";
 
 const features = [
@@ -42,9 +47,34 @@ const features = [
     description: "Download your generated content in professional PDF or Word format, ready for submission.",
   },
   {
+    icon: ShieldCheck,
+    title: "Originality Checker",
+    description: "Scan any chapter for unoriginal phrasing, uncited borrowing and generic AI-sounding writing before your supervisor does.",
+  },
+  {
+    icon: Library,
+    title: "Literature Finder",
+    description: "Surface relevant scholarly works with ready-formatted APA, MLA or Harvard references and verification tips.",
+  },
+  {
+    icon: BarChart3,
+    title: "Data Analysis Assistant",
+    description: "Upload your results, get the right statistical method, formatted tables and a publication-ready Chapter 4 draft.",
+  },
+  {
+    icon: Users,
+    title: "Supervisor Collaboration",
+    description: "Invite your supervisor, collect feedback in one thread, and resolve comments as you revise.",
+  },
+  {
+    icon: Cpu,
+    title: "Choose Your AI Engine",
+    description: "Switch between Google Gemini and OpenAI GPT models per task — speed for drafting, deep reasoning for defense prep.",
+  },
+  {
     icon: Brain,
     title: "Smart Suggestions",
-    description: "AI analyzes your topic and provides related research directions, methodology recommendations, and scope advice.",
+    description: "AI analyses your topic and recommends research directions, methodology and a realistic scope.",
   },
   {
     icon: CheckCircle2,
