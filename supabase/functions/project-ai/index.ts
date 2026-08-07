@@ -1,7 +1,7 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { guard } from "../_shared/entitlements.ts";
+import { callAI as sharedCallAI } from "../_shared/ai.ts";
 
-const MODEL = "google/gemini-3-flash-preview";
 
 type Body = {
   action:
@@ -21,44 +21,9 @@ type Body = {
   contextSections?: { chapter: string; section: string; content: string }[];
 };
 
-async function callAI(system: string, user: string, jsonSchema?: any) {
-  const key = Deno.env.get("LOVABLE_API_KEY");
-  if (!key) throw new Error("Missing LOVABLE_API_KEY");
-
-  const body: any = {
-    model: MODEL,
-    messages: [
-      { role: "system", content: system },
-      { role: "user", content: user },
-    ],
-  };
-  if (jsonSchema) {
-    body.response_format = { type: "json_object" };
-  }
-
-  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Lovable-API-Key": key,
-    },
-    body: JSON.stringify(body),
-  });
-
-  if (!res.ok) {
-    const t = await res.text();
-    const status = res.status === 429 || res.status === 402 ? res.status : 500;
-    const msg =
-      res.status === 429
-        ? "AI is busy right now. Please try again shortly."
-        : res.status === 402
-        ? "AI credits exhausted. Please upgrade to continue."
-        : "AI request failed.";
-    throw Object.assign(new Error(msg), { status, detail: t });
-  }
-  const data = await res.json();
-  return data?.choices?.[0]?.message?.content ?? "";
-}
+const makeCallAI = (model: unknown) =>
+  (system: string, user: string, jsonMode = false) =>
+    sharedCallAI(system, user, { model, json: !!jsonMode });
 
 function studentContext(profile: any = {}, project: any = {}) {
   return `Student profile:
@@ -82,6 +47,7 @@ Deno.serve(async (req) => {
 
   try {
     const body = (await req.json()) as Body;
+    const callAI = makeCallAI((body as any)?.model);
     const { action } = body;
 
     // --- server-side auth, plan and credit enforcement ---
