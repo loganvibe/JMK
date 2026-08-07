@@ -17,6 +17,9 @@ import {
 } from "lucide-react";
 import AcademicAssistant from "@/components/project/AcademicAssistant";
 import DefensePreparation from "@/components/project/DefensePreparation";
+import ProModules from "@/components/project/ProModules";
+import Collaboration from "@/components/project/Collaboration";
+import ModelPicker from "@/components/ai/ModelPicker";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -72,6 +75,8 @@ const CHAPTERS: { key: string; label: string; sections: string[] }[] = [
     sections: ["Summary", "Conclusion", "Recommendations"],
   },
   { key: "references", label: "References", sections: ["References"] },
+  { key: "pro", label: "Pro Modules", sections: [] },
+  { key: "collaborate", label: "Collaboration", sections: [] },
   { key: "defense", label: "Defense Preparation", sections: [] },
 ];
 
@@ -269,6 +274,7 @@ const ProjectWorkspace = () => {
               <span className="text-xs text-muted-foreground">{completionPercent}% complete</span>
               <Progress value={completionPercent} className="h-1.5 w-32" />
             </div>
+            <ModelPicker compact />
             <Link to="/" className="hidden sm:flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-gradient-accent flex items-center justify-center">
                 <GraduationCap className="w-4 h-4 text-accent-foreground" />
@@ -326,6 +332,10 @@ const ProjectWorkspace = () => {
             />
           ) : activeChapter === "assistant" ? (
             <AcademicAssistant user={user} profile={profile} project={project} sections={sections as any} />
+          ) : activeChapter === "pro" ? (
+            <ProModules user={user} profile={profile} project={project} sections={sections as any} />
+          ) : activeChapter === "collaborate" ? (
+            <Collaboration user={user} project={project} />
           ) : activeChapter === "defense" ? (
             <DefensePreparation user={user} profile={profile} project={project} sections={sections as any} />
           ) : (
