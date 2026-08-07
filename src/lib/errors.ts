@@ -1,5 +1,7 @@
 // Centralised error handling: friendly messages, logging and retry helpers.
 import { supabase } from "@/integrations/supabase/client";
+import { getPreferredModel } from "@/lib/aiModels";
+
 
 export type ErrorScope =
   | "ai"
