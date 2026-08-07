@@ -35,7 +35,8 @@ ${sec}`;
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
-    const { action, project, profile, sections, payload } = await req.json();
+    const { action, project, profile, sections, payload, model } = await req.json();
+    const callAI = makeCallAI(model);
     const ctx = projectContext({ project, profile, sections });
 
     // --- server-side auth, plan and credit enforcement ---
