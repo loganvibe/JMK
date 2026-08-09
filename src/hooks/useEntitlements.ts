@@ -73,6 +73,7 @@ export function useEntitlements() {
   const [subscription, setSubscription] = useState<any>(null);
   const [creditsUsed, setCreditsUsed] = useState(0);
   const [userId, setUserId] = useState<string | null>(null);
+  const [freeMode, setFreeMode] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -84,7 +85,7 @@ export function useEntitlements() {
     monthStart.setUTCDate(1);
     monthStart.setUTCHours(0, 0, 0, 0);
 
-    const [subRes, freeRes, usageRes] = await Promise.all([
+    const [subRes, freeRes, usageRes, settingsRes] = await Promise.all([
       supabase
         .from("user_subscriptions")
         .select("*, subscription_plans(*)")
@@ -99,7 +100,10 @@ export function useEntitlements() {
         .select("credits_used")
         .eq("user_id", user.id)
         .gte("created_at", monthStart.toISOString()),
+      supabase.from("app_settings").select("pricing_mode").eq("id", "global").maybeSingle(),
     ]);
+
+    setFreeMode(settingsRes.data?.pricing_mode === "free");
 
     const active: any = subRes.data;
     const expired = active?.expiry_date ? new Date(active.expiry_date).getTime() < Date.now() : false;
@@ -114,12 +118,15 @@ export function useEntitlements() {
   useEffect(() => { load(); }, [load]);
 
   const slug = plan?.slug ?? "free";
-  const rank = PLAN_RANK[slug] ?? 0;
-  const creditsLimit = Number(plan?.ai_limits?.credits ?? 10);
+  // When the admin puts the platform in "free for everyone" mode, every student
+  // gets the highest tier regardless of their subscription.
+  const rank = freeMode ? 2 : (PLAN_RANK[slug] ?? 0);
+  const creditsLimit = freeMode ? 9999 : Number(plan?.ai_limits?.credits ?? 10);
   const creditsRemaining = Math.max(0, creditsLimit - creditsUsed);
 
   const can = (feature: FeatureKey) => rank >= FEATURE_MIN_RANK[feature];
   const canUseChapter = (chapter: string) => {
+    if (freeMode) return true;
     const allowed = plan?.ai_limits?.chapters;
     if (!Array.isArray(allowed)) return true;
     // Plans store "chapter1"; the UI passes labels like "Chapter 1: Introduction".
@@ -135,9 +142,9 @@ export function useEntitlements() {
 
 
   return {
-    loading, plan, slug, rank, subscription, userId,
+    loading, plan, slug, rank, subscription, userId, freeMode,
     creditsUsed, creditsLimit, creditsRemaining,
-    maxProjects: Number(plan?.ai_limits?.max_projects ?? 1),
+    maxProjects: freeMode ? 999 : Number(plan?.ai_limits?.max_projects ?? 1),
     can, canUseChapter, refresh: load,
   };
 }
