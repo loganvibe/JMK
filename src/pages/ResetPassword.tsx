@@ -22,9 +22,20 @@ const ResetPassword = () => {
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session) setReady(true);
     });
-    supabase.auth.getSession().then(({ data }) => {
+    (async () => {
+      const url = new URL(window.location.href);
+      const code = url.searchParams.get("code");
+      if (code) {
+        const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+        if (!error && data.session) {
+          setReady(true);
+          window.history.replaceState({}, "", "/reset-password");
+          return;
+        }
+      }
+      const { data } = await supabase.auth.getSession();
       if (data.session) setReady(true);
-    });
+    })();
     return () => sub.subscription.unsubscribe();
   }, []);
 

@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
+import { signOutAndRedirect } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 
 const academicLevels = [
@@ -117,8 +118,7 @@ const Profile = () => {
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    navigate("/");
+    await signOutAndRedirect("/");
   };
 
   const userName = form.full_name || user?.email?.split("@")[0] || "Student";

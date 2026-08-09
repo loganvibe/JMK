@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
+import { signOutAndRedirect } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { invokeFunction } from "@/lib/errors";
 
@@ -49,8 +50,7 @@ const ModifyProject = () => {
   }, [navigate]);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    navigate("/");
+    await signOutAndRedirect("/");
   };
 
   const handleFile = async (f: File | null) => {
