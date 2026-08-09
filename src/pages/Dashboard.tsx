@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
+import { signOutAndRedirect } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
 import OnboardingGuide from "@/components/onboarding/OnboardingGuide";
@@ -111,8 +112,7 @@ const Dashboard = () => {
   }, [navigate]);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    navigate("/");
+    await signOutAndRedirect("/");
   };
 
   const handleSaveTopic = async (topic: typeof mockTopics[number]) => {

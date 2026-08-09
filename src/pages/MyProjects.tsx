@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
+import { signOutAndRedirect } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 
 const progressStages = [
@@ -82,8 +83,7 @@ const MyProjects = () => {
   }, [navigate]);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    navigate("/");
+    await signOutAndRedirect("/");
   };
 
   const calculateProgress = (progress: Record<string, boolean>) => {
