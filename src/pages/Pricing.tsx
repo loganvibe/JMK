@@ -8,6 +8,7 @@ import { Footer } from "@/components/landing/Footer";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useEntitlements, formatNaira, type Plan } from "@/hooks/useEntitlements";
+import { useSiteSettings } from "@/hooks/useSiteSettings";
 
 const planMeta: Record<string, { icon: any; blurb: string; popular?: boolean; notIncluded?: string[] }> = {
   free: {
@@ -65,6 +66,7 @@ const Pricing = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const ent = useEntitlements();
+  const { settings, freeMode } = useSiteSettings();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -82,6 +84,7 @@ const Pricing = () => {
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { navigate("/signup"); return; }
+    if (freeMode || !settings.payments_enabled) { navigate("/dashboard"); return; }
     if (plan.price <= 0) { navigate("/dashboard"); return; }
     if (plan.slug === ent.slug) { navigate("/billing"); return; }
 
@@ -120,6 +123,13 @@ const Pricing = () => {
 
         <section className="section-padding -mt-16">
           <div className="container-main">
+            {freeMode && (
+              <div className="mb-8 rounded-xl border border-accent bg-accent/10 p-4 text-center">
+                <p className="font-medium text-foreground">
+                  {settings.free_mode_message || "All premium features are currently free for every student."}
+                </p>
+              </div>
+            )}
             {plans.length === 0 ? (
               <div className="flex justify-center py-16">
                 <Loader2 className="w-6 h-6 animate-spin text-accent" />
@@ -153,20 +163,22 @@ const Pricing = () => {
                       <h3 className="text-xl font-heading font-bold text-foreground mb-1">{plan.name}</h3>
                       <div className="flex items-baseline gap-1 mb-2">
                         <span className="text-3xl font-heading font-bold text-foreground">
-                          {plan.slug === "custom" ? "Quote" : plan.price > 0 ? formatNaira(plan.price) : "₦0"}
+                          {plan.slug === "custom" ? "Quote" : freeMode ? "Free" : plan.price > 0 ? formatNaira(plan.price) : "₦0"}
                         </span>
-                        {plan.price > 0 && <span className="text-muted-foreground text-sm">/month</span>}
+                        {!freeMode && plan.price > 0 && <span className="text-muted-foreground text-sm">/month</span>}
                       </div>
                       <p className="text-sm text-muted-foreground mb-5">{plan.description || meta.blurb}</p>
 
                       <Button
                         variant={meta.popular ? "accent" : plan.slug === "premium_plus" ? "default" : "outline"}
                         className="w-full mb-6"
-                        disabled={busy === plan.slug || isCurrent}
+                        disabled={busy === plan.slug || (!freeMode && isCurrent)}
                         onClick={() => choosePlan(plan)}
                       >
                         {busy === plan.slug ? (
                           <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : freeMode ? (
+                          "Start free"
                         ) : isCurrent ? (
                           "Current plan"
                         ) : plan.slug === "custom" ? (
