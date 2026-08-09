@@ -57,7 +57,7 @@ const Admin = () => {
   useEffect(() => {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { nav("/login"); return; }
+      if (!user) { nav("/admin/login", { replace: true }); return; }
       const { data: role } = await supabase.from("user_roles").select("role").eq("user_id", user.id).eq("role", "admin").maybeSingle();
       setIsAdmin(!!role);
       if (!role) { setLoading(false); return; }

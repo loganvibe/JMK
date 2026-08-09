@@ -26,6 +26,7 @@ const RefineProject = lazy(() => import("./pages/RefineProject"));
 const Billing = lazy(() => import("./pages/Billing"));
 const Services = lazy(() => import("./pages/Services"));
 const Admin = lazy(() => import("./pages/Admin"));
+const AdminLogin = lazy(() => import("./pages/admin/AdminLogin"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -63,6 +64,7 @@ const App = () => (
               <Route path="/refine" element={<RefineProject />} />
               <Route path="/billing" element={<Billing />} />
               <Route path="/services" element={<Services />} />
+              <Route path="/admin/login" element={<AdminLogin />} />
               <Route path="/admin" element={<Admin />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
