@@ -16,6 +16,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { formatNaira } from "@/hooks/useEntitlements";
 import AdminAnalytics from "@/components/admin/AdminAnalytics";
+import AdminShell from "@/components/admin/AdminShell";
+import AdminPricing from "@/pages/admin/AdminPricing";
 
 
 const REQUEST_STATUSES = ["pending", "reviewing", "quoted", "accepted", "in_progress", "completed", "rejected"];
@@ -25,7 +27,7 @@ const Admin = () => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [tab, setTab] = useState("revenue");
+  const [tab, setTab] = useState("pricing");
 
   const [universities, setUniversities] = useState<any[]>([]);
   const [departments, setDepartments] = useState<any[]>([]);
@@ -55,7 +57,7 @@ const Admin = () => {
   useEffect(() => {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { nav("/login"); return; }
+      if (!user) { nav("/admin/login", { replace: true }); return; }
       const { data: role } = await supabase.from("user_roles").select("role").eq("user_id", user.id).eq("role", "admin").maybeSingle();
       setIsAdmin(!!role);
       if (!role) { setLoading(false); return; }
@@ -137,38 +139,23 @@ const Admin = () => {
     setFields((x) => x.filter((u) => u.id !== id));
   };
 
-  if (loading) return <div className="min-h-screen grid place-items-center"><Loader2 className="animate-spin w-6 h-6" /></div>;
-
-  if (!isAdmin) {
+  if (loading) {
     return (
-      <div className="min-h-screen grid place-items-center p-6">
-        <div className="max-w-md text-center space-y-3">
-          <ShieldCheck className="w-10 h-10 mx-auto text-muted-foreground" />
-          <h1 className="text-xl font-heading font-bold">Admin access required</h1>
-          <p className="text-sm text-muted-foreground">
-            An administrator must grant you the <code>admin</code> role in the <code>user_roles</code> table to access this page.
-          </p>
-          <Link to="/dashboard"><Button variant="outline"><ArrowLeft className="w-4 h-4 mr-2" />Back to dashboard</Button></Link>
-        </div>
-      </div>
+      <AdminShell title="Loading">
+        <div className="py-16 grid place-items-center"><Loader2 className="animate-spin w-6 h-6 text-accent" /></div>
+      </AdminShell>
     );
   }
 
+  if (!isAdmin) return <AdminShell title="Access">{null}</AdminShell>;
+
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b border-border bg-card">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Link to="/dashboard" className="text-muted-foreground hover:text-foreground"><ArrowLeft className="w-4 h-4" /></Link>
-            <GraduationCap className="w-5 h-5 text-accent" />
-            <h1 className="font-heading font-bold">Admin Console</h1>
-          </div>
-        </div>
-      </header>
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
+    <AdminShell title="Business & academic control">
+      <div>
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="flex-wrap h-auto">
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
+            <TabsTrigger value="pricing">Pricing</TabsTrigger>
             <TabsTrigger value="revenue">Revenue</TabsTrigger>
             <TabsTrigger value="requests">Service requests</TabsTrigger>
             <TabsTrigger value="universities">Universities</TabsTrigger>
@@ -178,6 +165,10 @@ const Admin = () => {
 
           <TabsContent value="analytics" className="mt-4">
             <AdminAnalytics />
+          </TabsContent>
+
+          <TabsContent value="pricing" className="mt-4">
+            <AdminPricing />
           </TabsContent>
 
 
@@ -316,8 +307,8 @@ const Admin = () => {
             </div>
           </TabsContent>
         </Tabs>
-      </main>
-    </div>
+      </div>
+    </AdminShell>
   );
 };
 
