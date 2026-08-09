@@ -94,6 +94,17 @@ export async function getPlan(userId: string) {
   return plan;
 }
 
+/** Global platform switches (admin can make everything free). */
+export async function siteSettings() {
+  const db = adminClient();
+  const { data } = await db
+    .from("app_settings")
+    .select("pricing_mode, payments_enabled")
+    .eq("id", "global")
+    .maybeSingle();
+  return { pricing_mode: data?.pricing_mode ?? "paid", payments_enabled: data?.payments_enabled ?? true };
+}
+
 export async function creditsUsedThisMonth(userId: string) {
   const db = adminClient();
   const start = new Date();
@@ -118,8 +129,10 @@ export async function enforce(
 ) {
   const user = await requireUser(req);
   const plan = await getPlan(user.id);
+  const settings = await siteSettings();
+  const freeMode = settings.pricing_mode === "free";
   const rule = FEATURE_RULES[feature];
-  const rank = PLAN_RANK[plan.slug] ?? 0;
+  const rank = freeMode ? 99 : (PLAN_RANK[plan.slug] ?? 0);
 
   if (rank < rule.minRank) {
     throw new AccessError(
@@ -138,7 +151,7 @@ export async function enforce(
     const m = /chapter\s*[-_]?\s*([1-9])/i.exec(String(text));
     return m ? `chapter${m[1]}` : null;
   };
-  if (Array.isArray(limits.chapters) && opts.chapter) {
+  if (!freeMode && Array.isArray(limits.chapters) && opts.chapter) {
     const key = chapterKey(opts.chapter);
     const allowed = limits.chapters
       .map((c: string) => chapterKey(c))
@@ -153,7 +166,7 @@ export async function enforce(
   }
 
 
-  const limit = Number(limits.credits ?? 10);
+  const limit = freeMode ? 100000 : Number(limits.credits ?? 10);
   const used = await creditsUsedThisMonth(user.id);
   if (used + rule.credits > limit) {
     throw new AccessError(

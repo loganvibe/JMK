@@ -51,6 +51,12 @@ Deno.serve(async (req) => {
       const callbackUrl = String(body?.callbackUrl ?? "");
       if (!planSlug) return json({ error: "planSlug is required" }, 400);
 
+      const { data: settings } = await db
+        .from("app_settings").select("pricing_mode, payments_enabled").eq("id", "global").maybeSingle();
+      if (settings?.pricing_mode === "free" || settings?.payments_enabled === false) {
+        return json({ error: "Payments are currently disabled — every feature is free right now." }, 400);
+      }
+
       const { data: plan } = await db
         .from("subscription_plans")
         .select("*")
