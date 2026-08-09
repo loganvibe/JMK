@@ -117,6 +117,13 @@ export function PricingPreview() {
             Start free, upgrade when you need more power. All plans include our core 
             topic selection and tracking features.
           </motion.p>
+          {freeMode && (
+            <div className="mt-6 rounded-xl border border-accent bg-accent/10 p-4">
+              <p className="font-medium text-foreground">
+                {settings.free_mode_message || "All premium features are currently free for every student."}
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Pricing Cards */}
