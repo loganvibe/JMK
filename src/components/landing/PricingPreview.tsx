@@ -2,6 +2,10 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { Check, Crown, Sparkles, Zap } from "lucide-react";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { formatNaira } from "@/hooks/useEntitlements";
+import { useSiteSettings } from "@/hooks/useSiteSettings";
 
 const plans = [
   {
@@ -16,6 +20,7 @@ const plans = [
       "Save up to 3 projects",
       "Basic progress tracker",
     ],
+    slug: "free",
     cta: "Get Started",
     variant: "outline" as const,
   },
@@ -34,6 +39,7 @@ const plans = [
       "Viva prep questions",
       "Limited AI refinements",
     ],
+    slug: "student",
     cta: "Start Beta",
     variant: "accent" as const,
   },
@@ -51,12 +57,34 @@ const plans = [
       "PDF/Word exports",
       "Priority support",
     ],
+    slug: "premium_plus",
     cta: "Go Premium+",
     variant: "default" as const,
   },
 ];
 
 export function PricingPreview() {
+  const { settings, freeMode } = useSiteSettings();
+  const [prices, setPrices] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    supabase
+      .from("subscription_plans")
+      .select("slug, price")
+      .then(({ data }) => {
+        const map: Record<string, number> = {};
+        (data ?? []).forEach((p: { slug: string; price: number }) => { map[p.slug] = Number(p.price); });
+        setPrices(map);
+      });
+  }, []);
+
+  const displayPrice = (plan: { slug: string; price: string }) => {
+    if (freeMode) return "Free";
+    const live = prices[plan.slug];
+    if (live === undefined) return plan.price;
+    return live > 0 ? formatNaira(live) : "₦0";
+  };
+
   return (
     <section className="section-padding bg-background">
       <div className="container-main">
@@ -130,7 +158,7 @@ export function PricingPreview() {
                 <span className={`text-4xl font-heading font-bold ${
                   plan.popular ? "text-primary-foreground" : "text-foreground"
                 }`}>
-                  {plan.price}
+                  {displayPrice(plan)}
                 </span>
                 <span className={plan.popular ? "text-primary-foreground/70" : "text-muted-foreground"}>
                   {plan.period}
