@@ -26,7 +26,7 @@ const plans = [
   },
   {
     name: "Beta",
-    price: "₦5,000",
+    price: "₦2,500",
     period: "/month",
     description: "Advanced research tools",
     icon: Sparkles,
@@ -45,7 +45,7 @@ const plans = [
   },
   {
     name: "Premium+",
-    price: "₦10,000",
+    price: "₦8,000",
     period: "/month",
     description: "Full generation power",
     icon: Crown,

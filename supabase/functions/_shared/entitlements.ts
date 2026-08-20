@@ -81,7 +81,7 @@ export async function getPlan(userId: string) {
     .limit(1)
     .maybeSingle();
 
-  const plan: any = data?.subscription_plans;
+  const plan = data?.subscription_plans;
   const expired = data?.expiry_date ? new Date(data.expiry_date).getTime() < Date.now() : false;
   if (!plan || expired) {
     const { data: free } = await db
@@ -115,7 +115,7 @@ export async function creditsUsedThisMonth(userId: string) {
     .select("credits_used")
     .eq("user_id", userId)
     .gte("created_at", start.toISOString());
-  return (data ?? []).reduce((s: number, r: any) => s + (r.credits_used || 0), 0);
+  return (data ?? []).reduce((s: number, r: { credits_used?: number }) => s + (r.credits_used || 0), 0);
 }
 
 /**
@@ -146,7 +146,7 @@ export async function enforce(
   // Plan limits store keys like "chapter1"; the client sends labels like
   // "Chapter 1: Introduction", so compare on the detected chapter number and
   // never block un-numbered sections (Abstract, References, Defense…).
-  const limits: any = plan.ai_limits ?? {};
+  const limits = plan.ai_limits ?? {};
   const chapterKey = (text: string) => {
     const m = /chapter\s*[-_]?\s*([1-9])/i.exec(String(text));
     return m ? `chapter${m[1]}` : null;
@@ -219,7 +219,7 @@ export async function assertProjectOwnership(userId: string, projectId?: string 
 export function accessErrorResponse(e: unknown, corsHeaders: Record<string, string>) {
   const status = e instanceof AccessError ? e.status : 500;
   const code = e instanceof AccessError ? e.code : "server_error";
-  const message = (e as any)?.message ?? "Unexpected server error";
+  const message = (e instanceof Error ? e.message : String(e)) ?? "Unexpected server error";
   console.error("edge function error", code, message);
   return new Response(JSON.stringify({ error: message, code }), {
     status,

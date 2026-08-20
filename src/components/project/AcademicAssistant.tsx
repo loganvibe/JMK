@@ -19,9 +19,9 @@ import { invokeFunction } from "@/lib/errors";
 
 type Section = { chapter: string; section_type: string; content: string | null };
 type Props = {
-  user: any;
-  profile: any;
-  project: any;
+  user: unknown;
+  profile: unknown;
+  project: unknown;
   sections: Section[];
 };
 
@@ -29,8 +29,8 @@ const CITATION_STYLES = ["APA7", "MLA", "Harvard", "IEEE"];
 
 const AcademicAssistant = ({ user, profile, project, sections }: Props) => {
   const { toast } = useToast();
-  const [department, setDepartment] = useState<any>(null);
-  const [memory, setMemory] = useState<any>({
+  const [department, setDepartment] = useState<unknown>(null);
+  const [memory, setMemory] = useState<Record<string, unknown>>({
     citation_style: "APA7",
     formatting_preference: "Standard academic",
     notes: "",
@@ -42,7 +42,7 @@ const AcademicAssistant = ({ user, profile, project, sections }: Props) => {
   const [answer, setAnswer] = useState("");
 
   // Citations
-  const [citations, setCitations] = useState<any[]>([]);
+  const [citations, setCitations] = useState<unknown[]>([]);
   const [srcType, setSrcType] = useState("journal");
   const [src, setSrc] = useState({
     authors: "", year: "", title: "", journal: "", volume: "", issue: "", pages: "", publisher: "", url: "",
@@ -53,12 +53,12 @@ const AcademicAssistant = ({ user, profile, project, sections }: Props) => {
   const [converted, setConverted] = useState("");
 
   // Quality
-  const [quality, setQuality] = useState<any>(null);
+  const [quality, setQuality] = useState<unknown>(null);
 
   // Supervisor feedback
   const [feedback, setFeedback] = useState("");
-  const [analysis, setAnalysis] = useState<any>(null);
-  const [history, setHistory] = useState<any[]>([]);
+  const [analysis, setAnalysis] = useState<unknown>(null);
+  const [history, setHistory] = useState<unknown[]>([]);
 
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -90,7 +90,7 @@ const AcademicAssistant = ({ user, profile, project, sections }: Props) => {
     citation_style: memory?.citation_style ?? "APA7",
   }), [profile, project, department, memory, sections]);
 
-  const persistMemory = async (patch: any) => {
+  const persistMemory = async (patch: Record<string, unknown>) => {
     const next = { ...memory, ...patch };
     setMemory(next);
     await supabase.from("project_memory").upsert({
@@ -102,13 +102,14 @@ const AcademicAssistant = ({ user, profile, project, sections }: Props) => {
     }, { onConflict: "project_id" });
   };
 
-  const call = async (action: string, extra: any = {}) => {
+  const call = async (action: string, extra: Record<string, unknown> = {}) => {
     setBusy(action);
     try {
-      const data = await invokeFunction<any>("academic-ai", { action, ...baseCtx, ...extra });
+      const data = await invokeFunction<unknown>("academic-ai", { action, ...baseCtx, ...extra });
       return data;
-    } catch (e: any) {
-      toast({ title: "AI request failed", description: e.message, variant: "destructive" });
+    } catch (e: unknown) {
+      const err = e instanceof Error ? e : new Error(String(e));
+      toast({ title: "AI request failed", description: err.message, variant: "destructive" });
       throw e;
     } finally {
       setBusy(null);
@@ -325,7 +326,7 @@ const AcademicAssistant = ({ user, profile, project, sections }: Props) => {
           {quality?.scores && (
             <div className="space-y-3">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {Object.entries(quality.scores).map(([k, v]: any) => (
+                {Object.entries(quality.scores as Record<string, number>).map(([k, v]) => (
                   <div key={k} className="p-3 rounded-lg border border-border bg-muted/20">
                     <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{k.replace(/_/g, " ")}</p>
                     <p className="text-2xl font-bold text-foreground">{v}</p>
@@ -343,7 +344,7 @@ const AcademicAssistant = ({ user, profile, project, sections }: Props) => {
                 <div>
                   <p className="text-sm font-medium mb-1">Recommendations</p>
                   <div className="space-y-2">
-                    {quality.recommendations.map((r: any, i: number) => (
+                     {quality.recommendations.map((r: { title: string; detail: string; priority?: string }, i: number) => (
                       <div key={i} className="border border-border rounded-lg p-3 bg-background">
                         <div className="flex items-center justify-between">
                           <p className="font-medium text-sm">{r.title}</p>
@@ -372,7 +373,7 @@ const AcademicAssistant = ({ user, profile, project, sections }: Props) => {
               {analysis.summary && (
                 <div className="bg-muted/30 border border-border rounded-xl p-3 text-sm">{analysis.summary}</div>
               )}
-              {analysis.corrections.map((c: any, i: number) => (
+               {analysis.corrections.map((c: { quote: string; explanation: string; priority?: string; target_chapter?: string; target_section?: string; suggested_fix?: string }, i: number) => (
                 <div key={i} className="border border-border rounded-lg p-3 bg-background text-sm space-y-1">
                   <div className="flex items-center justify-between">
                     <p className="font-medium text-foreground">"{c.quote}"</p>

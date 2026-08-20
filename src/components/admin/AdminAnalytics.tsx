@@ -18,7 +18,7 @@ type Stats = {
 
 const AdminAnalytics = () => {
   const [stats, setStats] = useState<Stats | null>(null);
-  const [errors, setErrors] = useState<any[]>([]);
+  const [errors, setErrors] = useState<unknown[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -31,28 +31,28 @@ const AdminAnalytics = () => {
         supabase.from("ai_usage_logs").select("user_id, feature, credits_used, created_at").gte("created_at", since30),
         supabase.from("payment_transactions").select("amount, status"),
         supabase.from("user_subscriptions").select("user_id, status"),
-        supabase.from("error_logs" as any).select("*").order("created_at", { ascending: false }).limit(40),
+        supabase.from("error_logs").select("*").order("created_at", { ascending: false }).limit(40),
       ]);
 
       const usageRows = usage.data ?? [];
       const byDept = new Map<string, number>();
-      (profiles.data ?? []).forEach((p: any) => {
+      (profiles.data ?? []).forEach((p: { department?: string }) => {
         if (p.department) byDept.set(p.department, (byDept.get(p.department) ?? 0) + 1);
       });
       const byFeature = new Map<string, number>();
-      usageRows.forEach((u: any) => byFeature.set(u.feature, (byFeature.get(u.feature) ?? 0) + 1));
+      usageRows.forEach((u: { feature?: string }) => byFeature.set(u.feature ?? "", (byFeature.get(u.feature ?? "") ?? 0) + 1));
 
       setStats({
         students: (profiles.data ?? []).length,
-        activeUsers: new Set(usageRows.map((u: any) => u.user_id)).size,
+        activeUsers: new Set(usageRows.map((u: { user_id?: string }) => u.user_id ?? "")).size,
         projects: (projects.data ?? []).length,
-        aiCredits: usageRows.reduce((s: number, u: any) => s + (u.credits_used || 0), 0),
-        revenue: (txns.data ?? []).filter((t: any) => t.status === "success").reduce((s: number, t: any) => s + Number(t.amount || 0), 0),
-        activeSubs: (subs.data ?? []).filter((s: any) => s.status === "active").length,
+        aiCredits: usageRows.reduce((s: number, u: { credits_used?: number }) => s + (u.credits_used || 0), 0),
+        revenue: (txns.data ?? []).filter((t: { status?: string }) => t.status === "success").reduce((s: number, t: { amount?: number }) => s + Number(t.amount || 0), 0),
+        activeSubs: (subs.data ?? []).filter((s: { status?: string }) => s.status === "active").length,
         departments: [...byDept.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8),
         features: [...byFeature.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8),
       });
-      setErrors((errs.data as any[]) ?? []);
+      setErrors((errs.data as unknown[]) ?? []);
       setLoading(false);
     })();
   }, []);

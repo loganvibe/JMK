@@ -7,13 +7,13 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
-type Props = { user: any; project: any };
+type Props = { user: unknown; project: { id: string } };
 
 /** Invite a supervisor and hold the review conversation in one place. */
 const Collaboration = ({ user, project }: Props) => {
   const { toast } = useToast();
-  const [collaborators, setCollaborators] = useState<any[]>([]);
-  const [comments, setComments] = useState<any[]>([]);
+  const [collaborators, setCollaborators] = useState<unknown[]>([]);
+  const [comments, setComments] = useState<unknown[]>([]);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("supervisor");
   const [body, setBody] = useState("");
@@ -22,11 +22,11 @@ const Collaboration = ({ user, project }: Props) => {
 
   const load = async () => {
     const [{ data: c }, { data: m }] = await Promise.all([
-      supabase.from("project_collaborators" as any).select("*").eq("project_id", project.id).order("created_at"),
-      supabase.from("project_comments" as any).select("*").eq("project_id", project.id).order("created_at", { ascending: false }),
+      supabase.from("project_collaborators").select("*").eq("project_id", project.id).order("created_at"),
+      supabase.from("project_comments").select("*").eq("project_id", project.id).order("created_at", { ascending: false }),
     ]);
-    setCollaborators((c as any[]) ?? []);
-    setComments((m as any[]) ?? []);
+    setCollaborators((c as unknown[]) ?? []);
+    setComments((m as unknown[]) ?? []);
     setLoading(false);
   };
 
@@ -51,7 +51,7 @@ const Collaboration = ({ user, project }: Props) => {
       return;
     }
     setBusy(true);
-    const { error } = await supabase.from("project_collaborators" as any).insert({
+    const { error } = await supabase.from("project_collaborators").insert({
       project_id: project.id,
       owner_id: user.id,
       email: clean,
@@ -72,14 +72,14 @@ const Collaboration = ({ user, project }: Props) => {
   };
 
   const remove = async (id: string) => {
-    await supabase.from("project_collaborators" as any).delete().eq("id", id);
+    await supabase.from("project_collaborators").delete().eq("id", id);
     load();
   };
 
   const postComment = async () => {
     if (!body.trim()) return;
     setBusy(true);
-    const { error } = await supabase.from("project_comments" as any).insert({
+    const { error } = await supabase.from("project_comments").insert({
       project_id: project.id,
       author_id: user.id,
       author_email: user.email,
@@ -94,8 +94,8 @@ const Collaboration = ({ user, project }: Props) => {
     load();
   };
 
-  const toggleResolved = async (c: any) => {
-    await supabase.from("project_comments" as any).update({ resolved: !c.resolved }).eq("id", c.id);
+  const toggleResolved = async (c: { id: string; resolved?: boolean }) => {
+    await supabase.from("project_comments").update({ resolved: !c.resolved }).eq("id", c.id);
     load();
   };
 

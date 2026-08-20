@@ -19,7 +19,7 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json();
-    const callAI = makeCallAI((body as any)?.model);
+    const callAI = makeCallAI((body as Record<string, unknown>)?.model);
     const action: string = body.action;
     const text: string = (body.text ?? "").toString().slice(0, 80000);
     const profile = body.profile ?? {};
@@ -117,9 +117,9 @@ Merge fragments smartly. Do not invent content — only split what is present.`;
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error("refine-project error", e);
-    return new Response(JSON.stringify({ error: e?.message ?? "Server error" }), {
+    return new Response(JSON.stringify({ error: (e instanceof Error ? e.message : String(e)) ?? "Server error" }), {
       status: e?.status ?? 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

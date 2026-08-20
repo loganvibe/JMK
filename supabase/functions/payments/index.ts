@@ -28,7 +28,7 @@ async function paystack(path: string, init: RequestInit = {}) {
     },
   });
   const text = await res.text();
-  let data: any = {};
+  let data: Record<string, unknown> = {};
   try { data = JSON.parse(text); } catch { data = { raw: text }; }
   if (!res.ok || data?.status === false) {
     console.error(`Paystack ${path} failed [${res.status}]: ${text}`);
@@ -117,7 +117,7 @@ Deno.serve(async (req) => {
 
       if (!ok) return json({ status: "failed" });
 
-      const planSlug = (txn.metadata as any)?.plan_slug;
+      const planSlug = (txn.metadata as Record<string, unknown>)?.plan_slug as string | undefined;
       const { data: plan } = await db
         .from("subscription_plans")
         .select("id, name, slug")
@@ -165,9 +165,9 @@ Deno.serve(async (req) => {
     }
 
     return json({ error: "Unknown action" }, 400);
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error("payments error", e);
     const status = e instanceof AccessError ? e.status : 500;
-    return json({ error: e?.message ?? "Unexpected server error" }, status);
+    return json({ error: (e instanceof Error ? e.message : String(e)) ?? "Unexpected server error" }, status);
   }
 });

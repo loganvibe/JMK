@@ -4,8 +4,8 @@
 | Plan | Slug | Price | Rank |
 |---|---|---|---|
 | Free Trial | `free` | ₦0 | 0 |
-| Student | `student` | ₦5,000 / month | 1 |
-| Premium Plus | `premium_plus` | ₦10,000 / month | 2 |
+| Student | `student` | ₦2,500 / month | 1 |
+| Premium Plus | `premium_plus` | ₦8,000 / month | 2 |
 | Custom | `custom` | Quoted | 0 |
 
 Plan definitions (price, features, `ai_limits`) live in the `subscription_plans` table, so pricing can change without a code deploy.

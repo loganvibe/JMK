@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useEntitlements, formatNaira, type Plan } from "@/hooks/useEntitlements";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 
-const planMeta: Record<string, { icon: any; blurb: string; popular?: boolean; notIncluded?: string[] }> = {
+const planMeta: Record<string, { icon: React.ReactNode; blurb: string; popular?: boolean; notIncluded?: string[] }> = {
   free: {
     icon: Zap,
     blurb: "Try the platform and generate your first chapter.",

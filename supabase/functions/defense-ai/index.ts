@@ -14,10 +14,10 @@ function parseJson(raw: string) {
   }
 }
 
-function projectContext({ project, profile, sections }: any) {
+function projectContext({ project, profile, sections }: { project?: Record<string, unknown>; profile?: Record<string, unknown>; sections?: { chapter: string; section_type: string; content?: string }[] }) {
   const sec = (sections ?? [])
-    .filter((s: any) => s.content)
-    .map((s: any) => `## ${s.chapter} — ${s.section_type}\n${(s.content || "").slice(0, 1200)}`)
+    .filter((s) => s.content)
+    .map((s) => `## ${s.chapter} — ${s.section_type}\n${(s.content || "").slice(0, 1200)}`)
     .join("\n\n");
   return `STUDENT: ${profile?.full_name ?? ""} (${profile?.department ?? ""}, ${profile?.university ?? ""})
 PROJECT TITLE: ${project?.title ?? ""}
@@ -43,7 +43,7 @@ Deno.serve(async (req) => {
     const feature = action === "mock_question" || action === "mock_evaluate" || action === "mock"
       ? "defense_simulation"
       : "defense_basic";
-    const access = await guard(req, feature as any, { projectId: project?.id ?? null });
+    const access = await guard(req, feature, { projectId: project?.id ?? null });
     await access.log();
 
 
@@ -91,7 +91,7 @@ ${ctx}`;
     }
 
     if (action === "generate_questions") {
-      const bank: any[] = payload?.bank ?? [];
+      const bank: unknown[] = payload?.bank ?? [];
       const sys = "You are a strict but fair external examiner. Return JSON only.";
       const prompt = `Generate 8 defense questions tailored to this specific project.
 Mix categories: introduction, methodology, technical, analysis, conclusion.
@@ -112,7 +112,7 @@ ${ctx}`;
       const prompt = `Evaluate the student's answers to defense questions on this project.
 
 Q&A:
-${qa.map((x: any, i: number) => `Q${i + 1} [${x.category}]: ${x.question}\nA${i + 1}: ${x.answer}`).join("\n\n")}
+${qa.map((x: { category?: string; question?: string; answer?: string }, i: number) => `Q${i + 1} [${x.category}]: ${x.question}\nA${i + 1}: ${x.answer}`).join("\n\n")}
 
 Score each 0-10 on accuracy, confidence, completeness. Then give an overall score 0-100 and 3-5 improvement suggestions.
 
@@ -155,9 +155,9 @@ ${ctx}`;
     return new Response(JSON.stringify({ error: "unknown action" }), {
       status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error(e);
-    return new Response(JSON.stringify({ error: e.message ?? "error" }), {
+    return new Response(JSON.stringify({ error: (e instanceof Error ? e.message : String(e)) ?? "error" }), {
       status: e.status ?? 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

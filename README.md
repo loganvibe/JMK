@@ -39,7 +39,7 @@ Core pages & features:
    - Clear comparison table:
      - Free: ₦0 – Basic topics, save, simple tracker.
      - Beta: ₦2,500 / month – Advanced research tools (source finder links, detailed outlines with placeholders, citation generator, viva prep questions, editing suggestions, limited AI refinements).
-     - Premium+: ₦5,000 / month – Unlimited full generations (chapters, abstract, code snippets, diagrams), formatted exports (PDF/Word), plus upload old projects for modification (see below).
+      - Premium+: ₦8,000 / month – Unlimited full generations (chapters, abstract, code snippets, diagrams), formatted exports (PDF/Word), plus upload old projects for modification (see below).
    - Show current status, upgrade buttons with Stripe/Paystack checkout.
    - Highlight Premium+ value: "Upload your old project and get a refreshed, modified new version – perfect for updates or rework."
 

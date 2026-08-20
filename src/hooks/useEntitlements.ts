@@ -9,7 +9,7 @@ export type Plan = {
   currency: string;
   description: string | null;
   features: string[];
-  ai_limits: Record<string, any>;
+  ai_limits: Record<string, number>;
   sort_order: number;
 };
 
@@ -70,7 +70,7 @@ export const formatNaira = (amount: number) =>
 export function useEntitlements() {
   const [loading, setLoading] = useState(true);
   const [plan, setPlan] = useState<Plan | null>(null);
-  const [subscription, setSubscription] = useState<any>(null);
+  const [subscription, setSubscription] = useState<unknown>(null);
   const [creditsUsed, setCreditsUsed] = useState(0);
   const [userId, setUserId] = useState<string | null>(null);
   const [freeMode, setFreeMode] = useState(false);
@@ -105,13 +105,13 @@ export function useEntitlements() {
 
     setFreeMode(settingsRes.data?.pricing_mode === "free");
 
-    const active: any = subRes.data;
+    const active = subRes.data;
     const expired = active?.expiry_date ? new Date(active.expiry_date).getTime() < Date.now() : false;
     const resolved = !expired && active?.subscription_plans ? active.subscription_plans : freeRes.data;
 
     setSubscription(expired ? null : active);
     setPlan((resolved as Plan) ?? null);
-    setCreditsUsed((usageRes.data ?? []).reduce((s, r: any) => s + (r.credits_used || 0), 0));
+    setCreditsUsed((usageRes.data ?? []).reduce((s, r: { credits_used?: number }) => s + (r.credits_used || 0), 0));
     setLoading(false);
   }, []);
 

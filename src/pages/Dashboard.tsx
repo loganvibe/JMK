@@ -62,19 +62,19 @@ type ProjectRow = {
   progress_percent: number;
 };
 
-const tierMeta: Record<string, { label: string; color: string; icon: any }> = {
+const tierMeta: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   free: { label: "Free Plan", color: "bg-muted text-muted-foreground", icon: Sparkles },
   beta: { label: "Beta Plan", color: "bg-accent/10 text-accent", icon: Zap },
   premium: { label: "Premium+ Plan", color: "bg-primary/10 text-primary", icon: Crown },
 };
 
 const Dashboard = () => {
-  const [user, setUser] = useState<any>(null);
-  const [profile, setProfile] = useState<any>(null);
-  const [subscription, setSubscription] = useState<any>(null);
-  const [aiUsage, setAiUsage] = useState<any>(null);
+  const [user, setUser] = useState<unknown>(null);
+  const [profile, setProfile] = useState<unknown>(null);
+  const [subscription, setSubscription] = useState<unknown>(null);
+  const [aiUsage, setAiUsage] = useState<unknown>(null);
   const [projects, setProjects] = useState<ProjectRow[]>([]);
-  const [activity, setActivity] = useState<any[]>([]);
+  const [activity, setActivity] = useState<unknown[]>([]);
   const [selectedDepartment, setSelectedDepartment] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [difficultyFilter, setDifficultyFilter] = useState("all");

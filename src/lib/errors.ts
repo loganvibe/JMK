@@ -17,7 +17,7 @@ export function friendlyError(err: unknown, scope: ErrorScope = "app"): string {
   const raw =
     typeof err === "string"
       ? err
-      : (err as any)?.message || (err as any)?.error_description || "";
+      : ((err as Record<string, unknown>)?.message ?? (err as Record<string, unknown>)?.error_description ?? "") as string;
   const msg = String(raw);
   const lower = msg.toLowerCase();
 
@@ -68,12 +68,12 @@ export async function logError(
 ) {
   try {
     const { data } = await supabase.auth.getUser();
-    await supabase.from("error_logs" as any).insert({
+    await supabase.from("error_logs").insert({
       user_id: data?.user?.id ?? null,
       scope,
       source: typeof window !== "undefined" ? window.location.pathname : null,
       message: String(message).slice(0, 2000),
-      details: details as any,
+      details: details as Record<string, unknown>,
       severity,
     });
   } catch {
@@ -88,7 +88,7 @@ export async function reportError(
   details: Record<string, unknown> = {},
 ): Promise<string> {
   const message = friendlyError(err, scope);
-  await logError(scope, (err as any)?.message ?? String(err), { ...details, shown: message });
+  await logError(scope, (err instanceof Error ? err.message : String(err)) ?? "unknown", { ...details, shown: message });
   return message;
 }
 
@@ -99,7 +99,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
  * "Edge Function returned a non-2xx status code" error. This digs the real
  * message out of the response body so plan/credit errors reach the student.
  */
-async function unwrapFunctionError(err: any): Promise<Error> {
+async function unwrapFunctionError(err: unknown): Promise<Error> {
   const ctx = err?.context;
   try {
     if (ctx && typeof ctx.json === "function") {
@@ -120,7 +120,7 @@ async function unwrapFunctionError(err: any): Promise<Error> {
  * Invokes an edge function with one automatic retry on transient failures,
  * consistent error shape and automatic error logging.
  */
-export async function invokeFunction<T = any>(
+export async function invokeFunction<T = unknown>(
   name: string,
   body: Record<string, unknown>,
   opts: { retries?: number; scope?: ErrorScope } = {},
@@ -137,11 +137,11 @@ export async function invokeFunction<T = any>(
       const { data, error } = await supabase.functions.invoke(name, { body: payload });
       if (error) throw await unwrapFunctionError(error);
 
-      if (data && (data as any).error) throw new Error((data as any).error);
+      if (data && (data as Record<string, unknown>).error) throw new Error(String((data as Record<string, unknown>).error));
       return data as T;
-    } catch (err: any) {
+    } catch (err: unknown) {
       lastErr = err;
-      const text = String(err?.message ?? "").toLowerCase();
+      const text = String((err as Record<string, unknown>)?.message ?? "").toLowerCase();
       const code = String(err?.code ?? "");
       // Plan / credit / auth problems are final — never retry or hide them.
       if (["upgrade_required", "credits_exhausted", "unauthenticated", "forbidden"].includes(code)) break;
@@ -159,7 +159,7 @@ export async function invokeFunction<T = any>(
     }
   }
 
-  await logError(scope, `${name}: ${(lastErr as any)?.message ?? "unknown"}`, { function: name });
+  await logError(scope, (err instanceof Error ? err.message : String(err)) ?? "unknown", { function: name });
   throw new Error(friendlyError(lastErr, scope));
 }
 

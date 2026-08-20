@@ -26,7 +26,7 @@ import { useToast } from "@/hooks/use-toast";
 import { invokeFunction } from "@/lib/errors";
 
 const ModifyProject = () => {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<unknown>(null);
   const [file, setFile] = useState<File | null>(null);
   const [projectText, setProjectText] = useState("");
   const [changes, setChanges] = useState("");
@@ -86,16 +86,17 @@ const ModifyProject = () => {
     setIsGenerating(true);
     setOutput("");
     try {
-      const data = await invokeFunction<any>("modify-project", { projectText, changes, newTopic });
+       const data = await invokeFunction<unknown>("modify-project", { projectText, changes, newTopic });
       setOutput(data?.content ?? "");
       toast({
         title: "Your refreshed project is ready!",
         description: "Polished, well-structured, and designed to help you achieve excellent results.",
       });
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const err = e instanceof Error ? e : new Error(String(e));
       toast({
         title: "Generation failed",
-        description: e.message || "Please try again.",
+        description: err.message || "Please try again.",
         variant: "destructive",
       });
     } finally {

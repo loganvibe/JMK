@@ -16,7 +16,7 @@ export async function extractTextFromFile(file: File): Promise<string> {
 
   if (name.endsWith(".pdf") || file.type === "application/pdf") {
     // Dynamic import so pdfjs only loads when needed
-    const pdfjs: any = await import("pdfjs-dist");
+    const pdfjs: { GlobalWorkerOptions: { workerSrc: string }; getDocument: (opts: { data: ArrayBuffer }) => { promise: { then: (fn: (pdf: unknown) => unknown) => unknown } } } = await import("pdfjs-dist");
     // Use the worker from the same package via CDN-less URL bundling
     const workerUrl = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
     pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
@@ -27,7 +27,7 @@ export async function extractTextFromFile(file: File): Promise<string> {
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
       const content = await page.getTextContent();
-      const strings = content.items.map((it: any) => ("str" in it ? it.str : "")).filter(Boolean);
+      const strings = (content.items as unknown as { str: string }[]).map((it) => it.str).filter(Boolean);
       out += strings.join(" ") + "\n\n";
     }
     return out;

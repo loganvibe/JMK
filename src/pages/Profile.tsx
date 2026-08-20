@@ -43,7 +43,7 @@ const currentYear = new Date().getFullYear();
 const gradYears = Array.from({ length: 8 }, (_, i) => currentYear + i - 1);
 
 const Profile = () => {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<unknown>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);

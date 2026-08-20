@@ -50,8 +50,8 @@ const difficulties = ["Easy", "Medium", "Hard"];
 const CreateProject = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [user, setUser] = useState<any>(null);
-  const [profile, setProfile] = useState<any>(null);
+  const [user, setUser] = useState<unknown>(null);
+  const [profile, setProfile] = useState<unknown>(null);
   const [step, setStep] = useState<1 | 2>(1);
   const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -102,15 +102,16 @@ const CreateProject = () => {
     setTopics([]);
     setSelectedIdx(null);
     try {
-      const data = await invokeFunction<any>("project-ai", { action: "generate_topics", profile, inputs: form });
+       const data = await invokeFunction<unknown>("project-ai", { action: "generate_topics", profile, inputs: form });
       const list: Topic[] = data?.topics ?? [];
       if (!list.length) throw new Error("No topics returned. Try again.");
       setTopics(list);
       setStep(2);
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const err = e instanceof Error ? e : new Error(String(e));
       toast({
         title: "Could not generate topics",
-        description: e?.message ?? "Please try again.",
+        description: err?.message ?? "Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -161,10 +162,11 @@ const CreateProject = () => {
 
       toast({ title: "Project created", description: "Opening your workspace…" });
       navigate(`/projects/${data.id}`);
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const err = e instanceof Error ? e : new Error(String(e));
       toast({
         title: "Could not save project",
-        description: e?.message ?? "Please try again.",
+        description: err?.message ?? "Please try again.",
         variant: "destructive",
       });
     } finally {
