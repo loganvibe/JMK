@@ -38,8 +38,8 @@ const STEPS = ["Upload", "Analysis", "Interview", "Refine", "Review", "Export"] 
 const RefineProject = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [user, setUser] = useState<any>(null);
-  const [profile, setProfile] = useState<any>({});
+  const [user, setUser] = useState<unknown>(null);
+  const [profile, setProfile] = useState<unknown>({});
   const [tier, setTier] = useState<string>("free");
   const [step, setStep] = useState(0);
 
@@ -129,8 +129,9 @@ const RefineProject = () => {
       });
 
       toast({ title: "File ready", description: `Extracted ${text.length.toLocaleString()} characters.` });
-    } catch (e: any) {
-      toast({ title: "Upload failed", description: e.message ?? "Try again.", variant: "destructive" });
+    } catch (e: unknown) {
+      const err = e instanceof Error ? e : new Error(String(e));
+      toast({ title: "Upload failed", description: err.message ?? "Try again.", variant: "destructive" });
       setFile(null);
       setExtracted("");
     } finally {
@@ -148,14 +149,15 @@ const RefineProject = () => {
     }
     setAnalyzing(true);
     try {
-      const data = await invokeFunction<any>("refine-project", { action: "analyze", text: extracted, profile });
+       const data = await invokeFunction<unknown>("refine-project", { action: "analyze", text: extracted, profile });
       setAnalysis(data as Analysis);
       if (documentId) {
         await supabase.from("project_documents").update({ analysis: data, upload_status: "analyzed" }).eq("id", documentId);
       }
       setStep(1);
-    } catch (e: any) {
-      toast({ title: "Analysis failed", description: e.message, variant: "destructive" });
+    } catch (e: unknown) {
+      const err = e instanceof Error ? e : new Error(String(e));
+      toast({ title: "Analysis failed", description: err.message, variant: "destructive" });
     } finally {
       setAnalyzing(false);
     }
@@ -181,19 +183,21 @@ const RefineProject = () => {
       setRefinementId(data.id);
       setStep(3);
       await splitSections();
-    } catch (e: any) {
-      toast({ title: "Could not save answers", description: e.message, variant: "destructive" });
+    } catch (e: unknown) {
+      const err = e instanceof Error ? e : new Error(String(e));
+      toast({ title: "Could not save answers", description: err.message, variant: "destructive" });
     }
   };
 
   const splitSections = async () => {
     setSplitting(true);
     try {
-      const data = await invokeFunction<any>("refine-project", { action: "split_sections", text: extracted });
-      const list: Section[] = (data?.sections ?? []).filter((s: any) => s?.content?.trim());
+       const data = await invokeFunction<unknown>("refine-project", { action: "split_sections", text: extracted });
+       const list: Section[] = (data?.sections ?? []).filter((s: unknown) => (s as { content?: string } | undefined)?.content?.trim());
       setSections(list.length ? list : [{ chapter: "Full Document", section: "Content", content: extracted.slice(0, 8000) }]);
-    } catch (e: any) {
-      toast({ title: "Could not split content", description: e.message, variant: "destructive" });
+    } catch (e: unknown) {
+      const err = e instanceof Error ? e : new Error(String(e));
+      toast({ title: "Could not split content", description: err.message, variant: "destructive" });
       setSections([{ chapter: "Full Document", section: "Content", content: extracted.slice(0, 8000) }]);
     } finally {
       setSplitting(false);
@@ -204,7 +208,7 @@ const RefineProject = () => {
     setRefiningIdx(idx);
     try {
       const s = sections[idx];
-      const data = await invokeFunction<any>("refine-project", {
+       const data = await invokeFunction<unknown>("refine-project", {
         action: "refine_section",
         section: `${s.chapter} — ${s.section}`,
         original: s.content,
@@ -223,8 +227,9 @@ const RefineProject = () => {
         change_summary: data.change_summary,
         source: "refinement",
       });
-    } catch (e: any) {
-      toast({ title: "Refinement failed", description: e.message, variant: "destructive" });
+    } catch (e: unknown) {
+      const err = e instanceof Error ? e : new Error(String(e));
+      toast({ title: "Refinement failed", description: err.message, variant: "destructive" });
     } finally {
       setRefiningIdx(null);
     }

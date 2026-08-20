@@ -21,7 +21,7 @@ Deno.serve(async (req) => {
     const projectId: string | null = body?.project?.id ?? body?.project_id ?? null;
     const model = resolveModel(body?.model);
 
-    const ctx = await guard(req, FEATURE[action] as any, { projectId });
+    const ctx = await guard(req, FEATURE[action], { projectId });
     await ctx.log();
 
     const project = body?.project ?? {};
@@ -48,7 +48,7 @@ Return STRICT JSON only:
   "suggestions": ["actionable rewrite advice"]
 }`;
       const raw = await callAI(system, `${context}\n\nTEXT:\n"""\n${text}\n"""`, { model, json: true });
-      const parsed = parseJson<any>(raw);
+      const parsed = parseJson<unknown>(raw);
       return json({ ...parsed, model });
     }
 
@@ -69,7 +69,7 @@ Return STRICT JSON only:
 }
 Never invent DOIs or URLs.`;
       const raw = await callAI(system, `${context}\n\nLiterature needed: ${query}`, { model, json: true });
-      return json({ ...parseJson<any>(raw), model });
+      return json({ ...parseJson<unknown>(raw), model });
     }
 
     // data_analysis
@@ -92,7 +92,7 @@ Return STRICT JSON only:
       `${context}\n\nResearch question: ${question || "Not specified"}\n\nDATASET:\n"""\n${dataset}\n"""`,
       { model, json: true },
     );
-    return json({ ...parseJson<any>(raw), model });
+    return json({ ...parseJson<unknown>(raw), model });
   } catch (e) {
     return accessErrorResponse(e, corsHeaders);
   }

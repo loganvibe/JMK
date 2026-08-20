@@ -35,7 +35,7 @@ All project tables are scoped by `user_id = auth.uid()` in RLS.
 ## Monetisation
 | Table | Purpose |
 |---|---|
-| `subscription_plans` | Free / Student ₦8,000 / Premium+ ₦20,000 / Custom, with `ai_limits` JSON |
+| `subscription_plans` | Free / Student ₦2,500 / Premium+ ₦8,000 / Custom, with `ai_limits` JSON |
 | `user_subscriptions` | Active plan per user with expiry and payment reference |
 | `payment_transactions` | Paystack references, amount, status (`pending`/`success`/`failed`) |
 | `ai_usage_logs` | One row per AI action with the feature and credits consumed |

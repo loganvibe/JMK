@@ -63,7 +63,7 @@ const mockSavedProjects = [
 ];
 
 const MyProjects = () => {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<unknown>(null);
   const [projects, setProjects] = useState(mockSavedProjects);
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);

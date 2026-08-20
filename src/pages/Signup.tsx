@@ -56,8 +56,8 @@ const Signup = () => {
         title: "Check your email",
         description: "We've sent you a confirmation link to verify your email address.",
       });
-    } catch (error: any) {
-      const msg = String(error?.message ?? "");
+    } catch (error: unknown) {
+      const msg = String((error as Error | undefined)?.message ?? "");
       toast({
         title: "Signup failed",
         description: /already registered|already exists/i.test(msg)
@@ -81,10 +81,11 @@ const Signup = () => {
       });
       if (error) throw error;
       toast({ title: "Verification email resent", description: `Sent again to ${sentTo}.` });
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error instanceof Error ? error : new Error(String(error));
       toast({
         title: "Could not resend",
-        description: error?.message || "Please wait a moment and try again.",
+        description: err?.message || "Please wait a moment and try again.",
         variant: "destructive",
       });
     } finally {
@@ -101,10 +102,11 @@ const Signup = () => {
       if (result.error) throw result.error;
       if (result.redirected) return;
       navigate("/dashboard");
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error instanceof Error ? error : new Error(String(error));
       toast({
         title: "Google signup failed",
-        description: error.message || "Please try again.",
+        description: err.message || "Please try again.",
         variant: "destructive",
       });
     }

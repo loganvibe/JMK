@@ -11,13 +11,13 @@ type Body = {
     | "expand"
     | "simplify"
     | "regenerate";
-  profile?: Record<string, any>;
-  project?: Record<string, any>;
+  profile?: Record<string, unknown>;
+  project?: Record<string, unknown>;
   chapter?: string;
   section?: string;
   currentContent?: string;
   instruction?: string;
-  inputs?: Record<string, any>;
+  inputs?: Record<string, unknown>;
   contextSections?: { chapter: string; section: string; content: string }[];
 };
 
@@ -25,7 +25,7 @@ const makeCallAI = (model: unknown) =>
   (system: string, user: string, jsonMode = false) =>
     sharedCallAI(system, user, { model, json: !!jsonMode });
 
-function studentContext(profile: any = {}, project: any = {}) {
+function studentContext(profile: unknown = {}, project: unknown = {}) {
   return `Student profile:
 - University: ${profile.university ?? "N/A"}
 - Faculty: ${profile.faculty ?? "N/A"}
@@ -47,12 +47,12 @@ Deno.serve(async (req) => {
 
   try {
     const body = (await req.json()) as Body;
-    const callAI = makeCallAI((body as any)?.model);
+    const callAI = makeCallAI((body as Record<string, unknown>)?.model);
     const { action } = body;
 
     // --- server-side auth, plan and credit enforcement ---
     const feature = action === "generate_topics" ? "topic_generation" : "chapter_generation";
-    const ctx = await guard(req, feature as any, {
+    const ctx = await guard(req, feature, {
       projectId: body.project?.id ?? null,
       chapter: body.chapter ?? null,
     });
@@ -91,7 +91,7 @@ Student inputs:
 
 Generate 5 topic ideas now.`;
       const raw = await callAI(system, user, true);
-      let parsed: any = {};
+      let parsed: unknown = {};
       try { parsed = JSON.parse(raw); } catch {
         const m = raw.match(/\{[\s\S]*\}/);
         parsed = m ? JSON.parse(m[0]) : { topics: [] };
@@ -155,11 +155,11 @@ ${ctxBlock}`;
     return new Response(JSON.stringify({ content }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error("project-ai error", e);
-    const status = e?.status ?? 500;
+    const status = (e as { status?: number } | undefined)?.status ?? 500;
     return new Response(
-      JSON.stringify({ error: e?.message ?? "Unexpected server error" }),
+      JSON.stringify({ error: (e instanceof Error ? e.message : String(e)) ?? "Unexpected server error" }),
       { status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }

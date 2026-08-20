@@ -28,7 +28,7 @@ const ModelPicker = ({ compact = false }: { compact?: boolean }) => {
     setModel(id);
     const { data } = await supabase.auth.getUser();
     if (data?.user) {
-      await supabase.from("profiles").update({ preferred_model: id } as any).eq("id", data.user.id);
+      await supabase.from("profiles").update({ preferred_model: id } as unknown as Record<string, unknown>).eq("id", data.user.id);
     }
   };
 

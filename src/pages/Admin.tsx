@@ -22,21 +22,36 @@ import AdminPricing from "@/pages/admin/AdminPricing";
 
 const REQUEST_STATUSES = ["pending", "reviewing", "quoted", "accepted", "in_progress", "completed", "rejected"];
 
+function isAdminAuthenticated(): boolean {
+  try {
+    return sessionStorage.getItem("jmk_admin_auth") === "1";
+  } catch {
+    return false;
+  }
+}
+
+function clearAdminAuth() {
+  try {
+    sessionStorage.removeItem("jmk_admin_auth");
+  } catch {
+    // noop
+  }
+}
+
 const Admin = () => {
   const nav = useNavigate();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
   const [tab, setTab] = useState("pricing");
 
-  const [universities, setUniversities] = useState<any[]>([]);
-  const [departments, setDepartments] = useState<any[]>([]);
-  const [fields, setFields] = useState<any[]>([]);
+  const [universities, setUniversities] = useState<unknown[]>([]);
+  const [departments, setDepartments] = useState<unknown[]>([]);
+  const [fields, setFields] = useState<unknown[]>([]);
 
-  const [txns, setTxns] = useState<any[]>([]);
-  const [subs, setSubs] = useState<any[]>([]);
-  const [usage, setUsage] = useState<any[]>([]);
-  const [requests, setRequests] = useState<any[]>([]);
+  const [txns, setTxns] = useState<unknown[]>([]);
+  const [subs, setSubs] = useState<unknown[]>([]);
+  const [usage, setUsage] = useState<unknown[]>([]);
+  const [requests, setRequests] = useState<unknown[]>([]);
   const [quote, setQuote] = useState<Record<string, { price: string; note: string; status: string }>>({});
 
   const [newUni, setNewUni] = useState({ name: "", short_name: "", city: "", type: "Federal" });
@@ -56,11 +71,10 @@ const Admin = () => {
 
   useEffect(() => {
     (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { nav("/admin/login", { replace: true }); return; }
-      const { data: role } = await supabase.from("user_roles").select("role").eq("user_id", user.id).eq("role", "admin").maybeSingle();
-      setIsAdmin(!!role);
-      if (!role) { setLoading(false); return; }
+      if (!isAdminAuthenticated()) {
+        nav("/admin/login", { replace: true });
+        return;
+      }
       const [{ data: u }, { data: d }, { data: f }] = await Promise.all([
         supabase.from("universities").select("*").order("name"),
         supabase.from("departments").select("*").order("name"),
@@ -72,9 +86,9 @@ const Admin = () => {
     })();
   }, [nav]);
 
-  const saveQuote = async (r: any) => {
-    const q = quote[r.id] ?? { price: "", note: "", status: r.status };
-    const payload: any = { status: q.status || r.status };
+  const saveQuote = async (r: unknown) => {
+    const q = (quote as Record<string, { price: string; note: string; status: string }>)[(r as { id: string }).id] ?? { price: "", note: "", status: (r as { status: string }).status };
+    const payload: Record<string, unknown> = { status: q.status || (r as { status: string }).status };
     if (q.price !== "") payload.admin_price = Number(q.price);
     if (q.note !== "") payload.admin_note = q.note;
 
@@ -140,16 +154,14 @@ const Admin = () => {
   };
 
   if (loading) {
-    return (
-      <AdminShell title="Loading">
-        <div className="py-16 grid place-items-center"><Loader2 className="animate-spin w-6 h-6 text-accent" /></div>
-      </AdminShell>
-    );
-  }
+     return (
+       <AdminShell title="Loading">
+         <div className="py-16 grid place-items-center"><Loader2 className="animate-spin w-6 h-6 text-accent" /></div>
+       </AdminShell>
+     );
+   }
 
-  if (!isAdmin) return <AdminShell title="Access">{null}</AdminShell>;
-
-  return (
+   return (
     <AdminShell title="Business & academic control">
       <div>
         <Tabs value={tab} onValueChange={setTab}>

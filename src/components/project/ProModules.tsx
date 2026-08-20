@@ -22,7 +22,7 @@ import { invokeFunction } from "@/lib/errors";
 import { getPreferredModel, modelLabel } from "@/lib/aiModels";
 import { extractTextFromFile } from "@/lib/extractText";
 
-type Props = { user: any; profile: any; project: any; sections: any[] };
+type Props = { user: unknown; profile: unknown; project: unknown; sections: Section[] };
 
 const scoreTone = (n: number) =>
   n >= 80 ? "text-success" : n >= 55 ? "text-warning" : "text-destructive";
@@ -40,7 +40,7 @@ const ProModules = ({ user, profile, project, sections }: Props) => {
   // ---------- Originality ----------
   const [origSection, setOrigSection] = useState<string>("");
   const [origBusy, setOrigBusy] = useState(false);
-  const [report, setReport] = useState<any>(null);
+  const [report, setReport] = useState<unknown>(null);
 
   const written = sections.filter((s) => (s.content ?? "").trim().length > 200);
 
@@ -52,14 +52,14 @@ const ProModules = ({ user, profile, project, sections }: Props) => {
     }
     setOrigBusy(true);
     try {
-      const data = await invokeFunction<any>("pro-modules", {
+      const data = await invokeFunction<unknown>("pro-modules", {
         action: "originality",
         project,
         profile,
         text: target.content,
       });
       setReport(data);
-      await supabase.from("originality_reports" as any).insert({
+      await supabase.from("originality_reports").insert({
         project_id: project.id,
         user_id: user.id,
         chapter: target.chapter,
@@ -71,8 +71,9 @@ const ProModules = ({ user, profile, project, sections }: Props) => {
         suggestions: data?.suggestions ?? [],
         model: data?.model ?? model,
       });
-    } catch (e: any) {
-      toast({ title: "Originality check failed", description: e.message, variant: "destructive" });
+    } catch (e: unknown) {
+      const err = e instanceof Error ? e : new Error(String(e));
+      toast({ title: "Originality check failed", description: err.message, variant: "destructive" });
     } finally {
       setOrigBusy(false);
     }
@@ -81,40 +82,41 @@ const ProModules = ({ user, profile, project, sections }: Props) => {
   // ---------- Literature ----------
   const [query, setQuery] = useState("");
   const [litBusy, setLitBusy] = useState(false);
-  const [lit, setLit] = useState<any>(null);
-  const [saved, setSaved] = useState<any[]>([]);
+  const [lit, setLit] = useState<unknown>(null);
+  const [saved, setSaved] = useState<unknown[]>([]);
 
   useEffect(() => {
     (async () => {
       const { data } = await supabase
-        .from("literature_sources" as any)
+        .from("literature_sources")
         .select("*")
         .eq("project_id", project.id)
         .order("created_at", { ascending: false });
-      setSaved((data as any[]) ?? []);
+      setSaved((data as unknown) ?? []);
     })();
   }, [project.id]);
 
   const runLiterature = async () => {
     setLitBusy(true);
     try {
-      const data = await invokeFunction<any>("pro-modules", {
+      const data = await invokeFunction<unknown>("pro-modules", {
         action: "literature",
         project,
         profile,
         query: query || project.topic || project.title,
       });
       setLit(data);
-    } catch (e: any) {
-      toast({ title: "Literature search failed", description: e.message, variant: "destructive" });
+    } catch (e: unknown) {
+      const err = e instanceof Error ? e : new Error(String(e));
+      toast({ title: "Literature search failed", description: err.message, variant: "destructive" });
     } finally {
       setLitBusy(false);
     }
   };
 
-  const saveSource = async (s: any) => {
+  const saveSource = async (s: Record<string, unknown>) => {
     const { data, error } = await supabase
-      .from("literature_sources" as any)
+      .from("literature_sources")
       .insert({
         project_id: project.id,
         user_id: user.id,
@@ -140,7 +142,7 @@ const ProModules = ({ user, profile, project, sections }: Props) => {
   const [dataset, setDataset] = useState("");
   const [question, setQuestion] = useState("");
   const [dataBusy, setDataBusy] = useState(false);
-  const [analysis, setAnalysis] = useState<any>(null);
+  const [analysis, setAnalysis] = useState<unknown>(null);
 
   const onFile = async (file?: File | null) => {
     if (!file) return;
@@ -148,15 +150,16 @@ const ProModules = ({ user, profile, project, sections }: Props) => {
       if (/\.(csv|txt|md)$/i.test(file.name)) setDataset(await file.text());
       else setDataset(await extractTextFromFile(file));
       toast({ title: "Data loaded", description: file.name });
-    } catch (e: any) {
-      toast({ title: "Could not read file", description: e.message, variant: "destructive" });
+    } catch (e: unknown) {
+      const err = e instanceof Error ? e : new Error(String(e));
+      toast({ title: "Could not read file", description: err.message, variant: "destructive" });
     }
   };
 
   const runAnalysis = async () => {
     setDataBusy(true);
     try {
-      const data = await invokeFunction<any>("pro-modules", {
+      const data = await invokeFunction<unknown>("pro-modules", {
         action: "data_analysis",
         project,
         profile,
@@ -164,7 +167,7 @@ const ProModules = ({ user, profile, project, sections }: Props) => {
         question,
       });
       setAnalysis(data);
-      await supabase.from("data_analyses" as any).insert({
+      await supabase.from("data_analyses").insert({
         project_id: project.id,
         user_id: user.id,
         title: question.slice(0, 120) || "Chapter 4 analysis",
@@ -175,8 +178,9 @@ const ProModules = ({ user, profile, project, sections }: Props) => {
         narrative: data?.narrative ?? null,
         model: data?.model ?? model,
       });
-    } catch (e: any) {
-      toast({ title: "Analysis failed", description: e.message, variant: "destructive" });
+    } catch (e: unknown) {
+      const err = e instanceof Error ? e : new Error(String(e));
+      toast({ title: "Analysis failed", description: err.message, variant: "destructive" });
     } finally {
       setDataBusy(false);
     }
@@ -247,7 +251,7 @@ const ProModules = ({ user, profile, project, sections }: Props) => {
                 </div>
                 {report.verdict && <p className="text-sm text-foreground">{report.verdict}</p>}
                 <div className="space-y-2">
-                  {(report.flagged ?? []).map((f: any, i: number) => (
+                   {(report.flagged ?? []).map((f: { excerpt?: string; issue?: string; severity?: string; fix?: string }, i: number) => (
                     <div key={i} className="rounded-xl border border-border p-3 bg-muted/30">
                       <div className="flex items-center gap-2 mb-1">
                         <AlertTriangle className="w-4 h-4 text-warning" />
@@ -285,7 +289,7 @@ const ProModules = ({ user, profile, project, sections }: Props) => {
               </Button>
             </div>
 
-            {lit?.sources?.map((s: any, i: number) => (
+            {lit?.sources?.map((s: { title?: string; authors?: string; year?: string; venue?: string; summary?: string; relevance?: string; citation?: string; verified?: boolean }, i: number) => (
               <div key={i} className="rounded-xl border border-border p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -373,7 +377,7 @@ const ProModules = ({ user, profile, project, sections }: Props) => {
                     <p className="text-sm text-muted-foreground">{analysis.method}</p>
                   </div>
                 )}
-                {(analysis.tables ?? []).map((t: any, i: number) => (
+                {(analysis.tables ?? []).map((t: { caption?: string; markdown?: string }, i: number) => (
                   <div key={i} className="rounded-xl border border-border p-3 overflow-x-auto">
                     <p className="text-sm font-medium text-foreground mb-2">{t.caption}</p>
                     <pre className="text-xs font-mono whitespace-pre text-muted-foreground">{t.markdown}</pre>
@@ -381,7 +385,7 @@ const ProModules = ({ user, profile, project, sections }: Props) => {
                 ))}
                 {!!(analysis.findings ?? []).length && (
                   <div className="space-y-2">
-                    {analysis.findings.map((f: any, i: number) => (
+                    {analysis.findings.map((f: { finding?: string; evidence?: string }, i: number) => (
                       <div key={i} className="text-sm">
                         <p className="text-foreground font-medium">{f.finding}</p>
                         <p className="text-muted-foreground">{f.evidence}</p>

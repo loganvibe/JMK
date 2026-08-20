@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ArrowLeft, Briefcase, Loader2, Send, Wrench } from "lucide-react";
@@ -25,7 +25,7 @@ const categories = [
   "Other",
 ];
 
-const statusVariant: Record<string, any> = {
+const statusVariant: Record<string, string> = {
   pending: "secondary",
   reviewing: "secondary",
   quoted: "default",
@@ -38,7 +38,7 @@ const statusVariant: Record<string, any> = {
 const Services = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [requests, setRequests] = useState<any[]>([]);
+  const [requests, setRequests] = useState<unknown[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({
     category: "",
@@ -48,7 +48,7 @@ const Services = () => {
     deadline: "",
   });
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { navigate("/login"); return; }
     const { data } = await supabase
@@ -57,9 +57,9 @@ const Services = () => {
       .eq("user_id", user.id)
       .order("created_at", { ascending: false });
     setRequests(data ?? []);
-  };
+  }, [navigate]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();

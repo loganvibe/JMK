@@ -184,7 +184,7 @@ export async function callAI(
 }
 
 /** Tolerant JSON parser for model output. */
-export function parseJson<T = any>(raw: string): T {
+export function parseJson<T = unknown>(raw: string): T {
   const cleaned = raw.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
   try {
     return JSON.parse(cleaned);

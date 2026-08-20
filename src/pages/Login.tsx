@@ -40,8 +40,8 @@ const Login = () => {
         description: "You have successfully logged in.",
       });
       navigate("/dashboard");
-    } catch (error: any) {
-      const raw = String(error?.message ?? "");
+    } catch (error: unknown) {
+      const raw = String((error as Error | undefined)?.message ?? "");
       let description = raw || "Please check your credentials and try again.";
       if (/email not confirmed/i.test(raw)) {
         description = "Your email isn't verified yet. Open the confirmation link we sent you, then sign in.";
@@ -63,10 +63,11 @@ const Login = () => {
       if (result.error) throw result.error;
       if (result.redirected) return;
       navigate("/dashboard");
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error instanceof Error ? error : new Error(String(error));
       toast({
         title: "Google login failed",
-        description: error.message || "Please try again.",
+        description: err.message || "Please try again.",
         variant: "destructive",
       });
     }

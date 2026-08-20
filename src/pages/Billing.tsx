@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -12,7 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useEntitlements, formatNaira, type Plan } from "@/hooks/useEntitlements";
 import NotificationBell from "@/components/notifications/NotificationBell";
 
-const planIcon: Record<string, any> = {
+const planIcon: Record<string, React.ComponentType<{ className?: string }>> = {
   free: Zap,
   student: Sparkles,
   premium_plus: Crown,
@@ -25,11 +25,11 @@ const Billing = () => {
   const [params, setParams] = useSearchParams();
   const ent = useEntitlements();
   const [plans, setPlans] = useState<Plan[]>([]);
-  const [txns, setTxns] = useState<any[]>([]);
+  const [txns, setTxns] = useState<unknown[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
 
-  const loadHistory = async () => {
+  const loadHistory = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { navigate("/login"); return; }
     const [p, t] = await Promise.all([
@@ -38,9 +38,9 @@ const Billing = () => {
     ]);
     setPlans((p.data as Plan[]) ?? []);
     setTxns(t.data ?? []);
-  };
+  }, [navigate]);
 
-  useEffect(() => { loadHistory(); }, []);
+  useEffect(() => { loadHistory(); }, [loadHistory]);
 
   // Handle Paystack callback ?reference=...
   useEffect(() => {

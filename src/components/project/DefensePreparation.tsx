@@ -15,7 +15,7 @@ import ReactMarkdown from "react-markdown";
 import { invokeFunction } from "@/lib/errors";
 
 type Section = { chapter: string; section_type: string; content: string | null };
-type Props = { user: any; profile: any; project: any; sections: Section[] };
+type Props = { user: unknown; profile: unknown; project: { id: string; title?: string }; sections: Section[] };
 
 const DEFAULT_CHECKLIST = [
   "Title approved by supervisor",
@@ -35,17 +35,17 @@ const DefensePreparation = ({ user, profile, project, sections }: Props) => {
   const [tab, setTab] = useState("summary");
   const [busy, setBusy] = useState<string | null>(null);
 
-  const [summary5, setSummary5] = useState<any>(null);
-  const [summary10, setSummary10] = useState<any>(null);
-  const [slides, setSlides] = useState<any>(null);
-  const [readiness, setReadiness] = useState<any>(null);
+  const [summary5, setSummary5] = useState<unknown>(null);
+  const [summary10, setSummary10] = useState<unknown>(null);
+  const [slides, setSlides] = useState<unknown>(null);
+  const [readiness, setReadiness] = useState<unknown>(null);
 
-  const [questions, setQuestions] = useState<any[]>([]);
+  const [questions, setQuestions] = useState<unknown[]>([]);
   const [answers, setAnswers] = useState<string[]>([]);
-  const [evalResult, setEvalResult] = useState<any>(null);
+  const [evalResult, setEvalResult] = useState<unknown>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
 
-  const [checklist, setChecklist] = useState<any[]>([]);
+  const [checklist, setChecklist] = useState<unknown[]>([]);
   const [coachQ, setCoachQ] = useState("");
   const [coachA, setCoachA] = useState("");
 
@@ -55,7 +55,7 @@ const DefensePreparation = ({ user, profile, project, sections }: Props) => {
         supabase.from("defense_summaries").select("*").eq("project_id", project.id),
         supabase.from("project_checklists").select("*").eq("project_id", project.id).order("sort_order"),
       ]);
-      sums?.forEach((s: any) => {
+      (sums ?? []).forEach((s: { summary_type?: string; content?: unknown }) => {
         if (s.summary_type === "5min") setSummary5(s.content);
         if (s.summary_type === "10min") setSummary10(s.content);
         if (s.summary_type === "slides") setSlides(s.content);
@@ -70,12 +70,12 @@ const DefensePreparation = ({ user, profile, project, sections }: Props) => {
     })();
   }, [project.id, user.id]);
 
-  const callAI = async (action: string, payload?: any) => {
-    const data = await invokeFunction<any>("defense-ai", { action, project, profile, sections, payload });
+  const callAI = async (action: string, payload?: Record<string, unknown>) => {
+    const data = await invokeFunction<unknown>("defense-ai", { action, project, profile, sections, payload });
     return data?.content;
   };
 
-  const saveSummary = async (summary_type: string, content: any) => {
+  const saveSummary = async (summary_type: string, content: unknown) => {
     await supabase.from("defense_summaries").upsert(
       { project_id: project.id, user_id: user.id, summary_type, content },
       { onConflict: "project_id,summary_type" }
@@ -89,8 +89,9 @@ const DefensePreparation = ({ user, profile, project, sections }: Props) => {
       if (type === "5min") setSummary5(content); else setSummary10(content);
       await saveSummary(type, content);
       toast({ title: "Summary generated" });
-    } catch (e: any) {
-      toast({ title: "Failed", description: e.message, variant: "destructive" });
+    } catch (e: unknown) {
+      const err = e instanceof Error ? e : new Error(String(e));
+      toast({ title: "Failed", description: err.message, variant: "destructive" });
     } finally { setBusy(null); }
   };
 
@@ -101,8 +102,9 @@ const DefensePreparation = ({ user, profile, project, sections }: Props) => {
       setSlides(content);
       await saveSummary("slides", content);
       toast({ title: "Slides generated" });
-    } catch (e: any) {
-      toast({ title: "Failed", description: e.message, variant: "destructive" });
+    } catch (e: unknown) {
+      const err = e instanceof Error ? e : new Error(String(e));
+      toast({ title: "Failed", description: err.message, variant: "destructive" });
     } finally { setBusy(null); }
   };
 
@@ -111,8 +113,9 @@ const DefensePreparation = ({ user, profile, project, sections }: Props) => {
     try {
       const content = await callAI("readiness");
       setReadiness(content);
-    } catch (e: any) {
-      toast({ title: "Failed", description: e.message, variant: "destructive" });
+    } catch (e: unknown) {
+      const err = e instanceof Error ? e : new Error(String(e));
+      toast({ title: "Failed", description: err.message, variant: "destructive" });
     } finally { setBusy(null); }
   };
 
@@ -126,15 +129,16 @@ const DefensePreparation = ({ user, profile, project, sections }: Props) => {
         .or(`department.is.null,department.eq.${profile?.department ?? ""}`)
         .limit(20);
       const content = await callAI("generate_questions", { bank: bank ?? [] });
-      const qs = content?.questions ?? [];
+      const qs = (content as { questions?: unknown[] } | undefined)?.questions ?? [];
       setQuestions(qs);
       setAnswers(qs.map(() => ""));
       const { data: sess } = await supabase.from("defense_sessions").insert({
         project_id: project.id, user_id: user.id, questions: qs, answers: [], status: "in_progress",
       }).select().single();
       setSessionId(sess?.id ?? null);
-    } catch (e: any) {
-      toast({ title: "Failed", description: e.message, variant: "destructive" });
+    } catch (e: unknown) {
+      const err = e instanceof Error ? e : new Error(String(e));
+      toast({ title: "Failed", description: err.message, variant: "destructive" });
     } finally { setBusy(null); }
   };
 
@@ -146,11 +150,12 @@ const DefensePreparation = ({ user, profile, project, sections }: Props) => {
       setEvalResult(content);
       if (sessionId) {
         await supabase.from("defense_sessions").update({
-          answers: qa, feedback: content, score: content?.overall_score ?? null, status: "completed",
+          answers: qa, feedback: content, score: (content as { overall_score?: number | null } | undefined)?.overall_score ?? null, status: "completed",
         }).eq("id", sessionId);
       }
-    } catch (e: any) {
-      toast({ title: "Failed", description: e.message, variant: "destructive" });
+    } catch (e: unknown) {
+      const err = e instanceof Error ? e : new Error(String(e));
+      toast({ title: "Failed", description: err.message, variant: "destructive" });
     } finally { setBusy(null); }
   };
 
@@ -161,8 +166,9 @@ const DefensePreparation = ({ user, profile, project, sections }: Props) => {
     try {
       const content = await callAI("coach", { question: coachQ });
       setCoachA(content);
-    } catch (e: any) {
-      toast({ title: "Failed", description: e.message, variant: "destructive" });
+    } catch (e: unknown) {
+      const err = e instanceof Error ? e : new Error(String(e));
+      toast({ title: "Failed", description: err.message, variant: "destructive" });
     } finally { setBusy(null); }
   };
 
@@ -176,7 +182,7 @@ const DefensePreparation = ({ user, profile, project, sections }: Props) => {
 
   const exportSlides = () => {
     if (!slides?.slides) return;
-    const text = slides.slides.map((s: any, i: number) =>
+    const text = (slides as { slides: { title?: string; bullets?: string[]; speaker_notes?: string }[] }).slides.map((s, i: number) =>
       `SLIDE ${i + 1}: ${s.title}\n${(s.bullets || []).map((b: string) => `• ${b}`).join("\n")}\n\nNotes: ${s.speaker_notes || ""}\n\n---\n`
     ).join("\n");
     const blob = new Blob([text], { type: "text/plain" });
@@ -245,14 +251,14 @@ const DefensePreparation = ({ user, profile, project, sections }: Props) => {
             <div key={key} className="bg-card border border-border rounded-2xl p-5">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-heading font-semibold text-foreground">{label}</h3>
-                <Button size="sm" variant="secondary" onClick={() => genSummary(key as any)} disabled={busy === `sum_${key}`}>
+                <Button size="sm" variant="secondary" onClick={() => genSummary(key as "5min" | "10min")} disabled={busy === `sum_${key}`}>
                   {busy === `sum_${key}` ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <RefreshCcw className="w-4 h-4 mr-1.5" />}
                   {val ? "Regenerate" : "Generate"}
                 </Button>
               </div>
               {val ? (
                 <div className="space-y-3">
-                  {(val.sections ?? []).map((s: any, i: number) => (
+                  {(val.sections ?? []).map((s: { heading?: string; content?: string; speaking_notes?: string }, i: number) => (
                     <div key={i} className="rounded-lg border border-border p-3">
                       <div className="flex items-center justify-between mb-1">
                         <p className="font-semibold text-sm">{s.heading}</p>
@@ -309,7 +315,7 @@ const DefensePreparation = ({ user, profile, project, sections }: Props) => {
             </div>
             {slides?.slides ? (
               <div className="grid md:grid-cols-2 gap-3">
-                {slides.slides.map((s: any, i: number) => (
+                 {(slides as { slides: { title?: string; bullets?: string[]; speaker_notes?: string }[] }).slides.map((s, i: number) => (
                   <div key={i} className="rounded-lg border border-border p-3 bg-muted/20">
                     <p className="text-xs text-muted-foreground">Slide {i + 1}</p>
                     <Input

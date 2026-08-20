@@ -4,10 +4,10 @@ import { callAI as sharedCallAI } from "../_shared/ai.ts";
 
 
 type Ctx = {
-  profile?: any;
-  project?: any;
-  department?: any;
-  memory?: any;
+  profile?: unknown;
+  project?: unknown;
+  department?: unknown;
+  memory?: unknown;
   sections?: { chapter: string; section_type: string; content: string | null }[];
 };
 
@@ -64,7 +64,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
     const body = await req.json();
-    const callAI = makeCallAI((body as any)?.model);
+    const callAI = makeCallAI((body as Record<string, unknown>)?.model);
     const action: string = body.action;
     const ctx: Ctx = {
       profile: body.profile,
@@ -81,7 +81,7 @@ Deno.serve(async (req) => {
       : action?.startsWith("citation")
       ? "citation"
       : "academic_assist";
-    const access = await guard(req, feature as any, { projectId: body.project?.id ?? null });
+    const access = await guard(req, feature, { projectId: body.project?.id ?? null });
     await access.log();
 
 
@@ -193,9 +193,9 @@ Return STRICT JSON: { "new_content": "clean markdown", "change_summary": "1-2 se
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error("academic-ai error", e);
-    return new Response(JSON.stringify({ error: e?.message ?? "Server error" }), {
+    return new Response(JSON.stringify({ error: (e instanceof Error ? e.message : String(e)) ?? "Server error" }), {
       status: e?.status ?? 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

@@ -1,53 +1,72 @@
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Loader2, Lock, Mail, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Loader2, Lock, ShieldCheck } from "lucide-react";
 
-/** Dedicated sign-in for the admin website. */
+const ADMIN_CREDENTIALS = {
+  username: "boom",
+  password: "12345654321",
+};
+
+function isAuthenticated(): boolean {
+  try {
+    return sessionStorage.getItem("jmk_admin_auth") === "1";
+  } catch {
+    return false;
+  }
+}
+
+function setAuthenticated(value: boolean) {
+  try {
+    if (value) {
+      sessionStorage.setItem("jmk_admin_auth", "1");
+    } else {
+      sessionStorage.removeItem("jmk_admin_auth");
+    }
+  } catch {
+    // noop
+  }
+}
+
 const AdminLogin = () => {
   const nav = useNavigate();
   const { toast } = useToast();
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: role } = await supabase
-          .from("user_roles").select("role").eq("user_id", user.id).eq("role", "admin").maybeSingle();
-        if (role) { nav("/admin", { replace: true }); return; }
-      }
-      setChecking(false);
-    })();
+    if (isAuthenticated()) {
+      nav("/admin", { replace: true });
+      return;
+    }
+    setChecking(false);
   }, [nav]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-      if (error) throw error;
-      const { data: role } = await supabase
-        .from("user_roles").select("role").eq("user_id", data.user!.id).eq("role", "admin").maybeSingle();
-      if (!role) {
-        await supabase.auth.signOut();
-        throw new Error("This account does not have administrator access.");
+      const trimmedUsername = username.trim();
+      const trimmedPassword = password.trim();
+
+      if (
+        trimmedUsername === ADMIN_CREDENTIALS.username &&
+        trimmedPassword === ADMIN_CREDENTIALS.password
+      ) {
+        setAuthenticated(true);
+        toast({ title: "Welcome back, admin" });
+        nav("/admin", { replace: true });
+        return;
       }
-      nav("/admin", { replace: true });
-    } catch (err: unknown) {
-      const raw = String((err as Error)?.message ?? "");
+
       toast({
-        title: "Admin sign-in failed",
-        description: /invalid login credentials/i.test(raw)
-          ? "That email and password combination is not correct."
-          : raw || "Please try again.",
+        title: "Invalid credentials",
+        description: "Please check your username and password.",
         variant: "destructive",
       });
     } finally {
@@ -76,11 +95,11 @@ const AdminLogin = () => {
 
         <form onSubmit={submit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="admin-email">Email</Label>
+            <Label htmlFor="admin-username">Username</Label>
             <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input id="admin-email" type="email" className="pl-10" value={email}
-                onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />
+              <ShieldCheck className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input id="admin-username" type="text" className="pl-10" value={username}
+                onChange={(e) => setUsername(e.target.value)} required autoComplete="username" />
             </div>
           </div>
           <div className="space-y-2">
@@ -95,11 +114,6 @@ const AdminLogin = () => {
             {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> Signing in…</> : "Sign in to admin"}
           </Button>
         </form>
-
-        <p className="text-center text-sm text-muted-foreground mt-6">
-          Forgot your password?{" "}
-          <Link to="/forgot-password" className="text-accent hover:underline">Recover it here</Link>
-        </p>
       </div>
     </div>
   );

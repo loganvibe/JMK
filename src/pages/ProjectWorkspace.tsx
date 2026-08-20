@@ -87,9 +87,9 @@ const ProjectWorkspace = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const [user, setUser] = useState<any>(null);
-  const [profile, setProfile] = useState<any>(null);
-  const [project, setProject] = useState<any>(null);
+  const [user, setUser] = useState<unknown>(null);
+  const [profile, setProfile] = useState<unknown>(null);
+  const [project, setProject] = useState<unknown>(null);
   const [sections, setSections] = useState<SectionRow[]>([]);
   const [activeChapter, setActiveChapter] = useState("overview");
   const [activeSection, setActiveSection] = useState<string | null>(null);
@@ -194,8 +194,9 @@ const ProjectWorkspace = () => {
       toast({
         title: markComplete ? "Section marked complete" : "Saved",
       });
-    } catch (e: any) {
-      toast({ title: "Save failed", description: e.message, variant: "destructive" });
+    } catch (e: unknown) {
+      const err = e instanceof Error ? e : new Error(String(e));
+      toast({ title: "Save failed", description: err.message, variant: "destructive" });
     } finally {
       setSaving(false);
     }
@@ -214,7 +215,7 @@ const ProjectWorkspace = () => {
         .filter((s) => chapterOrder.indexOf(s.chapter) <= currentIdx && s.content)
         .map((s) => ({ chapter: s.chapter, section: s.section_type, content: s.content ?? "" }));
 
-      const data = await invokeFunction<any>("project-ai", {
+      const data = await invokeFunction<unknown>("project-ai", {
         action,
         profile,
         project,
@@ -237,8 +238,9 @@ const ProjectWorkspace = () => {
         ai_response: content.slice(0, 10000),
       });
       toast({ title: "AI updated the draft", description: "Review, edit, then save." });
-    } catch (e: any) {
-      toast({ title: "AI request failed", description: e.message, variant: "destructive" });
+    } catch (e: unknown) {
+      const err = e instanceof Error ? e : new Error(String(e));
+      toast({ title: "AI request failed", description: err.message, variant: "destructive" });
     } finally {
       setBusyAction(null);
     }
@@ -331,13 +333,13 @@ const ProjectWorkspace = () => {
               completedCount={completedCount}
             />
           ) : activeChapter === "assistant" ? (
-            <AcademicAssistant user={user} profile={profile} project={project} sections={sections as any} />
+            <AcademicAssistant user={user} profile={profile} project={project} sections={sections as Section[]} />
           ) : activeChapter === "pro" ? (
-            <ProModules user={user} profile={profile} project={project} sections={sections as any} />
+            <ProModules user={user} profile={profile} project={project} sections={sections as Section[]} />
           ) : activeChapter === "collaborate" ? (
             <Collaboration user={user} project={project} />
           ) : activeChapter === "defense" ? (
-            <DefensePreparation user={user} profile={profile} project={project} sections={sections as any} />
+            <DefensePreparation user={user} profile={profile} project={project} sections={sections as Section[]} />
           ) : (
             <motion.div
               key={activeChapter}
@@ -471,7 +473,7 @@ const AIBtn = ({
 }: {
   onClick: () => void;
   busy: boolean;
-  icon: any;
+  icon: React.ReactNode;
   disabled?: boolean;
   children: React.ReactNode;
 }) => (
@@ -488,7 +490,7 @@ const OverviewPanel = ({
   totalSectionsCount,
   completedCount,
 }: {
-  project: any;
+  project: { id: string; title?: string; department?: string; status?: string; created_at?: string; updated_at?: string; problem_statement?: string | null; objectives?: string | null; research_questions?: string | null; methodology?: string | null; scope?: string | null; expected_outcome?: string | null; difficulty_level?: string };
   sections: SectionRow[];
   completionPercent: number;
   totalSectionsCount: number;
