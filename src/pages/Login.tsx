@@ -63,9 +63,16 @@ const Login = () => {
       if (error) throw error;
     } catch (error: unknown) {
       const err = error instanceof Error ? error : new Error(String(error));
+      const message = err.message || "";
+      let description = "Please try again.";
+      if (/invalid.*request|access blocked|unauthorized_client|redirect_uri_mismatch/i.test(message)) {
+        description = "Google sign-in is not configured correctly. Please contact support or try email sign-in.";
+      } else if (/popup.*closed|user.*denied/i.test(message)) {
+        description = "Google sign-in was cancelled or blocked by the browser.";
+      }
       toast({
         title: "Google login failed",
-        description: err.message || "Please try again.",
+        description,
         variant: "destructive",
       });
     }
