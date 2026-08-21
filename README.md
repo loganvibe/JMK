@@ -75,17 +75,9 @@ Other:
 
 Generate the full initial structure: landing, auth, dashboard, pricing, database setup guide, and start on Premium+ modify feature. We can iterate from here.
 
-This project was built with [Lovable](https://lovable.dev).
+## Deployment
 
-**Live app**: https://idea-innovate.lovable.app
-
-## Build with Lovable
-
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/c8111fe4-05a0-456f-af9f-cae3c92af690).
-
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
+Deploy the frontend to Netlify/Vercel and configure Supabase, Stripe, Paystack, and AI provider keys in the hosting environment.
 
 ## Development
 
