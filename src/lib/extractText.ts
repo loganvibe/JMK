@@ -1,8 +1,14 @@
 // Client-side text extraction from uploaded documents.
 import mammoth from "mammoth";
 
+const IMAGE_EXTS = [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".svg", ".heic", ".heif"];
+
 export async function extractTextFromFile(file: File): Promise<string> {
   const name = file.name.toLowerCase();
+
+  if (IMAGE_EXTS.some((ext) => name.endsWith(ext)) || file.type.startsWith("image/")) {
+    throw new Error("Image files are not supported for text extraction. Please upload a PDF, DOCX, TXT, or MD file.");
+  }
 
   if (name.endsWith(".txt") || name.endsWith(".md") || file.type.startsWith("text/")) {
     return await file.text();

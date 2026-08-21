@@ -59,9 +59,20 @@ const ModifyProject = () => {
       toast({ title: "File too large", description: "Maximum size is 10MB.", variant: "destructive" });
       return;
     }
+    const lowerName = f.name.toLowerCase();
+    const imageExts = [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".svg"];
+    if (imageExts.some((ext) => lowerName.endsWith(ext)) || f.type.startsWith("image/")) {
+      toast({
+        title: "Unsupported file type",
+        description: "Please upload a PDF, DOCX, DOC, TXT, MD, or ZIP file. Images are not supported.",
+        variant: "destructive",
+      });
+      setFile(null);
+      return;
+    }
     setFile(f);
     // Read as text (works for .txt, .md; PDF/DOCX users can also paste content below)
-    if (f.type.startsWith("text/") || f.name.endsWith(".txt") || f.name.endsWith(".md")) {
+    if (f.type.startsWith("text/") || lowerName.endsWith(".txt") || lowerName.endsWith(".md")) {
       const text = await f.text();
       setProjectText(text);
       toast({ title: "File loaded", description: `${f.name} is ready.` });
