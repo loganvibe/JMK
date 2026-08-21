@@ -1,6 +1,5 @@
 // Central AI model layer for every edge function.
-// Routes OpenAI models through the gateway Responses API (streaming, consumed
-// server-side) and every other vendor through chat completions.
+// Routes OpenAI models through Chat Completions and Google models through Gemini API.
 
 export type ModelId = string;
 
@@ -62,9 +61,15 @@ export function isOpenAI(model: ModelId) {
   return model.startsWith("openai/");
 }
 
-function apiKey() {
-  const key = Deno.env.get("LOVABLE_API_KEY");
-  if (!key) throw Object.assign(new Error("AI is not configured."), { status: 503, code: "provider_unconfigured" });
+function openaiKey() {
+  const key = Deno.env.get("OPENAI_API_KEY");
+  if (!key) throw Object.assign(new Error("OpenAI is not configured."), { status: 503, code: "provider_unconfigured" });
+  return key;
+}
+
+function googleKey() {
+  const key = Deno.env.get("GOOGLE_AI_API_KEY");
+  if (!key) throw Object.assign(new Error("Google AI is not configured."), { status: 503, code: "provider_unconfigured" });
   return key;
 }
 
@@ -80,88 +85,74 @@ function gatewayError(status: number, detail: string) {
   return Object.assign(new Error(message), { status: mapped });
 }
 
-/** Streams a Responses API call and returns the concatenated output text. */
-async function callResponses(model: ModelId, system: string, user: string, json: boolean) {
-  const res = await fetch("https://ai.gateway.lovable.dev/v1/responses", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Lovable-API-Key": apiKey(),
-      "X-Lovable-AIG-SDK": "fetch",
+/** Calls Google Gemini API directly. */
+async function callGemini(model: ModelId, system: string, user: string, json: boolean) {
+  const key = googleKey();
+  const modelName = model.replace("google/", "");
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelName)}:generateContent?key=${key}`;
+
+  const body: Record<string, unknown> = {
+    contents: [
+      {
+        parts: [
+          { text: system ? `${system}\n\n${user}` : user },
+        ],
+      },
+    ],
+    generationConfig: {
+      temperature: 0.7,
+      maxOutputTokens: 8192,
     },
-    body: JSON.stringify({
-      model,
-      instructions: system,
-      input: [
-        {
-          role: "user",
-          content: [{ type: "input_text", text: json ? `${user}\n\nRespond with JSON only.` : user }],
-        },
-      ],
-      stream: true,
-      store: false,
-      reasoning: { effort: "low", summary: "auto" },
-    }),
+  };
+
+  if (json) {
+    body.generationConfig = {
+      ...(body.generationConfig as Record<string, unknown>),
+      responseMimeType: "application/json",
+    };
+  }
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
   });
 
-  if (!res.ok || !res.body) {
-    throw gatewayError(res.status, await res.text().catch(() => ""));
-  }
-
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  let text = "";
-
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() ?? "";
-    for (const line of lines) {
-      if (!line.startsWith("data:")) continue;
-      const payload = line.slice(5).trim();
-      if (!payload || payload === "[DONE]") continue;
-      try {
-        const evt = JSON.parse(payload);
-        if (evt.type === "response.output_text.delta" && typeof evt.delta === "string") {
-          text += evt.delta;
-        } else if (evt.type === "response.completed" && !text) {
-          text = evt.response?.output_text ?? "";
-        }
-      } catch {
-        // partial / non-JSON keepalive frame — ignore
-      }
-    }
-  }
-
+  if (!res.ok) throw gatewayError(res.status, await res.text().catch(() => ""));
+  const data = await res.json();
+  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+  if (!text.trim()) throw Object.assign(new Error("The AI returned an empty response. Please retry."), { status: 502 });
   return text;
 }
 
-async function callChatCompletions(model: ModelId, system: string, user: string, json: boolean) {
+/** Calls OpenAI Chat Completions API directly. */
+async function callOpenAI(model: ModelId, system: string, user: string, json: boolean) {
+  const key = openaiKey();
   const body: Record<string, unknown> = {
-    model,
+    model: model.replace("openai/", ""),
     messages: [
       { role: "system", content: system },
       { role: "user", content: user },
     ],
+    temperature: 0.7,
+    max_tokens: 8192,
   };
   if (json) body.response_format = { type: "json_object" };
 
-  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Lovable-API-Key": apiKey(),
-      "X-Lovable-AIG-SDK": "fetch",
+      "Authorization": `Bearer ${key}`,
     },
     body: JSON.stringify(body),
   });
 
   if (!res.ok) throw gatewayError(res.status, await res.text().catch(() => ""));
   const data = await res.json();
-  return data?.choices?.[0]?.message?.content ?? "";
+  const text = data?.choices?.[0]?.message?.content ?? "";
+  if (!text.trim()) throw Object.assign(new Error("The AI returned an empty response. Please retry."), { status: 502 });
+  return text;
 }
 
 /**
@@ -176,10 +167,9 @@ export async function callAI(
   const model = resolveModel(opts.model);
   const json = !!opts.json;
   const text = isOpenAI(model)
-    ? await callResponses(model, system, user, json)
-    : await callChatCompletions(model, system, user, json);
+    ? await callOpenAI(model, system, user, json)
+    : await callGemini(model, system, user, json);
 
-  if (!text.trim()) throw Object.assign(new Error("The AI returned an empty response. Please retry."), { status: 502 });
   return text;
 }
 

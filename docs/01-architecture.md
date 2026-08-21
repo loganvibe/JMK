@@ -8,8 +8,8 @@
 | Frontend | React 18 + Vite + TypeScript |
 | UI | Tailwind CSS + shadcn/ui + framer-motion |
 | Routing | react-router-dom (route-level `React.lazy` code splitting) |
-| Backend | Lovable Cloud (Postgres, Auth, Storage, Edge Functions) |
-| AI | Lovable AI Gateway (Gemini models) via edge functions |
+| Backend | Supabase (Postgres, Auth, Storage, Edge Functions) |
+| AI | OpenAI / Google Gemini via edge functions |
 | Payments | Paystack (NGN) |
 
 ## Application map
