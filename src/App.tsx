@@ -12,6 +12,11 @@ import Signup from "./pages/Signup";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
+import Terms from "./pages/Terms";
+import Privacy from "./pages/Privacy";
+import RefundPolicy from "./pages/RefundPolicy";
+import AcademicIntegrity from "./pages/AcademicIntegrity";
+import Features from "./pages/Features";
 
 
 // Route-level code splitting keeps the first load light on mobile networks.
@@ -53,6 +58,11 @@ const App = () => (
               <Route path="/signup" element={<Signup />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />
+              <Route path="/features" element={<Features />} />
+              <Route path="/terms" element={<Terms />} />
+              <Route path="/privacy" element={<Privacy />} />
+              <Route path="/refund-policy" element={<RefundPolicy />} />
+              <Route path="/academic-integrity" element={<AcademicIntegrity />} />
 
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/my-projects" element={<MyProjects />} />
