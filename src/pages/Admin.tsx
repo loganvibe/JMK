@@ -2,11 +2,13 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   ArrowLeft, Loader2, Plus, Trash2, ShieldCheck, GraduationCap,
-  TrendingUp, Users, Wallet, Briefcase, Sparkles,
+  TrendingUp, Users, Wallet, Briefcase, Sparkles, Settings,
+  Image, FileText, CreditCard, Save,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -18,7 +20,6 @@ import { formatNaira } from "@/hooks/useEntitlements";
 import AdminAnalytics from "@/components/admin/AdminAnalytics";
 import AdminShell from "@/components/admin/AdminShell";
 import AdminPricing from "@/pages/admin/AdminPricing";
-
 
 const REQUEST_STATUSES = ["pending", "reviewing", "quoted", "accepted", "in_progress", "completed", "rejected"];
 
@@ -57,7 +58,6 @@ const Admin = () => {
   const [newUni, setNewUni] = useState({ name: "", short_name: "", city: "", type: "Federal" });
   const [newDept, setNewDept] = useState({ name: "", description: "", specializations: "", common_methodologies: "", ai_guidance: "" });
   const [newField, setNewField] = useState({ name: "", department_hint: "", description: "" });
-
 
   const loadBusiness = async () => {
     const [{ data: t }, { data: s }, { data: au }, { data: r }] = await Promise.all([
@@ -108,7 +108,6 @@ const Admin = () => {
     toast({ title: "Request updated" });
     loadBusiness();
   };
-
 
   const addUni = async () => {
     if (!newUni.name.trim()) return;
@@ -168,7 +167,8 @@ const Admin = () => {
           <TabsList className="flex-wrap h-auto">
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
             <TabsTrigger value="pricing">Pricing</TabsTrigger>
-            <TabsTrigger value="revenue">Revenue</TabsTrigger>
+            <TabsTrigger value="content">Site content</TabsTrigger>
+            <TabsTrigger value="payments">Payments</TabsTrigger>
             <TabsTrigger value="requests">Service requests</TabsTrigger>
             <TabsTrigger value="universities">Universities</TabsTrigger>
             <TabsTrigger value="departments">Departments</TabsTrigger>
@@ -183,7 +183,13 @@ const Admin = () => {
             <AdminPricing />
           </TabsContent>
 
+          <TabsContent value="content" className="mt-4">
+            <AdminContent />
+          </TabsContent>
 
+          <TabsContent value="payments" className="mt-4">
+            <AdminPayments />
+          </TabsContent>
 
           <TabsContent value="revenue" className="space-y-6 mt-4">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -271,8 +277,6 @@ const Admin = () => {
             })}
           </TabsContent>
 
-
-
           <TabsContent value="universities" className="space-y-4 mt-4">
             <div className="grid grid-cols-1 md:grid-cols-5 gap-2 border border-border rounded-xl p-3 bg-muted/20">
               <Input placeholder="Name" value={newUni.name} onChange={(e) => setNewUni({ ...newUni, name: e.target.value })} />
@@ -342,5 +346,117 @@ const Row = ({ title, subtitle, onDelete }: { title: string; subtitle?: string; 
     </button>
   </div>
 );
+
+const AdminContent = () => {
+  const { toast } = useToast();
+  const [heroTitle, setHeroTitle] = useState("");
+  const [heroSubtitle, setHeroSubtitle] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.from("app_settings").select("free_mode_message").eq("id", "global").maybeSingle();
+      if (data) {
+        setHeroSubtitle(data.free_mode_message ?? "");
+      }
+    })();
+  }, []);
+
+  const save = async () => {
+    setSaving(true);
+    const { error } = await supabase.from("app_settings").update({ free_mode_message: heroSubtitle }).eq("id", "global");
+    setSaving(false);
+    if (error) return toast({ title: "Save failed", description: error.message, variant: "destructive" });
+    toast({ title: "Site content updated" });
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="border border-border rounded-xl p-5 bg-card space-y-4">
+        <h2 className="font-heading font-bold text-foreground flex items-center gap-2"><FileText className="w-4 h-4 text-accent" /> Homepage writeups</h2>
+        <div className="space-y-2">
+          <Label htmlFor="hero-subtitle">Hero subtitle / free mode banner</Label>
+          <Textarea id="hero-subtitle" value={heroSubtitle} onChange={(e) => setHeroSubtitle(e.target.value)} rows={3} />
+        </div>
+        <Button size="sm" onClick={save} disabled={saving}>
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-4 h-4 mr-1" />Save writeup</>}
+        </Button>
+      </div>
+
+      <div className="border border-border rounded-xl p-5 bg-card space-y-4">
+        <h2 className="font-heading font-bold text-foreground flex items-center gap-2"><Image className="w-4 h-4 text-accent" /> Branding</h2>
+        <p className="text-sm text-muted-foreground">Logo and site images are served from the <code className="bg-muted px-1 rounded">public/</code> folder. Replace the files there and redeploy to update branding across the app.</p>
+      </div>
+    </div>
+  );
+};
+
+const AdminPayments = () => {
+  const { toast } = useToast();
+  const [paystackKey, setPaystackKey] = useState("");
+  const [stripeKey, setStripeKey] = useState("");
+  const [openaiKey, setOpenaiKey] = useState("");
+  const [googleKey, setGoogleKey] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.from("app_settings").select("*").eq("id", "global").maybeSingle();
+      if (data) {
+        setPaystackKey((data as Record<string, unknown>).paystack_public_key ?? "");
+        setStripeKey((data as Record<string, unknown>).stripe_public_key ?? "");
+      }
+    })();
+  }, []);
+
+  const savePaymentSettings = async () => {
+    setSaving(true);
+    const { error } = await supabase.from("app_settings").update({
+      paystack_public_key: paystackKey,
+      stripe_public_key: stripeKey,
+    }).eq("id", "global");
+    setSaving(false);
+    if (error) return toast({ title: "Save failed", description: error.message, variant: "destructive" });
+    toast({ title: "Payment settings saved" });
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="border border-border rounded-xl p-5 bg-card space-y-4">
+        <h2 className="font-heading font-bold text-foreground flex items-center gap-2"><CreditCard className="w-4 h-4 text-accent" /> Payment providers</h2>
+        <p className="text-sm text-muted-foreground">These keys are stored in your Supabase database. For secret keys, add them in Supabase Dashboard → Edge Functions → Secrets.</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="paystack">Paystack public key</Label>
+            <Input id="paystack" value={paystackKey} onChange={(e) => setPaystackKey(e.target.value)} placeholder="pk_live_..." />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="stripe">Stripe publishable key</Label>
+            <Input id="stripe" value={stripeKey} onChange={(e) => setStripeKey(e.target.value)} placeholder="pk_live_..." />
+          </div>
+        </div>
+        <Button size="sm" onClick={savePaymentSettings} disabled={saving}>
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-4 h-4 mr-1" />Save payment settings</>}
+        </Button>
+      </div>
+
+      <div className="border border-border rounded-xl p-5 bg-card space-y-4">
+        <h2 className="font-heading font-bold text-foreground flex items-center gap-2"><Settings className="w-4 h-4 text-accent" /> AI providers</h2>
+        <p className="text-sm text-muted-foreground">Set these as secrets in Supabase Dashboard → Edge Functions → Secrets. Do not put secret keys in the database.</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="openai">OpenAI API key</Label>
+            <Input id="openai" type="password" value={openaiKey} onChange={(e) => setOpenaiKey(e.target.value)} placeholder="sk-..." />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="google-ai">Google AI API key</Label>
+            <Input id="google-ai" type="password" value={googleKey} onChange={(e) => setGoogleKey(e.target.value)} placeholder="AIza..." />
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground">Required secrets: <code className="bg-muted px-1 rounded">OPENAI_API_KEY</code> and <code className="bg-muted px-1 rounded">GOOGLE_AI_API_KEY</code></p>
+      </div>
+    </div>
+  );
+};
 
 export default Admin;
