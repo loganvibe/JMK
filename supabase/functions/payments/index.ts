@@ -1,8 +1,6 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { adminClient, requireUser, AccessError } from "../_shared/entitlements.ts";
 
-const PAYSTACK = "https://api.paystack.co";
-
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -10,31 +8,79 @@ function json(body: unknown, status = 200) {
   });
 }
 
-async function paystack(path: string, init: RequestInit = {}) {
-  const key = Deno.env.get("PAYSTACK_SECRET_KEY");
-  if (!key) {
-    throw new AccessError(
-      "Payments are not configured yet. Please contact support.",
-      503,
-      "provider_unconfigured",
-    );
-  }
-  const res = await fetch(`${PAYSTACK}${path}`, {
-    ...init,
-    headers: {
-      Authorization: `Bearer ${key}`,
-      "Content-Type": "application/json",
-      ...(init.headers ?? {}),
-    },
+async function paystackInitialize(provider: Record<string, unknown>, payload: Record<string, unknown>) {
+  const secret = String(provider.secret_key ?? "");
+  if (!secret) throw new AccessError("Paystack secret key is not configured.", 503, "provider_unconfigured");
+
+  const res = await fetch("https://api.paystack.co/transaction/initialize", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
   });
   const text = await res.text();
   let data: Record<string, unknown> = {};
   try { data = JSON.parse(text); } catch { data = { raw: text }; }
   if (!res.ok || data?.status === false) {
-    console.error(`Paystack ${path} failed [${res.status}]: ${text}`);
-    throw new AccessError(data?.message || "Payment provider error", res.status || 502, "provider_error");
+    console.error(`Paystack initialize failed [${res.status}]: ${text}`);
+    throw new AccessError(data?.message || "Paystack error", res.status || 502, "provider_error");
   }
-  return data.data;
+  return data.data as Record<string, unknown>;
+}
+
+async function paystackVerify(provider: Record<string, unknown>, reference: string) {
+  const secret = String(provider.secret_key ?? "");
+  if (!secret) throw new AccessError("Paystack secret key is not configured.", 503, "provider_unconfigured");
+
+  const res = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`, {
+    headers: { Authorization: `Bearer ${secret}` },
+  });
+  const text = await res.text();
+  let data: Record<string, unknown> = {};
+  try { data = JSON.parse(text); } catch { data = { raw: text }; }
+  if (!res.ok || data?.status === false) {
+    console.error(`Paystack verify failed [${res.status}]: ${text}`);
+    throw new AccessError(data?.message || "Paystack verify error", res.status || 502, "provider_error");
+  }
+  return data.data as Record<string, unknown>;
+}
+
+async function flutterwaveInitialize(provider: Record<string, unknown>, payload: Record<string, unknown>) {
+  const secret = String(provider.secret_key ?? "");
+  if (!secret) throw new AccessError("Flutterwave secret key is not configured.", 503, "provider_unconfigured");
+
+  const res = await fetch("https://api.flutterwave.com/v3/payments", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${secret}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+  const text = await res.text();
+  let data: Record<string, unknown> = {};
+  try { data = JSON.parse(text); } catch { data = { raw: text }; }
+  if (!res.ok || data?.status !== "success") {
+    console.error(`Flutterwave initialize failed [${res.status}]: ${text}`);
+    throw new AccessError(data?.message || "Flutterwave error", res.status || 502, "provider_error");
+  }
+  return data.data as Record<string, unknown>;
+}
+
+async function flutterwaveVerify(provider: Record<string, unknown>, reference: string) {
+  const secret = String(provider.secret_key ?? "");
+  if (!secret) throw new AccessError("Flutterwave secret key is not configured.", 503, "provider_unconfigured");
+
+  const res = await fetch(`https://api.flutterwave.com/v3/transactions/${encodeURIComponent(reference)}/verify`, {
+    headers: { Authorization: `Bearer ${secret}` },
+  });
+  const text = await res.text();
+  let data: Record<string, unknown> = {};
+  try { data = JSON.parse(text); } catch { data = { raw: text }; }
+  if (!res.ok || data?.status !== "success") {
+    console.error(`Flutterwave verify failed [${res.status}]: ${text}`);
+    throw new AccessError(data?.message || "Flutterwave verify error", res.status || 502, "provider_error");
+  }
+  return data.data as Record<string, unknown>;
 }
 
 Deno.serve(async (req) => {
@@ -66,32 +112,62 @@ Deno.serve(async (req) => {
       if (!plan) return json({ error: "Unknown plan" }, 400);
       if (!plan.price || plan.price <= 0) return json({ error: "This plan cannot be purchased directly" }, 400);
 
-      const reference = `jmk_${planSlug}_${user.id.slice(0, 8)}_${Date.now()}`;
+      const { data: providerRow } = await db
+        .from("payment_providers")
+        .select("*")
+        .eq("active", true)
+        .order("sort_order")
+        .limit(1)
+        .maybeSingle();
 
-      const init = await paystack("/transaction/initialize", {
-        method: "POST",
-        body: JSON.stringify({
+      const provider = providerRow as Record<string, unknown> | null;
+      if (!provider) return json({ error: "No payment provider is active. Please contact support." }, 503);
+
+      const reference = `jmk_${planSlug}_${user.id.slice(0, 8)}_${Date.now()}`;
+      const amountKobo = Math.round(Number(plan.price) * 100);
+      const currency = String(plan.currency || "NGN");
+      const metadata: Record<string, unknown> = { user_id: user.id, plan_slug: planSlug, plan_name: plan.name, provider: provider.slug };
+
+      let authorizationUrl: string | undefined;
+
+      if (provider.slug === "paystack") {
+        const result = await paystackInitialize(provider, {
           email: user.email,
-          amount: Math.round(Number(plan.price) * 100),
-          currency: plan.currency || "NGN",
+          amount: amountKobo,
+          currency,
           reference,
           callback_url: callbackUrl || undefined,
-          metadata: { user_id: user.id, plan_slug: planSlug, plan_name: plan.name },
-        }),
-      });
+          metadata,
+        });
+        authorizationUrl = result.authorization_url as string;
+      } else if (provider.slug === "flutterwave") {
+        const result = await flutterwaveInitialize(provider, {
+          tx_ref: reference,
+          amount: Number(plan.price),
+          currency,
+          redirect_url: callbackUrl || "https://jmk.life/billing",
+          payment_options: "card,banktransfer,ussd",
+          customer: { email: user.email, name: user.email },
+          customizations: { title: "jmk Subscription", description: plan.name },
+          meta: metadata,
+        });
+        authorizationUrl = result.link as string;
+      } else {
+        return json({ error: `Unsupported payment provider: ${provider.slug}` }, 400);
+      }
 
       await db.from("payment_transactions").insert({
         user_id: user.id,
         amount: plan.price,
-        currency: plan.currency || "NGN",
-        provider: "paystack",
+        currency,
+        provider: String(provider.slug),
         reference,
         status: "pending",
         transaction_type: "subscription",
         metadata: { plan_slug: planSlug, plan_id: plan.id },
       });
 
-      return json({ authorization_url: init.authorization_url, reference });
+      return json({ authorization_url: authorizationUrl, reference, provider: provider.slug });
     }
 
     if (action === "verify") {
@@ -107,15 +183,35 @@ Deno.serve(async (req) => {
       if (!txn) return json({ error: "Transaction not found" }, 404);
       if (txn.status === "success") return json({ status: "success", alreadyProcessed: true });
 
-      const verified = await paystack(`/transaction/verify/${encodeURIComponent(reference)}`);
-      const ok = verified?.status === "success";
+      const providerSlug = String(txn.provider ?? "paystack");
+      const { data: providerRow } = await db
+        .from("payment_providers")
+        .select("*")
+        .eq("slug", providerSlug)
+        .maybeSingle();
+
+      const provider = providerRow as Record<string, unknown> | null;
+      if (!provider) return json({ error: "Payment provider not found." }, 400);
+
+      let verified: Record<string, unknown> | null = null;
+      let ok = false;
+
+      if (providerSlug === "paystack") {
+        verified = await paystackVerify(provider, reference);
+        ok = verified?.status === "success";
+      } else if (providerSlug === "flutterwave") {
+        verified = await flutterwaveVerify(provider, reference);
+        ok = verified?.status === "success" && String(verified?.data?.tx_ref ?? "") === reference;
+      } else {
+        return json({ error: `Unsupported payment provider: ${providerSlug}` }, 400);
+      }
 
       await db
         .from("payment_transactions")
         .update({ status: ok ? "success" : "failed", metadata: { ...(txn.metadata ?? {}), gateway: verified } })
         .eq("id", txn.id);
 
-      if (!ok) return json({ status: "failed" });
+      if (!ok) return json({ status: "failed", provider: providerSlug });
 
       const planSlug = (txn.metadata as Record<string, unknown>)?.plan_slug as string | undefined;
       const { data: plan } = await db
@@ -140,13 +236,12 @@ Deno.serve(async (req) => {
           payment_reference: reference,
         });
 
-        // keep legacy subscriptions table in sync
         await db.from("subscriptions").upsert(
           {
             user_id: user.id,
             tier: plan.slug === "premium_plus" ? "premium" : plan.slug === "student" ? "beta" : "free",
             status: "active",
-            provider: "paystack",
+            provider: providerSlug,
             expires_at: expiry.toISOString(),
           },
           { onConflict: "user_id" },
@@ -161,7 +256,7 @@ Deno.serve(async (req) => {
         });
       }
 
-      return json({ status: "success" });
+      return json({ status: "success", provider: providerSlug });
     }
 
     return json({ error: "Unknown action" }, 400);

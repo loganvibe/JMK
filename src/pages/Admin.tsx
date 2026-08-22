@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -393,51 +394,87 @@ const AdminContent = () => {
 
 const AdminPayments = () => {
   const { toast } = useToast();
-  const [paystackKey, setPaystackKey] = useState("");
-  const [stripeKey, setStripeKey] = useState("");
-  const [openaiKey, setOpenaiKey] = useState("");
-  const [googleKey, setGoogleKey] = useState("");
+  const [providers, setProviders] = useState<Array<{ id: string; slug: string; name: string; public_key: string; secret_key: string; active: boolean }>>([]);
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
-      const { data } = await supabase.from("app_settings").select("*").eq("id", "global").maybeSingle();
-      if (data) {
-        setPaystackKey((data as Record<string, unknown>).paystack_public_key ?? "");
-        setStripeKey((data as Record<string, unknown>).stripe_public_key ?? "");
-      }
+      const { data } = await supabase.from("payment_providers").select("*").order("sort_order");
+      setProviders((data ?? []).map((p: Record<string, unknown>) => ({
+        id: String(p.id),
+        slug: String(p.slug),
+        name: String(p.name),
+        public_key: String(p.public_key ?? ""),
+        secret_key: String(p.secret_key ?? ""),
+        active: !!p.active,
+      })));
+      setLoading(false);
     })();
   }, []);
 
-  const savePaymentSettings = async () => {
+  const saveProvider = async (provider: typeof providers[0]) => {
     setSaving(true);
-    const { error } = await supabase.from("app_settings").update({
-      paystack_public_key: paystackKey,
-      stripe_public_key: stripeKey,
-    }).eq("id", "global");
+    const { error } = await supabase
+      .from("payment_providers")
+      .update({
+        public_key: provider.public_key,
+        secret_key: provider.secret_key,
+        active: provider.active,
+      })
+      .eq("id", provider.id);
     setSaving(false);
     if (error) return toast({ title: "Save failed", description: error.message, variant: "destructive" });
-    toast({ title: "Payment settings saved" });
+    toast({ title: `${provider.name} settings saved` });
   };
+
+  const toggleProvider = async (provider: typeof providers[0]) => {
+    const next = { ...provider, active: !provider.active };
+    setProviders((list) => list.map((p) => (p.id === provider.id ? next : p)));
+    await saveProvider(next);
+  };
+
+  const updateProvider = (id: string, values: Partial<typeof providers[0]>) => {
+    setProviders((list) => list.map((p) => (p.id === id ? { ...p, ...values } : p)));
+  };
+
+  if (loading) return <div className="py-16 grid place-items-center"><Loader2 className="w-6 h-6 animate-spin text-accent" /></div>;
 
   return (
     <div className="space-y-6">
       <div className="border border-border rounded-xl p-5 bg-card space-y-4">
         <h2 className="font-heading font-bold text-foreground flex items-center gap-2"><CreditCard className="w-4 h-4 text-accent" /> Payment providers</h2>
-        <p className="text-sm text-muted-foreground">These keys are stored in your Supabase database. For secret keys, add them in Supabase Dashboard → Edge Functions → Secrets.</p>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="paystack">Paystack public key</Label>
-            <Input id="paystack" value={paystackKey} onChange={(e) => setPaystackKey(e.target.value)} placeholder="pk_live_..." />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="stripe">Stripe publishable key</Label>
-            <Input id="stripe" value={stripeKey} onChange={(e) => setStripeKey(e.target.value)} placeholder="pk_live_..." />
-          </div>
+        <p className="text-sm text-muted-foreground">Turn providers on or off. Keys are stored in your Supabase database. For maximum security, sensitive secret keys should also be set in Edge Function secrets.</p>
+        <div className="space-y-4">
+          {providers.map((provider) => (
+            <div key={provider.id} className="border border-border rounded-lg p-4 bg-background space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="font-medium">{provider.name}</p>
+                  <p className="text-xs text-muted-foreground">Slug: {provider.slug}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">{provider.active ? "Active" : "Disabled"}</span>
+                  <Switch checked={provider.active} onCheckedChange={() => toggleProvider(provider)} disabled={saving} />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor={`pub-${provider.id}`}>Public key</Label>
+                  <Input id={`pub-${provider.id}`} value={provider.public_key} onChange={(e) => updateProvider(provider.id, { public_key: e.target.value })} placeholder="pk_live_..." />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor={`sec-${provider.id}`}>Secret key</Label>
+                  <Input id={`sec-${provider.id}`} type="password" value={provider.secret_key} onChange={(e) => updateProvider(provider.id, { secret_key: e.target.value })} placeholder="sk_live_..." />
+                </div>
+              </div>
+              <Button size="sm" onClick={() => saveProvider(provider)} disabled={saving}>
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-4 h-4 mr-1" />Save {provider.name}</>}
+              </Button>
+            </div>
+          ))}
+          {providers.length === 0 && <p className="text-sm text-muted-foreground">No payment providers configured yet.</p>}
         </div>
-        <Button size="sm" onClick={savePaymentSettings} disabled={saving}>
-          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-4 h-4 mr-1" />Save payment settings</>}
-        </Button>
       </div>
 
       <div className="border border-border rounded-xl p-5 bg-card space-y-4">
@@ -446,11 +483,11 @@ const AdminPayments = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="openai">OpenAI API key</Label>
-            <Input id="openai" type="password" value={openaiKey} onChange={(e) => setOpenaiKey(e.target.value)} placeholder="sk-..." />
+            <Input id="openai" type="password" value="" disabled placeholder="Set in Supabase Secrets" />
           </div>
           <div className="space-y-2">
             <Label htmlFor="google-ai">Google AI API key</Label>
-            <Input id="google-ai" type="password" value={googleKey} onChange={(e) => setGoogleKey(e.target.value)} placeholder="AIza..." />
+            <Input id="google-ai" type="password" value="" disabled placeholder="Set in Supabase Secrets" />
           </div>
         </div>
         <p className="text-xs text-muted-foreground">Required secrets: <code className="bg-muted px-1 rounded">OPENAI_API_KEY</code> and <code className="bg-muted px-1 rounded">GOOGLE_AI_API_KEY</code></p>
