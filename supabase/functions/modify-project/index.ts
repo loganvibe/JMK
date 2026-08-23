@@ -57,6 +57,7 @@ Produce the full refreshed project now.`;
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
+    console.error("modify-project error", e);
     return accessErrorResponse(e, corsHeaders);
   }
 });
