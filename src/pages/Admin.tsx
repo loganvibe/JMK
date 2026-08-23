@@ -50,15 +50,17 @@ const Admin = () => {
   const [departments, setDepartments] = useState<unknown[]>([]);
   const [fields, setFields] = useState<unknown[]>([]);
 
-  const [txns, setTxns] = useState<unknown[]>([]);
-  const [subs, setSubs] = useState<unknown[]>([]);
-  const [usage, setUsage] = useState<unknown[]>([]);
-  const [requests, setRequests] = useState<unknown[]>([]);
+  const [txns, setTxns] = useState<Array<{ id: string; amount: number | null; status: string; reference?: string | null; metadata?: Record<string, unknown> | null; transaction_type?: string | null; created_at?: string }>>([]);
+  const [subs, setSubs] = useState<Array<{ id: string; user_id: string; status: string; subscription_plans?: { name?: string | null; slug?: string | null; price?: number | null } | null; created_at?: string }>>([]);
+  const [usage, setUsage] = useState<Array<{ feature?: string | null; credits_used?: number | null; created_at?: string }>>([]);
+  const [requests, setRequests] = useState<Array<{ id: string; user_id: string; category: string; status: string; admin_price?: number | null; admin_note?: string | null; description?: string; department?: string | null; deadline?: string | null; created_at?: string }>>([]);
   const [quote, setQuote] = useState<Record<string, { price: string; note: string; status: string }>>({});
 
   const [newUni, setNewUni] = useState({ name: "", short_name: "", city: "", type: "Federal" });
   const [newDept, setNewDept] = useState({ name: "", description: "", specializations: "", common_methodologies: "", ai_guidance: "" });
   const [newField, setNewField] = useState({ name: "", department_hint: "", description: "" });
+
+  const [error, setError] = useState<string | null>(null);
 
   const loadBusiness = async () => {
     const [{ data: t }, { data: s }, { data: au }, { data: r }] = await Promise.all([
@@ -67,7 +69,10 @@ const Admin = () => {
       supabase.from("ai_usage_logs").select("feature, credits_used, created_at").order("created_at", { ascending: false }).limit(500),
       supabase.from("service_requests").select("*").order("created_at", { ascending: false }).limit(100),
     ]);
-    setTxns(t ?? []); setSubs(s ?? []); setUsage(au ?? []); setRequests(r ?? []);
+    setTxns((t as Array<{ id: string; amount: number | null; status: string; reference?: string | null; metadata?: Record<string, unknown> | null; transaction_type?: string | null; created_at?: string }>) ?? []);
+    setSubs((s as Array<{ id: string; user_id: string; status: string; subscription_plans?: { name?: string | null; slug?: string | null; price?: number | null } | null; created_at?: string }>) ?? []);
+    setUsage((au as Array<{ feature?: string | null; credits_used?: number | null; created_at?: string }>) ?? []);
+    setRequests((r as Array<{ id: string; user_id: string; category: string; status: string; admin_price?: number | null; admin_note?: string | null; description?: string; department?: string | null; deadline?: string | null; created_at?: string }>) ?? []);
   };
 
   useEffect(() => {
@@ -87,8 +92,8 @@ const Admin = () => {
     })();
   }, [nav]);
 
-  const saveQuote = async (r: unknown) => {
-    const q = (quote as Record<string, { price: string; note: string; status: string }>)[(r as { id: string }).id] ?? { price: "", note: "", status: (r as { status: string }).status };
+  const saveQuote = async (r: { id: string; user_id: string; category: string; status: string; admin_price?: number | null; admin_note?: string | null; description?: string; department?: string | null; deadline?: string | null; created_at?: string }) => {
+    const q = quote[r.id] ?? { price: r.admin_price ? String(r.admin_price) : "", note: r.admin_note ?? "", status: r.status };
     const payload: Record<string, unknown> = { status: q.status || (r as { status: string }).status };
     if (q.price !== "") payload.admin_price = Number(q.price);
     if (q.note !== "") payload.admin_note = q.note;
@@ -170,6 +175,7 @@ const Admin = () => {
             <TabsTrigger value="pricing">Pricing</TabsTrigger>
             <TabsTrigger value="content">Site content</TabsTrigger>
             <TabsTrigger value="payments">Payments</TabsTrigger>
+            <TabsTrigger value="revenue">Revenue</TabsTrigger>
             <TabsTrigger value="requests">Service requests</TabsTrigger>
             <TabsTrigger value="universities">Universities</TabsTrigger>
             <TabsTrigger value="departments">Departments</TabsTrigger>
