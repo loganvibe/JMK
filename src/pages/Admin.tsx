@@ -46,9 +46,9 @@ const Admin = () => {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("pricing");
 
-  const [universities, setUniversities] = useState<unknown[]>([]);
-  const [departments, setDepartments] = useState<unknown[]>([]);
-  const [fields, setFields] = useState<unknown[]>([]);
+  const [universities, setUniversities] = useState<Array<{ id: string; name: string; short_name?: string | null; city?: string | null; type?: string | null }>>([]);
+  const [departments, setDepartments] = useState<Array<{ id: string; name: string; specializations?: string[] | null }>>([]);
+  const [fields, setFields] = useState<Array<{ id: string; name: string; department_hint?: string | null; description?: string | null }>>([]);
 
   const [txns, setTxns] = useState<Array<{ id: string; amount: number | null; status: string; reference?: string | null; metadata?: Record<string, unknown> | null; transaction_type?: string | null; created_at?: string }>>([]);
   const [subs, setSubs] = useState<Array<{ id: string; user_id: string; status: string; subscription_plans?: { name?: string | null; slug?: string | null; price?: number | null } | null; created_at?: string }>>([]);
@@ -81,19 +81,21 @@ const Admin = () => {
         nav("/admin/login", { replace: true });
         return;
       }
-      const [{ data: u }, { data: d }, { data: f }] = await Promise.all([
-        supabase.from("universities").select("*").order("name"),
-        supabase.from("departments").select("*").order("name"),
-        supabase.from("research_fields").select("*").order("name"),
-      ]);
-      setUniversities(u ?? []); setDepartments(d ?? []); setFields(f ?? []);
+    const [{ data: u }, { data: d }, { data: f }] = await Promise.all([
+      supabase.from("universities").select("*").order("name"),
+      supabase.from("departments").select("*").order("name"),
+      supabase.from("research_fields").select("*").order("name"),
+    ]);
+    setUniversities((u as Array<{ id: string; name: string; short_name?: string | null; city?: string | null; type?: string | null }>) ?? []);
+    setDepartments((d as Array<{ id: string; name: string; specializations?: string[] | null }>) ?? []);
+    setFields((f as Array<{ id: string; name: string; department_hint?: string | null; description?: string | null }>) ?? []);
       await loadBusiness();
       setLoading(false);
     })();
   }, [nav]);
 
   const saveQuote = async (r: { id: string; user_id: string; category: string; status: string; admin_price?: number | null; admin_note?: string | null; description?: string; department?: string | null; deadline?: string | null; created_at?: string }) => {
-    const q = quote[r.id] ?? { price: r.admin_price ? String(r.admin_price) : "", note: r.admin_note ?? "", status: r.status };
+    const q = quote[r.id] ?? { price: r.admin_price != null ? String(r.admin_price) : "", note: r.admin_note ?? "", status: r.status };
     const payload: Record<string, unknown> = { status: q.status || (r as { status: string }).status };
     if (q.price !== "") payload.admin_price = Number(q.price);
     if (q.note !== "") payload.admin_note = q.note;
