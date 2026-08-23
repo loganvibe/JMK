@@ -17,6 +17,7 @@ import Privacy from "./pages/Privacy";
 import RefundPolicy from "./pages/RefundPolicy";
 import AcademicIntegrity from "./pages/AcademicIntegrity";
 import Features from "./pages/Features";
+import AuthCallback from "./pages/AuthCallback";
 
 
 // Route-level code splitting keeps the first load light on mobile networks.
@@ -57,8 +58,9 @@ const App = () => (
               <Route path="/login" element={<Login />} />
               <Route path="/signup" element={<Signup />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
-              <Route path="/reset-password" element={<ResetPassword />} />
-              <Route path="/features" element={<Features />} />
+               <Route path="/reset-password" element={<ResetPassword />} />
+               <Route path="/auth/callback" element={<AuthCallback />} />
+               <Route path="/features" element={<Features />} />
               <Route path="/terms" element={<Terms />} />
               <Route path="/privacy" element={<Privacy />} />
               <Route path="/refund-policy" element={<RefundPolicy />} />
