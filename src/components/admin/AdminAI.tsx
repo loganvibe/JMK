@@ -330,20 +330,139 @@ const AdminAI = () => {
           )}
           {providers.map((provider) => (
             <Card key={provider.id} className="p-5">
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h3 className="font-semibold">{provider.vendor}</h3>
+                  <h3 className="font-semibold text-lg">{provider.vendor}</h3>
                   <p className="text-xs text-muted-foreground">Type: {provider.type} · Priority: {provider.priority}</p>
                 </div>
-                <Badge variant={provider.active ? "default" : "secondary"}>
-                  {provider.active ? "Active" : "Inactive"}
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">{provider.active ? "Active" : "Inactive"}</span>
+                  <Switch
+                    checked={provider.active}
+                    onCheckedChange={async (v) => {
+                      const { error } = await supabase
+                        .from("ai_providers")
+                        .update({ active: v })
+                        .eq("id", provider.id);
+                      if (error) return toast({ title: "Update failed", description: error.message, variant: "destructive" });
+                      toast({ title: `${provider.vendor} ${v ? "activated" : "deactivated"}` });
+                      loadAll();
+                    }}
+                  />
+                </div>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Provider settings are managed via the Payments tab. API keys are stored server-side only.
-              </p>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor={`api-key-${provider.id}`}>API Key</Label>
+                  <Input
+                    id={`api-key-${provider.id}`}
+                    type="password"
+                    placeholder={provider.type === "ollama" ? "Not required for local Ollama" : "sk-..."}
+                    defaultValue={provider.type === "ollama" ? "" : ""}
+                    onChange={async (e) => {
+                      const { error } = await supabase
+                        .from("ai_providers")
+                        .update({ api_key: e.target.value })
+                        .eq("id", provider.id);
+                      if (error) return toast({ title: "Save failed", description: error.message, variant: "destructive" });
+                      toast({ title: "API key saved" });
+                    }}
+                  />
+                </div>
+
+                {provider.type === "ollama" && (
+                  <div className="space-y-2">
+                    <Label htmlFor={`base-url-${provider.id}`}>Base URL</Label>
+                    <Input
+                      id={`base-url-${provider.id}`}
+                      placeholder="http://localhost:11434"
+                      defaultValue={provider.config?.base_url || "http://localhost:11434"}
+                      onChange={async (e) => {
+                        const { error } = await supabase
+                          .from("ai_providers")
+                          .update({ config: { ...(provider.config || {}), base_url: e.target.value } })
+                          .eq("id", provider.id);
+                        if (error) return toast({ title: "Save failed", description: error.message, variant: "destructive" });
+                        toast({ title: "Base URL saved" });
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-4">
+                <p className="text-xs text-muted-foreground">
+                  {provider.type === "ollama"
+                    ? "Ollama runs locally. Make sure your Ollama server is accessible and the model is pulled (e.g., ollama pull llama3.1)."
+                    : "API keys are stored server-side only and never exposed to the browser."}
+                </p>
+              </div>
             </Card>
           ))}
+
+          <Card className="p-5">
+            <h3 className="font-semibold mb-4">Add New Provider</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label>Vendor</Label>
+                <Input
+                  placeholder="e.g., my-custom-provider"
+                  id="new-vendor"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Type</Label>
+                <Select defaultValue="openai" id="new-type">
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ollama">Ollama</SelectItem>
+                    <SelectItem value="openrouter">OpenRouter</SelectItem>
+                    <SelectItem value="gemini">Gemini</SelectItem>
+                    <SelectItem value="openai">OpenAI</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>API Key (optional)</Label>
+                <Input
+                  type="password"
+                  placeholder="sk-..."
+                  id="new-api-key"
+                />
+              </div>
+            </div>
+            <Button
+              size="sm"
+              className="mt-4"
+              onClick={async () => {
+                const vendor = (document.getElementById("new-vendor") as HTMLInputElement)?.value;
+                const type = (document.getElementById("new-type") as HTMLSelectElement)?.value;
+                const apiKey = (document.getElementById("new-api-key") as HTMLInputElement)?.value;
+
+                if (!vendor) return toast({ title: "Vendor is required", variant: "destructive" });
+
+                const { error } = await supabase
+                  .from("ai_providers")
+                  .insert({
+                    vendor,
+                    type,
+                    api_key: apiKey || "",
+                    active: false,
+                    priority: 99,
+                    config: type === "ollama" ? { base_url: "http://localhost:11434" } : {},
+                  });
+
+                if (error) return toast({ title: "Failed to add provider", description: error.message, variant: "destructive" });
+                toast({ title: "Provider added" });
+                loadAll();
+              }}
+            >
+              Add Provider
+            </Button>
+          </Card>
         </div>
       )}
 
