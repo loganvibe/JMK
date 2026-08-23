@@ -12,43 +12,43 @@ export const MODELS: {
   blurb: string;
 }[] = [
   {
-    id: "google/gemini-3.6-flash",
-    label: "Gemini 3.6 Flash",
+    id: "google/gemini-1.5-flash",
+    label: "Gemini 1.5 Flash",
     vendor: "google",
     tier: "standard",
     blurb: "Fast, balanced default for drafting and everyday academic writing.",
   },
   {
-    id: "google/gemini-3.1-pro-preview",
-    label: "Gemini 3.1 Pro",
+    id: "google/gemini-1.5-pro",
+    label: "Gemini 1.5 Pro",
     vendor: "google",
     tier: "pro",
     blurb: "Deeper reasoning for literature reviews and methodology.",
   },
   {
-    id: "openai/gpt-5.4-mini",
-    label: "GPT-5.4 Mini",
+    id: "openai/gpt-4o-mini",
+    label: "GPT-4o Mini",
     vendor: "openai",
     tier: "standard",
     blurb: "OpenAI quality at low latency — great for edits and citations.",
   },
   {
-    id: "openai/gpt-5.6-terra",
-    label: "GPT-5.6 Terra",
+    id: "openai/gpt-4o",
+    label: "GPT-4o",
     vendor: "openai",
     tier: "pro",
     blurb: "Balanced OpenAI flagship for full chapters and analysis.",
   },
   {
-    id: "openai/gpt-5.5",
-    label: "GPT-5.5",
+    id: "openai/o3-mini",
+    label: "o3 Mini",
     vendor: "openai",
     tier: "pro",
     blurb: "Strongest reasoning for defense prep and complex critique.",
   },
 ];
 
-export const DEFAULT_MODEL: ModelId = "google/gemini-3.6-flash";
+export const DEFAULT_MODEL: ModelId = "google/gemini-1.5-flash";
 
 const ALLOWED = new Set(MODELS.map((m) => m.id));
 
@@ -139,11 +139,24 @@ async function callGemini(model: ModelId, system: string, user: string, json: bo
     body: JSON.stringify(body),
   });
 
-  if (!res.ok) throw gatewayError(res.status, await res.text().catch(() => ""));
-  const data = await res.json();
-  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-  if (!text.trim()) throw Object.assign(new Error("The AI returned an empty response. Please retry."), { status: 502 });
-  return text;
+  const text = await res.text();
+  if (!res.ok) {
+    console.error(`Google AI error [${res.status}]`, text.slice(0, 1000));
+    throw new Error(`Google AI error [${res.status}]: ${text.slice(0, 300)}`);
+  }
+
+  let data: Record<string, unknown> = {};
+  try { data = JSON.parse(text); } catch {
+    console.error("Google AI invalid JSON", text.slice(0, 500));
+    throw new Error("Google AI returned an invalid response. Please try again.");
+  }
+
+  const extracted = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+  if (!extracted.trim()) {
+    console.error("Google AI empty response", JSON.stringify(data).slice(0, 500));
+    throw new Error("The AI returned an empty response. Please retry.");
+  }
+  return extracted;
 }
 
 /** Calls OpenAI Chat Completions API directly. */
@@ -169,11 +182,24 @@ async function callOpenAI(model: ModelId, system: string, user: string, json: bo
     body: JSON.stringify(body),
   });
 
-  if (!res.ok) throw gatewayError(res.status, await res.text().catch(() => ""));
-  const data = await res.json();
-  const text = data?.choices?.[0]?.message?.content ?? "";
-  if (!text.trim()) throw Object.assign(new Error("The AI returned an empty response. Please retry."), { status: 502 });
-  return text;
+  const text = await res.text();
+  if (!res.ok) {
+    console.error(`OpenAI error [${res.status}]`, text.slice(0, 1000));
+    throw new Error(`OpenAI error [${res.status}]: ${text.slice(0, 300)}`);
+  }
+
+  let data: Record<string, unknown> = {};
+  try { data = JSON.parse(text); } catch {
+    console.error("OpenAI invalid JSON", text.slice(0, 500));
+    throw new Error("OpenAI returned an invalid response. Please try again.");
+  }
+
+  const extracted = data?.choices?.[0]?.message?.content ?? "";
+  if (!extracted.trim()) {
+    console.error("OpenAI empty response", JSON.stringify(data).slice(0, 500));
+    throw new Error("The AI returned an empty response. Please retry.");
+  }
+  return extracted;
 }
 
 /**
@@ -187,11 +213,15 @@ export async function callAI(
 ): Promise<string> {
   const model = resolveModel(opts.model);
   const json = !!opts.json;
-  const text = isOpenAI(model)
-    ? await callOpenAI(model, system, user, json)
-    : await callGemini(model, system, user, json);
-
-  return text;
+  try {
+    const text = isOpenAI(model)
+      ? await callOpenAI(model, system, user, json)
+      : await callGemini(model, system, user, json);
+    return text;
+  } catch (e) {
+    console.error(`AI call failed [model=${model}]`, e);
+    throw e;
+  }
 }
 
 /** Tolerant JSON parser for model output. */
