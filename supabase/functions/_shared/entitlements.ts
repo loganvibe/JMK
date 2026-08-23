@@ -21,21 +21,20 @@ export type FeatureKey =
   | "literature"
   | "data_analysis";
 
-// minimum plan rank required + credit cost
+// minimum plan rank required + default credit cost
 export const FEATURE_RULES: Record<FeatureKey, { minRank: number; credits: number; label: string }> = {
-  topic_generation: { minRank: 0, credits: 1, label: "Topic generation" },
-  chapter_generation: { minRank: 0, credits: 2, label: "Chapter generation" },
-  academic_assist: { minRank: 0, credits: 1, label: "Academic assistant" },
-  citation: { minRank: 0, credits: 1, label: "Citation tools" },
-  quality_check: { minRank: 1, credits: 1, label: "Quality check" },
-  refinement: { minRank: 1, credits: 3, label: "AI refinement" },
-  defense_basic: { minRank: 1, credits: 1, label: "Defense preparation" },
-  defense_simulation: { minRank: 2, credits: 3, label: "Mock defense simulation" },
-  originality: { minRank: 1, credits: 2, label: "Originality checker" },
-  literature: { minRank: 1, credits: 2, label: "Literature finder" },
-  data_analysis: { minRank: 2, credits: 3, label: "Data analysis assistant" },
+  topic_generation: { minRank: 0, credits: 2, label: "Topic generation" },
+  chapter_generation: { minRank: 0, credits: 20, label: "Chapter generation" },
+  academic_assist: { minRank: 0, credits: 2, label: "Academic assistant" },
+  citation: { minRank: 0, credits: 2, label: "Citation tools" },
+  quality_check: { minRank: 1, credits: 8, label: "Quality check" },
+  refinement: { minRank: 1, credits: 20, label: "AI refinement" },
+  defense_basic: { minRank: 1, credits: 10, label: "Defense preparation" },
+  defense_simulation: { minRank: 2, credits: 10, label: "Mock defense simulation" },
+  originality: { minRank: 1, credits: 10, label: "Originality checker" },
+  literature: { minRank: 1, credits: 5, label: "Literature finder" },
+  data_analysis: { minRank: 2, credits: 8, label: "Data analysis assistant" },
 };
-
 
 export function adminClient() {
   return createClient(
@@ -105,13 +104,151 @@ export async function siteSettings() {
   return { pricing_mode: data?.pricing_mode ?? "paid", payments_enabled: data?.payments_enabled ?? true };
 }
 
+// ============================================================
+// Credit system
+// ============================================================
+
+export async function getCreditBalance(userId: string) {
+  const db = adminClient();
+  const { data } = await db
+    .from("ai_credit_balances")
+    .select("*")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (!data) {
+    const plan = await getPlan(userId);
+    const limits = plan.ai_limits ?? {};
+    const dailyLimit = Number(limits.credits ?? 10);
+    const monthlyLimit = dailyLimit * 30;
+    const now = new Date();
+    const dailyReset = new Date(now);
+    dailyReset.setDate(dailyReset.getDate() + 1);
+    dailyReset.setHours(0, 0, 0, 0);
+    const monthlyReset = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+    const { data: balance } = await db
+      .from("ai_credit_balances")
+      .insert({
+        user_id: userId,
+        daily_credits: dailyLimit,
+        daily_reset_at: dailyReset.toISOString(),
+        monthly_credits: monthlyLimit,
+        monthly_reset_at: monthlyReset.toISOString(),
+      })
+      .select("*")
+      .single();
+    return balance;
+  }
+
+  return data;
+}
+
+export async function deductCredits(userId: string, credits: number, featureKey: string, projectId?: string | null) {
+  const db = adminClient();
+  const now = new Date().toISOString();
+
+  // Atomic deduction with RETURNING
+  const { data, error } = await db
+    .from("ai_credit_balances")
+    .update({
+      daily_credits: `daily_credits - ${credits}`,
+      monthly_credits: `monthly_credits - ${credits}`,
+      updated_at: now,
+    })
+    .eq("user_id", userId)
+    .gte("daily_credits", credits)
+    .gte("monthly_credits", credits)
+    .gte("daily_reset_at", now)
+    .gte("monthly_reset_at", now)
+    .returning("*");
+
+  if (error || !data || data.length === 0) {
+    const balance = await getCreditBalance(userId);
+    const dailyRemaining = Number(balance.daily_credits ?? 0);
+    const monthlyRemaining = Number(balance.monthly_credits ?? 0);
+    throw new AccessError(
+      `Insufficient credits. Daily: ${dailyRemaining}, Monthly: ${monthlyRemaining}. Upgrade your plan for more.`,
+      402,
+      "credits_exhausted",
+    );
+  }
+
+  const updated = data[0];
+
+  // Log usage
+  await db.from("ai_credit_usage").insert({
+    user_id: userId,
+    project_id: projectId ?? null,
+    feature_key: featureKey,
+    provider: "pending",
+    model: "pending",
+    input_tokens: 0,
+    output_tokens: 0,
+    estimated_cost: 0,
+    credits_used: credits,
+    status: "success",
+  });
+
+  return updated;
+}
+
+export async function checkCreditLimit(userId: string, featureKey: string): Promise<{ allowed: boolean; reason?: string }> {
+  const balance = await getCreditBalance(userId);
+  const settings = await getFeatureSettings(featureKey);
+
+  if (!settings) {
+    return { allowed: true };
+  }
+
+  const dailyRemaining = Number(balance.daily_credits ?? 0);
+  const monthlyRemaining = Number(balance.monthly_credits ?? 0);
+  const creditsNeeded = settings.credits;
+
+  if (settings.daily_limit && dailyRemaining < creditsNeeded) {
+    return { allowed: false, reason: `Daily limit reached. You have ${dailyRemaining} credits remaining today.` };
+  }
+
+  if (settings.monthly_limit && monthlyRemaining < creditsNeeded) {
+    return { allowed: false, reason: `Monthly limit reached. You have ${monthlyRemaining} credits remaining this month.` };
+  }
+
+  return { allowed: true };
+}
+
+export async function getFeatureSettings(featureKey: string) {
+  const db = adminClient();
+  const { data } = await db
+    .from("ai_feature_settings")
+    .select("*")
+    .eq("feature_key", featureKey)
+    .maybeSingle();
+
+  if (!data) return null;
+  return {
+    feature_key: String(data.feature_key),
+    provider_id: data.provider_id ? String(data.provider_id) : null,
+    model_id: data.model_id ? String(data.model_id) : null,
+    enabled: !!data.enabled,
+    credits: Number(data.credits ?? 1),
+    max_input_tokens: Number(data.max_input_tokens ?? 8000),
+    max_output_tokens: Number(data.max_output_tokens ?? 4096),
+    daily_limit: data.daily_limit ? Number(data.daily_limit) : null,
+    monthly_limit: data.monthly_limit ? Number(data.monthly_limit) : null,
+  };
+}
+
+// ============================================================
+// Original enforcement (kept for backward compatibility)
+// ============================================================
+
 export async function creditsUsedThisMonth(userId: string) {
   const db = adminClient();
   const start = new Date();
   start.setUTCDate(1);
   start.setUTCHours(0, 0, 0, 0);
   const { data } = await db
-    .from("ai_usage_logs")
+    .from("ai_credit_usage")
     .select("credits_used")
     .eq("user_id", userId)
     .gte("created_at", start.toISOString());
@@ -143,9 +280,6 @@ export async function enforce(
   }
 
   // Free trial: only Chapter 1 of one project.
-  // Plan limits store keys like "chapter1"; the client sends labels like
-  // "Chapter 1: Introduction", so compare on the detected chapter number and
-  // never block un-numbered sections (Abstract, References, Defense…).
   const limits = plan.ai_limits ?? {};
   const chapterKey = (text: string) => {
     const m = /chapter\s*[-_]?\s*([1-9])/i.exec(String(text));
@@ -165,7 +299,6 @@ export async function enforce(
     }
   }
 
-
   const limit = freeMode ? 100000 : Number(limits.credits ?? 10);
   const used = await creditsUsedThisMonth(user.id);
   if (used + rule.credits > limit) {
@@ -176,17 +309,24 @@ export async function enforce(
     );
   }
 
+  // Check daily/monthly credit limits
+  const creditCheck = await checkCreditLimit(user.id, feature);
+  if (!creditCheck.allowed) {
+    throw new AccessError(creditCheck.reason ?? "Credit limit exceeded.", 402, "credits_exhausted");
+  }
+
   return {
     user,
     plan,
     creditsRemaining: limit - used,
     async log() {
       const db = adminClient();
-      await db.from("ai_usage_logs").insert({
+      await db.from("ai_credit_usage").insert({
         user_id: user.id,
         project_id: opts.projectId ?? null,
         feature,
         credits_used: rule.credits,
+        status: "success",
       });
       if (limit - (used + rule.credits) <= Math.max(2, Math.round(limit * 0.1))) {
         await db.from("notifications").insert({

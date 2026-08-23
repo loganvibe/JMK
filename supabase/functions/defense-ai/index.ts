@@ -1,11 +1,11 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
-import { guard } from "../_shared/entitlements.ts";
+import { guard, deductCredits, FEATURE_RULES } from "../_shared/entitlements.ts";
 import { callAI as sharedCallAI } from "../_shared/ai.ts";
 
 
-const makeCallAI = (model: unknown) =>
+const makeCallAI = (feature: string, model: unknown) =>
   (system: string, user: string, jsonMode = false) =>
-    sharedCallAI(system, user, { model, json: jsonMode });
+    sharedCallAI(system, user, { model, json: jsonMode, feature });
 
 function parseJson(raw: string) {
   try { return JSON.parse(raw); } catch {
@@ -36,13 +36,13 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
     const { action, project, profile, sections, payload, model } = await req.json();
-    const callAI = makeCallAI(model);
-    const ctx = projectContext({ project, profile, sections });
-
-    // --- server-side auth, plan and credit enforcement ---
     const feature = action === "mock_question" || action === "mock_evaluate" || action === "mock"
       ? "defense_simulation"
       : "defense_basic";
+    const callAI = makeCallAI(feature, model);
+    const ctx = projectContext({ project, profile, sections });
+
+    // --- server-side auth, plan and credit enforcement ---
     const access = await guard(req, feature, { projectId: project?.id ?? null });
     await access.log();
 
@@ -68,6 +68,7 @@ ${type === "10min" ? "Make content richer with detailed presentation flow and im
 
 ${ctx}`;
       const raw = await callAI(sys, prompt, true);
+      await deductCredits(ctx.userId, FEATURE_RULES.defense_basic.credits, feature, project?.id ?? null);
       return Response.json({ content: parseJson(raw) }, { headers: corsHeaders });
     }
 
@@ -87,6 +88,7 @@ Follow this structure exactly, in order:
 
 ${ctx}`;
       const raw = await callAI(sys, prompt, true);
+      await deductCredits(ctx.userId, FEATURE_RULES.defense_basic.credits, feature, project?.id ?? null);
       return Response.json({ content: parseJson(raw) }, { headers: corsHeaders });
     }
 
@@ -103,6 +105,7 @@ Return JSON:
 
 ${ctx}`;
       const raw = await callAI(sys, prompt, true);
+      await deductCredits(ctx.userId, FEATURE_RULES.defense_basic.credits, feature, project?.id ?? null);
       return Response.json({ content: parseJson(raw) }, { headers: corsHeaders });
     }
 
@@ -126,6 +129,7 @@ Return JSON:
 
 ${ctx}`;
       const raw = await callAI(sys, prompt, true);
+      await deductCredits(ctx.userId, FEATURE_RULES.defense_basic.credits, feature, project?.id ?? null);
       return Response.json({ content: parseJson(raw) }, { headers: corsHeaders });
     }
 
@@ -137,8 +141,9 @@ ${ctx}`;
 Answer using their actual project data below. Give concrete talking points and phrasing they can use.
 
 ${ctx}`;
-      const raw = await callAI(sys, prompt, false);
-      return Response.json({ content: raw }, { headers: corsHeaders });
+       const raw = await callAI(sys, prompt, false);
+       await deductCredits(access.user.id, FEATURE_RULES.defense_basic.credits, feature, project?.id ?? null);
+       return Response.json({ content: raw }, { headers: corsHeaders });
     }
 
     if (action === "readiness") {
@@ -148,11 +153,12 @@ Return JSON:
 { "score": 0, "strong_areas": ["…"], "improve_areas": ["…"], "advice": "…" }
 
 ${ctx}`;
-      const raw = await callAI(sys, prompt, true);
-      return Response.json({ content: parseJson(raw) }, { headers: corsHeaders });
-    }
+       const raw = await callAI(sys, prompt, true);
+       await deductCredits(access.user.id, FEATURE_RULES.defense_basic.credits, feature, project?.id ?? null);
+       return Response.json({ content: parseJson(raw) }, { headers: corsHeaders });
+     }
 
-    return new Response(JSON.stringify({ error: "unknown action" }), {
+     return new Response(JSON.stringify({ error: "unknown action" }), {
       status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: unknown) {

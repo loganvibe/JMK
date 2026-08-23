@@ -1,5 +1,5 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
-import { guard } from "../_shared/entitlements.ts";
+import { guard, deductCredits, FEATURE_RULES } from "../_shared/entitlements.ts";
 import { callAI as sharedCallAI } from "../_shared/ai.ts";
 
 
@@ -11,9 +11,9 @@ type Ctx = {
   sections?: { chapter: string; section_type: string; content: string | null }[];
 };
 
-const makeCallAI = (model: unknown) =>
+const makeCallAI = (feature: string, model: unknown) =>
   (system: string, user: string, jsonMode = false) =>
-    sharedCallAI(system, user, { model, json: jsonMode });
+    sharedCallAI(system, user, { model, json: jsonMode, feature });
 
 function parseJson(raw: string) {
   try { return JSON.parse(raw); } catch {
@@ -64,8 +64,13 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
     const body = await req.json();
-    const callAI = makeCallAI((body as Record<string, unknown>)?.model);
     const action: string = body.action;
+    const feature = action === "quality_check"
+      ? "quality_check"
+      : action?.startsWith("citation")
+      ? "citation"
+      : "academic_assist";
+    const callAI = makeCallAI(feature, (body as Record<string, unknown>)?.model);
     const ctx: Ctx = {
       profile: body.profile,
       project: body.project,
@@ -76,11 +81,6 @@ Deno.serve(async (req) => {
     const style: string = body.citation_style ?? ctx.memory?.citation_style ?? "APA7";
 
     // --- server-side auth, plan and credit enforcement ---
-    const feature = action === "quality_check"
-      ? "quality_check"
-      : action?.startsWith("citation")
-      ? "citation"
-      : "academic_assist";
     const access = await guard(req, feature, { projectId: body.project?.id ?? null });
     await access.log();
 
@@ -92,6 +92,7 @@ Answer using the student's project context and department intelligence. Be concr
 Use British English. Reply in clean Markdown.`;
       const user = `${contextBlock(ctx)}\n\nSTUDENT QUESTION:\n${question}`;
       const content = await callAI(system, user);
+      await deductCredits(ctx.user.id, FEATURE_RULES.academic_assist.credits, feature, body.project?.id ?? null);
       return new Response(JSON.stringify({ content }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -104,7 +105,9 @@ Return STRICT JSON: { "formatted": "...", "in_text": "(Author, Year)", "notes": 
 No markdown, no commentary.`;
       const user = `Source data:\n${JSON.stringify(source, null, 2)}\n\nGenerate the ${style} citation now.`;
       const raw = await callAI(system, user, true);
-      return new Response(JSON.stringify(parseJson(raw)), {
+      const parsed = parseJson(raw);
+      await deductCredits(ctx.user.id, FEATURE_RULES.citation.credits, feature, body.project?.id ?? null);
+      return new Response(JSON.stringify(parsed), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -140,16 +143,18 @@ Return STRICT JSON only:
   "originality_suggestions": ["..."],
   "chapter_notes": [{ "chapter": "Chapter 1: Introduction", "note": "..." }],
   "recommendations": [{ "title": "...", "detail": "...", "priority": "high|medium|low" }],
-  "summary": "2-3 sentence overall assessment"
-}`;
-      const user = `${contextBlock(ctx)}\n\nEvaluate the project now.`;
-      const raw = await callAI(system, user, true);
-      return new Response(JSON.stringify(parseJson(raw)), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+       "summary": "2-3 sentence overall assessment"
+ }`;
+       const user = `${contextBlock(ctx)}\n\nEvaluate the project now.`;
+       const raw = await callAI(system, user, true);
+       const parsed = parseJson(raw);
+       await deductCredits(ctx.user.id, FEATURE_RULES.quality_check.credits, feature, body.project?.id ?? null);
+       return new Response(JSON.stringify(parsed), {
+         headers: { ...corsHeaders, "Content-Type": "application/json" },
+       });
+     }
 
-    if (action === "feedback_analyze") {
+     if (action === "feedback_analyze") {
       const feedback: string = body.feedback ?? "";
       const system = `You analyze supervisor feedback for a student project.
 Return STRICT JSON only:
@@ -165,16 +170,18 @@ Return STRICT JSON only:
       "priority": "high|medium|low"
     }
   ],
-  "action_plan": ["step 1", "step 2"]
-}`;
-      const user = `${contextBlock(ctx)}\n\nSUPERVISOR FEEDBACK:\n"""\n${feedback}\n"""`;
-      const raw = await callAI(system, user, true);
-      return new Response(JSON.stringify(parseJson(raw)), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+       "action_plan": ["step 1", "step 2"]
+ }`;
+       const user = `${contextBlock(ctx)}\n\nSUPERVISOR FEEDBACK:\n"""\n${feedback}\n"""`;
+       const raw = await callAI(system, user, true);
+       const parsed = parseJson(raw);
+       await deductCredits(ctx.user.id, FEATURE_RULES.academic_assist.credits, feature, body.project?.id ?? null);
+       return new Response(JSON.stringify(parsed), {
+         headers: { ...corsHeaders, "Content-Type": "application/json" },
+       });
+     }
 
-    if (action === "apply_fix") {
+     if (action === "apply_fix") {
       const original: string = body.original ?? "";
       const fix: string = body.fix ?? "";
       const chapter: string = body.chapter ?? "";
@@ -183,13 +190,15 @@ Return STRICT JSON only:
 Rewrite the section fully, integrating the fix. Preserve the student's tone but strengthen academic quality using ${style} citations.
 Return STRICT JSON: { "new_content": "clean markdown", "change_summary": "1-2 sentences" }`;
       const user = `${contextBlock(ctx)}\n\nTarget: ${chapter} / ${section}\n\nFIX TO APPLY:\n${fix}\n\nORIGINAL:\n"""\n${original}\n"""`;
-      const raw = await callAI(system, user, true);
-      return new Response(JSON.stringify(parseJson(raw)), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+       const raw = await callAI(system, user, true);
+       const parsed = parseJson(raw);
+       await deductCredits(ctx.user.id, FEATURE_RULES.academic_assist.credits, feature, body.project?.id ?? null);
+       return new Response(JSON.stringify(parsed), {
+         headers: { ...corsHeaders, "Content-Type": "application/json" },
+       });
+     }
 
-    return new Response(JSON.stringify({ error: "Unknown action" }), {
+     return new Response(JSON.stringify({ error: "Unknown action" }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
