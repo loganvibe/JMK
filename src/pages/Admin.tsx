@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
-  ArrowLeft, Loader2, Plus, Trash2, ShieldCheck, GraduationCap,
+  Loader2, Plus, Trash2, ShieldCheck,
   TrendingUp, Users, Wallet, Briefcase, Sparkles, Settings,
-  Image, FileText, CreditCard, Save,
+  FileText, CreditCard, Save,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -59,8 +59,6 @@ const Admin = () => {
   const [newUni, setNewUni] = useState({ name: "", short_name: "", city: "", type: "Federal" });
   const [newDept, setNewDept] = useState({ name: "", description: "", specializations: "", common_methodologies: "", ai_guidance: "" });
   const [newField, setNewField] = useState({ name: "", department_hint: "", description: "" });
-
-  const [error, setError] = useState<string | null>(null);
 
   const loadBusiness = async () => {
     const [{ data: t }, { data: s }, { data: au }, { data: r }] = await Promise.all([
