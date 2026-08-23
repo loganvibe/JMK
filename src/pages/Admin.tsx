@@ -237,7 +237,7 @@ const Admin = () => {
                   <div key={t.id} className="flex items-center justify-between border border-border rounded-lg p-3 bg-background">
                     <div className="min-w-0">
                       <p className="text-sm font-medium truncate">{t.metadata?.plan_slug ?? t.transaction_type}</p>
-                      <p className="text-xs text-muted-foreground truncate">{new Date(t.created_at).toLocaleString()} · {t.reference}</p>
+                      <p className="text-xs text-muted-foreground truncate">{t.created_at ? new Date(t.created_at).toLocaleString() : "no date"} · {t.reference}</p>
                     </div>
                     <div className="text-right">
                       <p className="font-semibold">{formatNaira(Number(t.amount))}</p>
@@ -262,7 +262,7 @@ const Admin = () => {
                         <Briefcase className="w-4 h-4 text-accent" /> {r.category}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {r.department ?? "—"} · deadline {r.deadline ?? "none"} · {new Date(r.created_at).toLocaleDateString()}
+                        {r.department ?? "—"} · deadline {r.deadline ?? "none"} · {r.created_at ? new Date(r.created_at).toLocaleDateString() : "no date"}
                       </p>
                     </div>
                     <Badge variant="secondary">{r.status}</Badge>

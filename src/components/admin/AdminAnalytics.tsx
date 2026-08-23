@@ -89,9 +89,9 @@ const AdminAnalytics = () => {
               <div key={e.id} className="flex items-start justify-between gap-3 border border-border rounded-lg p-3 bg-background">
                 <div className="min-w-0">
                   <p className="text-sm font-medium truncate">{e.message}</p>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {new Date(e.created_at).toLocaleString()} · {e.source ?? "unknown page"}
-                  </p>
+                   <p className="text-xs text-muted-foreground truncate">
+                     {e.created_at ? new Date(e.created_at).toLocaleString() : "no date"} · {e.source ?? "unknown page"}
+                   </p>
                 </div>
                 <Badge variant={e.severity === "critical" ? "destructive" : "secondary"}>{e.scope}</Badge>
               </div>
