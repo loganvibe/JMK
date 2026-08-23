@@ -403,11 +403,17 @@ const AdminPayments = () => {
   const [providers, setProviders] = useState<Array<{ id: string; slug: string; name: string; public_key: string; secret_key: string; active: boolean }>>([]);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [openaiKey, setOpenaiKey] = useState("");
+  const [googleKey, setGoogleKey] = useState("");
+  const [savingAi, setSavingAi] = useState(false);
 
   useEffect(() => {
     (async () => {
-      const { data } = await supabase.from("payment_providers").select("*").order("sort_order");
-      setProviders((data ?? []).map((p: Record<string, unknown>) => ({
+      const [{ data: providersData }, { data: aiData }] = await Promise.all([
+        supabase.from("payment_providers").select("*").order("sort_order"),
+        supabase.from("ai_providers").select("*"),
+      ]);
+      setProviders((providersData ?? []).map((p: Record<string, unknown>) => ({
         id: String(p.id),
         slug: String(p.slug),
         name: String(p.name),
@@ -415,9 +421,21 @@ const AdminPayments = () => {
         secret_key: String(p.secret_key ?? ""),
         active: !!p.active,
       })));
+      const aiMap = new Map((aiData ?? []).map((row: Record<string, unknown>) => [String(row.vendor), String(row.api_key ?? "")]));
+      setOpenaiKey(aiMap.get("openai") ?? "");
+      setGoogleKey(aiMap.get("google") ?? "");
       setLoading(false);
     })();
   }, []);
+
+  const saveAiKeys = async () => {
+    setSavingAi(true);
+    const { error: openaiError } = await supabase.from("ai_providers").update({ api_key: openaiKey }).eq("vendor", "openai");
+    const { error: googleError } = await supabase.from("ai_providers").update({ api_key: googleKey }).eq("vendor", "google");
+    setSavingAi(false);
+    if (openaiError || googleError) return toast({ title: "Save failed", description: openaiError?.message ?? googleError?.message, variant: "destructive" });
+    toast({ title: "AI provider keys saved" });
+  };
 
   const saveProvider = async (provider: typeof providers[0]) => {
     setSaving(true);
@@ -485,18 +503,20 @@ const AdminPayments = () => {
 
       <div className="border border-border rounded-xl p-5 bg-card space-y-4">
         <h2 className="font-heading font-bold text-foreground flex items-center gap-2"><Settings className="w-4 h-4 text-accent" /> AI providers</h2>
-        <p className="text-sm text-muted-foreground">Set these as secrets in Supabase Dashboard → Edge Functions → Secrets. Do not put secret keys in the database.</p>
+        <p className="text-sm text-muted-foreground">Manage API keys for AI providers. Keys are stored in your Supabase database and take precedence over Edge Function secrets.</p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="openai">OpenAI API key</Label>
-            <Input id="openai" type="password" value="" disabled placeholder="Set in Supabase Secrets" />
+            <Input id="openai" type="password" value={openaiKey} onChange={(e) => setOpenaiKey(e.target.value)} placeholder="sk-..." />
           </div>
           <div className="space-y-2">
             <Label htmlFor="google-ai">Google AI API key</Label>
-            <Input id="google-ai" type="password" value="" disabled placeholder="Set in Supabase Secrets" />
+            <Input id="google-ai" type="password" value={googleKey} onChange={(e) => setGoogleKey(e.target.value)} placeholder="AI..." />
           </div>
         </div>
-        <p className="text-xs text-muted-foreground">Required secrets: <code className="bg-muted px-1 rounded">OPENAI_API_KEY</code> and <code className="bg-muted px-1 rounded">GOOGLE_AI_API_KEY</code></p>
+        <Button size="sm" onClick={saveAiKeys} disabled={savingAi}>
+          {savingAi ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-4 h-4 mr-1" />Save AI keys</>}
+        </Button>
       </div>
     </div>
   );
