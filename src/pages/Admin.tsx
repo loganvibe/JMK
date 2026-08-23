@@ -403,8 +403,7 @@ const AdminPayments = () => {
   const [providers, setProviders] = useState<Array<{ id: string; slug: string; name: string; public_key: string; secret_key: string; active: boolean }>>([]);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [openaiKey, setOpenaiKey] = useState("");
-  const [googleKey, setGoogleKey] = useState("");
+  const [aiProviders, setAiProviders] = useState<Array<{ vendor: string; api_key: string; active: boolean }>>([]);
   const [savingAi, setSavingAi] = useState(false);
 
   useEffect(() => {
@@ -421,20 +420,34 @@ const AdminPayments = () => {
         secret_key: String(p.secret_key ?? ""),
         active: !!p.active,
       })));
-      const aiMap = new Map((aiData ?? []).map((row: Record<string, unknown>) => [String(row.vendor), String(row.api_key ?? "")]));
-      setOpenaiKey(aiMap.get("openai") ?? "");
-      setGoogleKey(aiMap.get("google") ?? "");
+      setAiProviders((aiData ?? []).map((row: Record<string, unknown>) => ({
+        vendor: String(row.vendor),
+        api_key: String(row.api_key ?? ""),
+        active: !!row.active,
+      })));
       setLoading(false);
     })();
   }, []);
 
-  const saveAiKeys = async () => {
+  const saveAiProvider = async (provider: typeof aiProviders[0]) => {
     setSavingAi(true);
-    const { error: openaiError } = await supabase.from("ai_providers").update({ api_key: openaiKey }).eq("vendor", "openai");
-    const { error: googleError } = await supabase.from("ai_providers").update({ api_key: googleKey }).eq("vendor", "google");
+    const { error } = await supabase
+      .from("ai_providers")
+      .update({ api_key: provider.api_key, active: provider.active })
+      .eq("vendor", provider.vendor);
     setSavingAi(false);
-    if (openaiError || googleError) return toast({ title: "Save failed", description: openaiError?.message ?? googleError?.message, variant: "destructive" });
-    toast({ title: "AI provider keys saved" });
+    if (error) return toast({ title: "Save failed", description: error.message, variant: "destructive" });
+    toast({ title: `${provider.vendor === "openai" ? "OpenAI" : "Google AI"} settings saved` });
+  };
+
+  const toggleAiProvider = async (provider: typeof aiProviders[0]) => {
+    const next = { ...provider, active: !provider.active };
+    setAiProviders((list) => list.map((p) => (p.vendor === provider.vendor ? next : p)));
+    await saveAiProvider(next);
+  };
+
+  const updateAiProvider = (vendor: string, values: Partial<typeof aiProviders[0]>) => {
+    setAiProviders((list) => list.map((p) => (p.vendor === vendor ? { ...p, ...values } : p)));
   };
 
   const saveProvider = async (provider: typeof providers[0]) => {
@@ -503,20 +516,31 @@ const AdminPayments = () => {
 
       <div className="border border-border rounded-xl p-5 bg-card space-y-4">
         <h2 className="font-heading font-bold text-foreground flex items-center gap-2"><Settings className="w-4 h-4 text-accent" /> AI providers</h2>
-        <p className="text-sm text-muted-foreground">Manage API keys for AI providers. Keys are stored in your Supabase database and take precedence over Edge Function secrets.</p>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="openai">OpenAI API key</Label>
-            <Input id="openai" type="password" value={openaiKey} onChange={(e) => setOpenaiKey(e.target.value)} placeholder="sk-..." />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="google-ai">Google AI API key</Label>
-            <Input id="google-ai" type="password" value={googleKey} onChange={(e) => setGoogleKey(e.target.value)} placeholder="AI..." />
-          </div>
+        <p className="text-sm text-muted-foreground">Manage API keys for AI providers. Keys are stored in your Supabase database and take precedence over Edge Function secrets. Turn providers on or off to choose which one to use.</p>
+        <div className="space-y-4">
+          {aiProviders.map((provider) => (
+            <div key={provider.vendor} className="border border-border rounded-lg p-4 bg-background space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="font-medium">{provider.vendor === "openai" ? "OpenAI" : "Google AI"}</p>
+                  <p className="text-xs text-muted-foreground">Vendor: {provider.vendor}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">{provider.active ? "Active" : "Disabled"}</span>
+                  <Switch checked={provider.active} onCheckedChange={() => toggleAiProvider(provider)} disabled={savingAi} />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor={`ai-${provider.vendor}`}>API key</Label>
+                <Input id={`ai-${provider.vendor}`} type="password" value={provider.api_key} onChange={(e) => updateAiProvider(provider.vendor, { api_key: e.target.value })} placeholder={provider.vendor === "openai" ? "sk-..." : "AI..."} />
+              </div>
+              <Button size="sm" onClick={() => saveAiProvider(provider)} disabled={savingAi}>
+                {savingAi ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-4 h-4 mr-1" />Save {provider.vendor === "openai" ? "OpenAI" : "Google AI"}</>}
+              </Button>
+            </div>
+          ))}
+          {aiProviders.length === 0 && <p className="text-sm text-muted-foreground">No AI providers configured yet.</p>}
         </div>
-        <Button size="sm" onClick={saveAiKeys} disabled={savingAi}>
-          {savingAi ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-4 h-4 mr-1" />Save AI keys</>}
-        </Button>
       </div>
     </div>
   );
