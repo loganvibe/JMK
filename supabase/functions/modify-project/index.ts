@@ -1,5 +1,5 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
-import { guard, accessErrorResponse } from "../_shared/entitlements.ts";
+import { guard, accessErrorResponse, deductCredits, FEATURE_RULES } from "../_shared/entitlements.ts";
 import { callAI } from "../_shared/ai.ts";
 
 Deno.serve(async (req) => {
@@ -50,12 +50,14 @@ ${newTopic ? `NEW/UPDATED TOPIC FOCUS: ${newTopic}` : ""}
 
 Produce the full refreshed project now.`;
 
-    const content = await callAI(systemPrompt, userPrompt, { model: body?.model });
+     const content = await callAI(systemPrompt, userPrompt, { model: body?.model, feature: "refinement" });
 
-    return new Response(JSON.stringify({ content }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+     await deductCredits(access.user.id, FEATURE_RULES.refinement.credits, "refinement", body?.projectId ?? null);
+
+     return new Response(JSON.stringify({ content }), {
+       status: 200,
+       headers: { ...corsHeaders, "Content-Type": "application/json" },
+     });
   } catch (e) {
     console.error("modify-project error", e);
     return accessErrorResponse(e, corsHeaders);

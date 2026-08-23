@@ -1,225 +1,158 @@
 // Central AI model layer for every edge function.
-// Routes OpenAI models through Chat Completions and Google models through Gemini API.
+// Routes requests through the provider manager based on feature configuration.
 import { adminClient } from "./entitlements.ts";
+import {
+  getAdapter,
+  getFeatureSettings,
+  getModel,
+  type FeatureSettings,
+  type ModelConfig,
+  type ProviderAdapter,
+  type AIResponse,
+} from "./providers.ts";
 
 export type ModelId = string;
-
-export const MODELS: {
-  id: ModelId;
-  label: string;
-  vendor: "google" | "openai";
-  tier: "standard" | "pro";
-  blurb: string;
-}[] = [
-  {
-    id: "google/gemini-1.5-flash",
-    label: "Gemini 1.5 Flash",
-    vendor: "google",
-    tier: "standard",
-    blurb: "Fast, balanced default for drafting and everyday academic writing.",
-  },
-  {
-    id: "google/gemini-1.5-pro",
-    label: "Gemini 1.5 Pro",
-    vendor: "google",
-    tier: "pro",
-    blurb: "Deeper reasoning for literature reviews and methodology.",
-  },
-  {
-    id: "openai/gpt-4o-mini",
-    label: "GPT-4o Mini",
-    vendor: "openai",
-    tier: "standard",
-    blurb: "OpenAI quality at low latency — great for edits and citations.",
-  },
-  {
-    id: "openai/gpt-4o",
-    label: "GPT-4o",
-    vendor: "openai",
-    tier: "pro",
-    blurb: "Balanced OpenAI flagship for full chapters and analysis.",
-  },
-  {
-    id: "openai/o3-mini",
-    label: "o3 Mini",
-    vendor: "openai",
-    tier: "pro",
-    blurb: "Strongest reasoning for defense prep and complex critique.",
-  },
-];
-
-export const DEFAULT_MODEL: ModelId = "google/gemini-1.5-flash";
-
-const ALLOWED = new Set(MODELS.map((m) => m.id));
 
 /** Validates a client-supplied model id, falling back to the default. */
 export function resolveModel(requested?: unknown): ModelId {
   const id = typeof requested === "string" ? requested.trim() : "";
-  return ALLOWED.has(id) ? id : DEFAULT_MODEL;
+  if (!id) return "google/gemini-1.5-flash";
+  return id;
 }
 
 export function isOpenAI(model: ModelId) {
   return model.startsWith("openai/");
 }
 
-function openaiKey() {
-  const envKey = Deno.env.get("OPENAI_API_KEY");
-  if (envKey) return envKey;
+/**
+ * Resolves the model config for a feature.
+ * Priority:
+ * 1. Explicitly requested model (if valid for feature)
+ * 2. Feature's configured model from ai_feature_settings
+ * 3. Default model
+ */
+export async function resolveModelForFeature(featureKey: string, requestedModel?: unknown): Promise<{ model: ModelConfig; adapter: ProviderAdapter }> {
+  const requested = resolveModel(requestedModel);
+  const settings = await getFeatureSettings(featureKey);
 
-  try {
-    const db = adminClient();
-    const { data } = db.from("ai_providers").select("api_key").eq("vendor", "openai").eq("active", true).maybeSingle();
-    const dbKey = (data as Record<string, string> | null)?.api_key;
-    if (dbKey) return dbKey;
-  } catch {
-    // fall through to env fallback below
+  // If feature is disabled, return a clear error
+  if (settings && !settings.enabled) {
+    throw new Error(`AI feature "${featureKey}" is currently disabled by the administrator.`, { cause: { status: 403, code: "feature_disabled" } });
   }
 
-  throw Object.assign(new Error("OpenAI is not configured."), { status: 503, code: "provider_unconfigured" });
-}
-
-function googleKey() {
-  const envKey = Deno.env.get("GOOGLE_AI_API_KEY");
-  if (envKey) return envKey;
-
-  try {
-    const db = adminClient();
-    const { data } = db.from("ai_providers").select("api_key").eq("vendor", "google").eq("active", true).maybeSingle();
-    const dbKey = (data as Record<string, string> | null)?.api_key;
-    if (dbKey) return dbKey;
-  } catch {
-    // fall through to env fallback below
+  // Try to get model from feature settings first
+  let modelConfig: ModelConfig | null = null;
+  if (settings?.model_id) {
+    modelConfig = await getModel(settings.model_id);
   }
 
-  throw Object.assign(new Error("Google AI is not configured."), { status: 503, code: "provider_unconfigured" });
-}
+  // If no feature model or invalid, try requested model
+  if (!modelConfig && requested) {
+    // Look up model by model_id across all providers
+    const db = adminClient();
+    const { data } = await db
+      .from("ai_models")
+      .select("*, ai_providers(type, api_key, config)")
+      .eq("model_id", requested.replace(/^(google\/|openai\/|openrouter\/|ollama\/)/, ""))
+      .eq("active", true)
+      .maybeSingle();
 
-function gatewayError(status: number, detail: string) {
-  console.error("AI gateway error", status, detail.slice(0, 800));
-  const mapped = status === 429 || status === 402 ? status : 500;
-  const message =
-    status === 429
-      ? "AI is busy right now. Please try again shortly."
-      : status === 402
-      ? "AI credits exhausted. Please upgrade to continue."
-      : "AI request failed.";
-  return Object.assign(new Error(message), { status: mapped });
-}
+    if (data) {
+      const provider = data.ai_providers as Record<string, unknown> | null;
+      modelConfig = {
+        id: String(data.id),
+        provider_id: String(data.provider_id),
+        model_id: String(data.model_id),
+        label: String(data.label),
+        tier: String(data.tier),
+        input_price_per_1k: Number(data.input_price_per_1k ?? 0),
+        output_price_per_1k: Number(data.output_price_per_1k ?? 0),
+        currency: String(data.currency ?? "USD"),
+        active: !!data.active,
+        provider_type: provider ? String(provider.type) : "unknown",
+        provider_api_key: provider ? String(provider.api_key ?? "") : null,
+        provider_config: provider ? ((provider.config as Record<string, unknown>) ?? {}) : {},
+        config_json: (provider?.config as Record<string, unknown>) ?? {},
+      };
+    }
+  }
 
-/** Calls Google Gemini API directly. */
-async function callGemini(model: ModelId, system: string, user: string, json: boolean) {
-  const key = googleKey();
-  const modelName = model.replace("google/", "");
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelName)}:generateContent?key=${key}`;
+  // Final fallback: use default model
+  if (!modelConfig) {
+    const db = adminClient();
+    const { data: defaultProvider } = await db
+      .from("ai_providers")
+      .select("*")
+      .eq("active", true)
+      .order("priority")
+      .limit(1)
+      .maybeSingle();
 
-  const body: Record<string, unknown> = {
-    contents: [
-      {
-        parts: [
-          { text: system ? `${system}\n\n${user}` : user },
-        ],
-      },
-    ],
-    generationConfig: {
-      temperature: 0.7,
-      maxOutputTokens: 8192,
-    },
-  };
+    if (!defaultProvider) {
+      throw new Error("No AI provider is configured. Please contact support.", { cause: { status: 503, code: "provider_unconfigured" } });
+    }
 
-  if (json) {
-    body.generationConfig = {
-      ...(body.generationConfig as Record<string, unknown>),
-      responseMimeType: "application/json",
+    const { data: defaultModel } = await db
+      .from("ai_models")
+      .select("*")
+      .eq("provider_id", defaultProvider.id)
+      .eq("active", true)
+      .order("sort_order")
+      .limit(1)
+      .maybeSingle();
+
+    if (!defaultModel) {
+      throw new Error(`No model configured for provider "${defaultProvider.vendor}".`, { cause: { status: 503, code: "model_unconfigured" } });
+    }
+
+    modelConfig = {
+      id: String(defaultModel.id),
+      provider_id: String(defaultModel.provider_id),
+      model_id: String(defaultModel.model_id),
+      label: String(defaultModel.label),
+      tier: String(defaultModel.tier),
+      input_price_per_1k: Number(defaultModel.input_price_per_1k ?? 0),
+      output_price_per_1k: Number(defaultModel.output_price_per_1k ?? 0),
+      currency: String(defaultModel.currency ?? "USD"),
+      active: !!defaultModel.active,
+      provider_type: String(defaultProvider.type),
+      provider_api_key: String(defaultProvider.api_key ?? ""),
+      provider_config: (defaultProvider.config as Record<string, unknown>) ?? {},
+      config_json: (defaultProvider.config as Record<string, unknown>) ?? {},
     };
   }
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-
-  const text = await res.text();
-  if (!res.ok) {
-    console.error(`Google AI error [${res.status}]`, text.slice(0, 1000));
-    throw new Error(`Google AI error [${res.status}]: ${text.slice(0, 300)}`);
-  }
-
-  let data: Record<string, unknown> = {};
-  try { data = JSON.parse(text); } catch {
-    console.error("Google AI invalid JSON", text.slice(0, 500));
-    throw new Error("Google AI returned an invalid response. Please try again.");
-  }
-
-  const extracted = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-  if (!extracted.trim()) {
-    console.error("Google AI empty response", JSON.stringify(data).slice(0, 500));
-    throw new Error("The AI returned an empty response. Please retry.");
-  }
-  return extracted;
-}
-
-/** Calls OpenAI Chat Completions API directly. */
-async function callOpenAI(model: ModelId, system: string, user: string, json: boolean) {
-  const key = openaiKey();
-  const body: Record<string, unknown> = {
-    model: model.replace("openai/", ""),
-    messages: [
-      { role: "system", content: system },
-      { role: "user", content: user },
-    ],
-    temperature: 0.7,
-    max_tokens: 8192,
-  };
-  if (json) body.response_format = { type: "json_object" };
-
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${key}`,
-    },
-    body: JSON.stringify(body),
-  });
-
-  const text = await res.text();
-  if (!res.ok) {
-    console.error(`OpenAI error [${res.status}]`, text.slice(0, 1000));
-    throw new Error(`OpenAI error [${res.status}]: ${text.slice(0, 300)}`);
-  }
-
-  let data: Record<string, unknown> = {};
-  try { data = JSON.parse(text); } catch {
-    console.error("OpenAI invalid JSON", text.slice(0, 500));
-    throw new Error("OpenAI returned an invalid response. Please try again.");
-  }
-
-  const extracted = data?.choices?.[0]?.message?.content ?? "";
-  if (!extracted.trim()) {
-    console.error("OpenAI empty response", JSON.stringify(data).slice(0, 500));
-    throw new Error("The AI returned an empty response. Please retry.");
-  }
-  return extracted;
+  const adapter = getAdapter(modelConfig.provider_type as "ollama" | "openrouter" | "gemini" | "openai");
+  return { model: modelConfig, adapter };
 }
 
 /**
  * One entry point for every AI call in the app.
- * `model` may come straight from the client — it is validated here.
+ * Now uses feature-based provider resolution.
  */
 export async function callAI(
   system: string,
   user: string,
-  opts: { model?: unknown; json?: boolean } = {},
+  opts: { model?: unknown; json?: boolean; feature?: string } = {},
 ): Promise<string> {
-  const model = resolveModel(opts.model);
+  const feature = opts.feature ?? "unknown";
   const json = !!opts.json;
+
   try {
-    const text = isOpenAI(model)
-      ? await callOpenAI(model, system, user, json)
-      : await callGemini(model, system, user, json);
-    return text;
+    const { model, adapter } = await resolveModelForFeature(feature, opts.model);
+
+    const maxInput = Math.min(opts.json ? 6000 : 8000, model.input_price_per_1k > 0 ? 16000 : 32000);
+    const maxOutput = Math.min(4096, model.output_price_per_1k > 0 ? 8192 : 16384);
+
+    const response: AIResponse = await adapter.call(model, system, user.slice(0, maxInput), {
+      json,
+      maxInputTokens: maxInput,
+      maxOutputTokens: maxOutput,
+    });
+
+    return response.content;
   } catch (e) {
-    console.error(`AI call failed [model=${model}]`, e);
+    console.error(`AI call failed [feature=${feature}]`, e);
     throw e;
   }
 }

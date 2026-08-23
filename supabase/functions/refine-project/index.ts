@@ -1,11 +1,11 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
-import { guard } from "../_shared/entitlements.ts";
+import { guard, deductCredits, FEATURE_RULES } from "../_shared/entitlements.ts";
 import { callAI as sharedCallAI } from "../_shared/ai.ts";
 
 
-const makeCallAI = (model: unknown) =>
+const makeCallAI = (feature: string, model: unknown) =>
   (system: string, user: string, jsonMode = false) =>
-    sharedCallAI(system, user, { model, json: jsonMode });
+    sharedCallAI(system, user, { model, json: jsonMode, feature });
 
 function parseJson(raw: string) {
   try { return JSON.parse(raw); } catch {
@@ -19,7 +19,8 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json();
-    const callAI = makeCallAI((body as Record<string, unknown>)?.model);
+    const feature = "refinement";
+    const callAI = makeCallAI(feature, (body as Record<string, unknown>)?.model);
     const action: string = body.action;
     const text: string = (body.text ?? "").toString().slice(0, 80000);
     const profile = body.profile ?? {};
@@ -58,7 +59,9 @@ Analyze the uploaded project draft and return STRICT JSON only:
 No markdown, no commentary.`;
       const user = `Project draft:\n"""\n${text}\n"""`;
       const raw = await callAI(system, user, true);
-      return new Response(JSON.stringify(parseJson(raw)), {
+      const parsed = parseJson(raw);
+      await deductCredits(ctx.user.id, FEATURE_RULES.refinement.credits, "refinement", body.project_id ?? body.project?.id ?? null);
+      return new Response(JSON.stringify(parsed), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -92,7 +95,9 @@ ORIGINAL:
 ${original}
 """`;
       const raw = await callAI(system, user, true);
-      return new Response(JSON.stringify(parseJson(raw)), {
+      const parsed = parseJson(raw);
+      await deductCredits(ctx.user.id, FEATURE_RULES.refinement.credits, "refinement", body.project_id ?? body.project?.id ?? null);
+      return new Response(JSON.stringify(parsed), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

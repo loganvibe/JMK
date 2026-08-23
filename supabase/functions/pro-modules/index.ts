@@ -1,5 +1,5 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
-import { guard, accessErrorResponse, AccessError } from "../_shared/entitlements.ts";
+import { guard, accessErrorResponse, AccessError, deductCredits, FEATURE_RULES } from "../_shared/entitlements.ts";
 import { callAI, parseJson, resolveModel } from "../_shared/ai.ts";
 
 type Action = "originality" | "literature" | "data_analysis";
@@ -47,8 +47,9 @@ Return STRICT JSON only:
   "flagged": [{ "excerpt": "…", "issue": "why it is risky", "severity": "low|medium|high", "fix": "how to rewrite or cite it" }],
   "suggestions": ["actionable rewrite advice"]
 }`;
-      const raw = await callAI(system, `${context}\n\nTEXT:\n"""\n${text}\n"""`, { model, json: true });
+      const raw = await callAI(system, `${context}\n\nTEXT:\n"""\n${text}\n"""`, { model, json: true, feature: FEATURE[action] });
       const parsed = parseJson<unknown>(raw);
+      await deductCredits(ctx.user.id, FEATURE_RULES[FEATURE[action]].credits, FEATURE[action], projectId);
       return json({ ...parsed, model });
     }
 
@@ -68,8 +69,10 @@ Return STRICT JSON only:
   "search_tips": ["where to find these: Google Scholar query, AJOL, ResearchGate…"]
 }
 Never invent DOIs or URLs.`;
-      const raw = await callAI(system, `${context}\n\nLiterature needed: ${query}`, { model, json: true });
-      return json({ ...parseJson<unknown>(raw), model });
+       const raw = await callAI(system, `${context}\n\nLiterature needed: ${query}`, { model, json: true, feature: FEATURE[action] });
+       const parsed = parseJson<unknown>(raw);
+       await deductCredits(ctx.user.id, FEATURE_RULES[FEATURE[action]].credits, FEATURE[action], projectId);
+       return json({ ...parsed, model });
     }
 
     // data_analysis
@@ -90,9 +93,11 @@ Return STRICT JSON only:
     const raw = await callAI(
       system,
       `${context}\n\nResearch question: ${question || "Not specified"}\n\nDATASET:\n"""\n${dataset}\n"""`,
-      { model, json: true },
+      { model, json: true, feature: FEATURE[action] },
     );
-    return json({ ...parseJson<unknown>(raw), model });
+    const parsed = parseJson<unknown>(raw);
+    await deductCredits(ctx.user.id, FEATURE_RULES[FEATURE[action]].credits, FEATURE[action], projectId);
+    return json({ ...parsed, model });
   } catch (e) {
     return accessErrorResponse(e, corsHeaders);
   }

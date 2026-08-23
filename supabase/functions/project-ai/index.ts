@@ -1,5 +1,5 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
-import { guard } from "../_shared/entitlements.ts";
+import { guard, deductCredits, FEATURE_RULES } from "../_shared/entitlements.ts";
 import { callAI as sharedCallAI } from "../_shared/ai.ts";
 
 
@@ -21,9 +21,9 @@ type Body = {
   contextSections?: { chapter: string; section: string; content: string }[];
 };
 
-const makeCallAI = (model: unknown) =>
+const makeCallAI = (feature: string, model: unknown) =>
   (system: string, user: string, jsonMode = false) =>
-    sharedCallAI(system, user, { model, json: !!jsonMode });
+    sharedCallAI(system, user, { model, json: !!jsonMode, feature });
 
 function studentContext(profile: unknown = {}, project: unknown = {}) {
   return `Student profile:
@@ -47,7 +47,8 @@ Deno.serve(async (req) => {
 
   try {
     const body = (await req.json()) as Body;
-    const callAI = makeCallAI((body as Record<string, unknown>)?.model);
+    const feature = action === "generate_topics" ? "topic_generation" : "chapter_generation";
+    const callAI = makeCallAI(feature, (body as Record<string, unknown>)?.model);
     const { action } = body;
 
     // --- server-side auth, plan and credit enforcement ---
@@ -96,6 +97,7 @@ Generate 5 topic ideas now.`;
         const m = raw.match(/\{[\s\S]*\}/);
         parsed = m ? JSON.parse(m[0]) : { topics: [] };
       }
+      await deductCredits(ctx.user.id, FEATURE_RULES.topic_generation.credits, feature, body.project?.id ?? null);
       return new Response(JSON.stringify(parsed), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -152,6 +154,7 @@ ${currentContent ? `\nCurrent draft:\n"""\n${currentContent}\n"""` : ""}
 ${ctxBlock}`;
 
     const content = await callAI(baseSystem, user);
+    await deductCredits(ctx.user.id, FEATURE_RULES.chapter_generation.credits, feature, body.project?.id ?? null);
     return new Response(JSON.stringify({ content }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
