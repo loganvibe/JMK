@@ -1,5 +1,6 @@
 // Central AI model layer for every edge function.
 // Routes OpenAI models through Chat Completions and Google models through Gemini API.
+import { adminClient } from "./entitlements.ts";
 
 export type ModelId = string;
 
@@ -62,15 +63,35 @@ export function isOpenAI(model: ModelId) {
 }
 
 function openaiKey() {
-  const key = Deno.env.get("OPENAI_API_KEY");
-  if (!key) throw Object.assign(new Error("OpenAI is not configured."), { status: 503, code: "provider_unconfigured" });
-  return key;
+  const envKey = Deno.env.get("OPENAI_API_KEY");
+  if (envKey) return envKey;
+
+  try {
+    const db = adminClient();
+    const { data } = db.from("ai_providers").select("api_key").eq("vendor", "openai").eq("active", true).maybeSingle();
+    const dbKey = (data as Record<string, string> | null)?.api_key;
+    if (dbKey) return dbKey;
+  } catch {
+    // fall through to env fallback below
+  }
+
+  throw Object.assign(new Error("OpenAI is not configured."), { status: 503, code: "provider_unconfigured" });
 }
 
 function googleKey() {
-  const key = Deno.env.get("GOOGLE_AI_API_KEY");
-  if (!key) throw Object.assign(new Error("Google AI is not configured."), { status: 503, code: "provider_unconfigured" });
-  return key;
+  const envKey = Deno.env.get("GOOGLE_AI_API_KEY");
+  if (envKey) return envKey;
+
+  try {
+    const db = adminClient();
+    const { data } = db.from("ai_providers").select("api_key").eq("vendor", "google").eq("active", true).maybeSingle();
+    const dbKey = (data as Record<string, string> | null)?.api_key;
+    if (dbKey) return dbKey;
+  } catch {
+    // fall through to env fallback below
+  }
+
+  throw Object.assign(new Error("Google AI is not configured."), { status: 503, code: "provider_unconfigured" });
 }
 
 function gatewayError(status: number, detail: string) {
