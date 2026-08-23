@@ -21,6 +21,7 @@ import { formatNaira } from "@/hooks/useEntitlements";
 import AdminAnalytics from "@/components/admin/AdminAnalytics";
 import AdminShell from "@/components/admin/AdminShell";
 import AdminPricing from "@/pages/admin/AdminPricing";
+import AdminAI from "@/components/admin/AdminAI";
 
 const REQUEST_STATUSES = ["pending", "reviewing", "quoted", "accepted", "in_progress", "completed", "rejected"];
 
@@ -44,7 +45,7 @@ const Admin = () => {
   const nav = useNavigate();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState("pricing");
+  const [tab, setTab] = useState("ai");
 
   const [universities, setUniversities] = useState<Array<{ id: string; name: string; short_name?: string | null; city?: string | null; type?: string | null }>>([]);
   const [departments, setDepartments] = useState<Array<{ id: string; name: string; specializations?: string[] | null }>>([]);
@@ -172,6 +173,7 @@ const Admin = () => {
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="flex-wrap h-auto">
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
+            <TabsTrigger value="ai">AI Control</TabsTrigger>
             <TabsTrigger value="pricing">Pricing</TabsTrigger>
             <TabsTrigger value="content">Site content</TabsTrigger>
             <TabsTrigger value="payments">Payments</TabsTrigger>
@@ -184,6 +186,10 @@ const Admin = () => {
 
           <TabsContent value="analytics" className="mt-4">
             <AdminAnalytics />
+          </TabsContent>
+
+          <TabsContent value="ai" className="mt-4">
+            <AdminAI />
           </TabsContent>
 
           <TabsContent value="pricing" className="mt-4">
