@@ -18,7 +18,7 @@ type Stats = {
 
 const AdminAnalytics = () => {
   const [stats, setStats] = useState<Stats | null>(null);
-  const [errors, setErrors] = useState<unknown[]>([]);
+  const [errors, setErrors] = useState<Array<{ id: string; message?: string; created_at?: string; source?: string | null; severity?: string | null; scope?: string | null }>>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -52,7 +52,7 @@ const AdminAnalytics = () => {
         departments: [...byDept.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8),
         features: [...byFeature.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8),
       });
-      setErrors((errs.data as unknown[]) ?? []);
+      setErrors((errs.data as Array<{ id: string; message?: string; created_at?: string; source?: string | null; severity?: string | null; scope?: string | null }>) ?? []);
       setLoading(false);
     })();
   }, []);
