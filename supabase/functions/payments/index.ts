@@ -83,6 +83,62 @@ async function flutterwaveVerify(provider: Record<string, unknown>, reference: s
   return data.data as Record<string, unknown>;
 }
 
+async function stripeInitialize(provider: Record<string, unknown>, payload: Record<string, unknown>) {
+  const secret = String(provider.secret_key ?? "");
+  if (!secret) throw new AccessError("Stripe secret key is not configured.", 503, "provider_unconfigured");
+
+  const callbackUrl = String(payload.callback_url ?? "");
+  const planSlug = String(payload.plan_slug ?? "");
+  const planName = String(payload.plan_name ?? "");
+  const amountSmallestUnit = Math.round(Number(payload.amount ?? 0));
+  const currency = String(payload.currency ?? "usd");
+  const userReference = String(payload.user_reference ?? "");
+
+  const res = await fetch("https://api.stripe.com/v1/checkout/sessions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${secret}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams({
+      mode: "subscription",
+      success_url: `${callbackUrl}?reference={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${callbackUrl}?status=cancelled`,
+      "line_items[0][price_data][currency]": currency,
+      "line_items[0][price_data][product_data][name]": planName,
+      "line_items[0][price_data][unit_amount]": String(amountSmallestUnit),
+      "line_items[0][quantity]": "1",
+      "metadata[reference]": userReference,
+      "metadata[plan_slug]": planSlug,
+    }).toString(),
+  });
+  const text = await res.text();
+  let data: Record<string, unknown> = {};
+  try { data = JSON.parse(text); } catch { data = { raw: text }; }
+  if (!res.ok || data?.error) {
+    console.error(`Stripe initialize failed [${res.status}]: ${text}`);
+    throw new AccessError((data as Record<string, unknown>)?.error?.message || "Stripe error", res.status || 502, "provider_error");
+  }
+  return data as Record<string, unknown>;
+}
+
+async function stripeVerify(provider: Record<string, unknown>, reference: string) {
+  const secret = String(provider.secret_key ?? "");
+  if (!secret) throw new AccessError("Stripe secret key is not configured.", 503, "provider_unconfigured");
+
+  const res = await fetch(`https://api.stripe.com/v1/checkout/sessions/${encodeURIComponent(reference)}`, {
+    headers: { Authorization: `Bearer ${secret}` },
+  });
+  const text = await res.text();
+  let data: Record<string, unknown> = {};
+  try { data = JSON.parse(text); } catch { data = { raw: text }; }
+  if (!res.ok || data?.error) {
+    console.error(`Stripe verify failed [${res.status}]: ${text}`);
+    throw new AccessError((data as Record<string, unknown>)?.error?.message || "Stripe verify error", res.status || 502, "provider_error");
+  }
+  return data as Record<string, unknown>;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -129,6 +185,7 @@ Deno.serve(async (req) => {
       const metadata: Record<string, unknown> = { user_id: user.id, plan_slug: planSlug, plan_name: plan.name, provider: provider.slug };
 
       let authorizationUrl: string | undefined;
+      let finalReference = reference;
 
       if (provider.slug === "paystack") {
         const result = await paystackInitialize(provider, {
@@ -140,6 +197,7 @@ Deno.serve(async (req) => {
           metadata,
         });
         authorizationUrl = result.authorization_url as string;
+        finalReference = reference;
       } else if (provider.slug === "flutterwave") {
         const result = await flutterwaveInitialize(provider, {
           tx_ref: reference,
@@ -152,6 +210,18 @@ Deno.serve(async (req) => {
           meta: metadata,
         });
         authorizationUrl = result.link as string;
+        finalReference = reference;
+      } else if (provider.slug === "stripe") {
+        const result = await stripeInitialize(provider, {
+          callback_url: callbackUrl || "https://jmk.life/billing",
+          user_reference: reference,
+          plan_slug: planSlug,
+          plan_name: plan.name,
+          amount: amountKobo,
+          currency,
+        });
+        authorizationUrl = result.url as string;
+        finalReference = String(result.id ?? reference);
       } else {
         return json({ error: `Unsupported payment provider: ${provider.slug}` }, 400);
       }
@@ -161,13 +231,13 @@ Deno.serve(async (req) => {
         amount: plan.price,
         currency,
         provider: String(provider.slug),
-        reference,
+        reference: finalReference,
         status: "pending",
         transaction_type: "subscription",
-        metadata: { plan_slug: planSlug, plan_id: plan.id },
+        metadata: { plan_slug: planSlug, plan_id: plan.id, user_reference: reference },
       });
 
-      return json({ authorization_url: authorizationUrl, reference, provider: provider.slug });
+      return json({ authorization_url: authorizationUrl, reference: finalReference, provider: provider.slug });
     }
 
     if (action === "verify") {
@@ -202,6 +272,9 @@ Deno.serve(async (req) => {
       } else if (providerSlug === "flutterwave") {
         verified = await flutterwaveVerify(provider, reference);
         ok = verified?.status === "success" && String(verified?.data?.tx_ref ?? "") === reference;
+      } else if (providerSlug === "stripe") {
+        verified = await stripeVerify(provider, reference);
+        ok = String(verified?.payment_status ?? "") === "paid";
       } else {
         return json({ error: `Unsupported payment provider: ${providerSlug}` }, 400);
       }
