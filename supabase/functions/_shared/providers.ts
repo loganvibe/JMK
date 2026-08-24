@@ -73,6 +73,12 @@ export interface ProviderAdapter {
     user: string,
     opts: { json?: boolean; maxInputTokens?: number; maxOutputTokens?: number },
   ): Promise<AIResponse>;
+  async streamChat?(
+    model: ModelConfig,
+    system: string,
+    user: string,
+    opts: { maxInputTokens?: number; maxOutputTokens?: number },
+  ): Promise<ReadableStream>;
 }
 
 class OllamaAdapter implements ProviderAdapter {
@@ -112,6 +118,70 @@ class OllamaAdapter implements ProviderAdapter {
       model: modelName,
       provider: "ollama",
     };
+  }
+
+  async streamChat(model: ModelConfig, system: string, user: string, opts: { maxInputTokens?: number; maxOutputTokens?: number }): Promise<ReadableStream> {
+    const baseUrl = String(model.config_json?.base_url ?? "http://localhost:11434");
+    const modelName = model.model_id;
+    const maxTokens = opts.maxOutputTokens ?? 4096;
+
+    const res = await fetch(`${baseUrl.replace(/\/$/, "")}/api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: modelName,
+        stream: true,
+        options: { num_predict: maxTokens },
+        messages: [
+          ...(system ? [{ role: "system", content: system }] : []),
+          { role: "user", content: user },
+        ],
+      }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`Ollama error [${res.status}]: ${text.slice(0, 300)}`);
+    }
+
+    if (!res.body) throw new Error("Ollama stream response body is missing.");
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    return new ReadableStream({
+      async pull(controller) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) {
+            controller.close();
+            break;
+          }
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed || !trimmed.startsWith("{")) continue;
+            try {
+              const json = JSON.parse(trimmed);
+              const chunk = String(json?.message?.content ?? "");
+              if (chunk) {
+                controller.enqueue(new TextEncoder().encode(chunk));
+              }
+            } catch {
+              // skip malformed JSON
+            }
+          }
+        }
+      },
+      cancel() {
+        reader.cancel();
+      },
+    });
   }
 }
 
