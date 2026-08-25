@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Loader2, Plus, Trash2, ShieldCheck,
   TrendingUp, Users, Wallet, Briefcase, Sparkles, Settings,
-  FileText, CreditCard, Save,
+  FileText, CreditCard, Save, Palette,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -368,12 +368,17 @@ const AdminContent = () => {
 
   useEffect(() => {
     (async () => {
-      const { data } = await supabase.from("app_settings").select("free_mode_message").eq("id", "global").maybeSingle();
-      if (data) {
-        setHeroSubtitle(data.free_mode_message ?? "");
+      try {
+        const { data } = await supabase.from("app_settings").select("free_mode_message").eq("id", "global").maybeSingle();
+        if (data) {
+          setHeroSubtitle(data.free_mode_message ?? "");
+        }
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : "Failed to load site content";
+        toast({ title: "Could not load site content", description: msg, variant: "destructive" });
       }
     })();
-  }, []);
+  }, [toast]);
 
   const save = async () => {
     setSaving(true);
@@ -397,7 +402,7 @@ const AdminContent = () => {
       </div>
 
       <div className="border border-border rounded-xl p-5 bg-card space-y-4">
-        <h2 className="font-heading font-bold text-foreground flex items-center gap-2"><Image className="w-4 h-4 text-accent" /> Branding</h2>
+        <h2 className="font-heading font-bold text-foreground flex items-center gap-2"><Palette className="w-4 h-4 text-accent" /> Branding</h2>
         <p className="text-sm text-muted-foreground">Logo and site images are served from the <code className="bg-muted px-1 rounded">public/</code> folder. Replace the files there and redeploy to update branding across the app.</p>
       </div>
     </div>

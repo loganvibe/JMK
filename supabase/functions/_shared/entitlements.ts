@@ -279,6 +279,15 @@ export async function enforce(
     );
   }
 
+  const featureSettings = await getFeatureSettings(feature);
+  if (featureSettings && !featureSettings.enabled) {
+    throw new AccessError(
+      `${rule.label} is currently disabled by the administrator.`,
+      403,
+      "feature_disabled",
+    );
+  }
+
   // Free trial: only Chapter 1 of one project.
   const limits = plan.ai_limits ?? {};
   const chapterKey = (text: string) => {

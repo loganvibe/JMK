@@ -67,13 +67,13 @@ export interface AIResponse {
 export interface ProviderAdapter {
   type: ProviderType;
   label: string;
-  async call(
+  call(
     model: ModelConfig,
     system: string,
     user: string,
     opts: { json?: boolean; maxInputTokens?: number; maxOutputTokens?: number },
   ): Promise<AIResponse>;
-  async streamChat?(
+  streamChat?(
     model: ModelConfig,
     system: string,
     user: string,

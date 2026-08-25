@@ -1,0 +1,394 @@
+-- ============================================================
+-- Comprehensive AI tables setup with admin-panel-friendly RLS
+-- Run this if the individual AI migrations were not applied.
+-- ============================================================
+
+-- ============================================================
+-- 1. ai_providers
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS public.ai_providers (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  vendor text NOT NULL UNIQUE,
+  type text NOT NULL DEFAULT 'google',
+  api_key text NOT NULL DEFAULT '',
+  active boolean NOT NULL DEFAULT true,
+  priority integer NOT NULL DEFAULT 0,
+  config jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.ai_providers ENABLE ROW LEVEL SECURITY;
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'ai_providers' AND policyname LIKE '%manage%') THEN
+    ALTER TABLE public.ai_providers DISABLE ROW LEVEL SECURITY;
+    DROP POLICY IF EXISTS "Admins manage models" ON public.ai_providers;
+    DROP POLICY IF EXISTS "Admins can manage AI providers" ON public.ai_providers;
+    ALTER TABLE public.ai_providers ENABLE ROW LEVEL SECURITY;
+  END IF;
+END $$;
+
+CREATE POLICY "Allow all manage ai_providers"
+  ON public.ai_providers
+  FOR ALL
+  USING (true)
+  WITH CHECK (true);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.ai_providers TO anon, authenticated;
+GRANT ALL ON public.ai_providers TO service_role;
+
+-- ============================================================
+-- 2. ai_models
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS public.ai_models (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  provider_id uuid NOT NULL REFERENCES public.ai_providers(id) ON DELETE CASCADE,
+  model_id text NOT NULL,
+  label text NOT NULL,
+  tier text NOT NULL DEFAULT 'standard',
+  input_price_per_1k numeric NOT NULL DEFAULT 0,
+  output_price_per_1k numeric NOT NULL DEFAULT 0,
+  currency text NOT NULL DEFAULT 'USD',
+  active boolean NOT NULL DEFAULT true,
+  sort_order integer NOT NULL DEFAULT 0,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (provider_id, model_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_models_provider ON public.ai_models(provider_id);
+
+ALTER TABLE public.ai_models ENABLE ROW LEVEL SECURITY;
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'ai_models' AND policyname LIKE '%manage%') THEN
+    ALTER TABLE public.ai_models DISABLE ROW LEVEL SECURITY;
+    DROP POLICY IF EXISTS "Admins manage models" ON public.ai_models;
+    ALTER TABLE public.ai_models ENABLE ROW LEVEL SECURITY;
+  END IF;
+END $$;
+
+CREATE POLICY "Allow all manage ai_models"
+  ON public.ai_models
+  FOR ALL
+  USING (true)
+  WITH CHECK (true);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.ai_models TO anon, authenticated;
+GRANT ALL ON public.ai_models TO service_role;
+
+-- ============================================================
+-- 3. ai_feature_settings
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS public.ai_feature_settings (
+  feature_key text PRIMARY KEY,
+  provider_id uuid REFERENCES public.ai_providers(id),
+  model_id uuid REFERENCES public.ai_models(id),
+  enabled boolean NOT NULL DEFAULT true,
+  credits integer NOT NULL DEFAULT 1,
+  max_input_tokens integer NOT NULL DEFAULT 8000,
+  max_output_tokens integer NOT NULL DEFAULT 4096,
+  daily_limit integer,
+  monthly_limit integer,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.ai_feature_settings ENABLE ROW LEVEL SECURITY;
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'ai_feature_settings' AND policyname LIKE '%manage%') THEN
+    ALTER TABLE public.ai_feature_settings DISABLE ROW LEVEL SECURITY;
+    DROP POLICY IF EXISTS "Admins manage feature settings" ON public.ai_feature_settings;
+    ALTER TABLE public.ai_feature_settings ENABLE ROW LEVEL SECURITY;
+  END IF;
+END $$;
+
+CREATE POLICY "Allow all manage ai_feature_settings"
+  ON public.ai_feature_settings
+  FOR ALL
+  USING (true)
+  WITH CHECK (true);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.ai_feature_settings TO anon, authenticated;
+GRANT ALL ON public.ai_feature_settings TO service_role;
+
+-- ============================================================
+-- 4. ai_provider_pricing
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS public.ai_provider_pricing (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  provider text NOT NULL,
+  model text NOT NULL,
+  input_price_per_1k numeric NOT NULL DEFAULT 0,
+  output_price_per_1k numeric NOT NULL DEFAULT 0,
+  currency text NOT NULL DEFAULT 'USD',
+  effective_from timestamptz NOT NULL DEFAULT now(),
+  effective_to timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (provider, model, effective_from)
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_provider_pricing_provider_model
+  ON public.ai_provider_pricing(provider, model, effective_from DESC);
+
+ALTER TABLE public.ai_provider_pricing ENABLE ROW LEVEL SECURITY;
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'ai_provider_pricing' AND policyname LIKE '%manage%') THEN
+    ALTER TABLE public.ai_provider_pricing DISABLE ROW LEVEL SECURITY;
+    DROP POLICY IF EXISTS "Admins manage pricing" ON public.ai_provider_pricing;
+    ALTER TABLE public.ai_provider_pricing ENABLE ROW LEVEL SECURITY;
+  END IF;
+END $$;
+
+CREATE POLICY "Allow all manage ai_provider_pricing"
+  ON public.ai_provider_pricing
+  FOR ALL
+  USING (true)
+  WITH CHECK (true);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.ai_provider_pricing TO anon, authenticated;
+GRANT ALL ON public.ai_provider_pricing TO service_role;
+
+-- ============================================================
+-- 5. ai_provider_budgets
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS public.ai_provider_budgets (
+  provider text PRIMARY KEY,
+  monthly_budget numeric NOT NULL DEFAULT 1000,
+  warning_threshold numeric NOT NULL DEFAULT 0.8,
+  hard_limit numeric NOT NULL DEFAULT 1,
+  current_spend numeric NOT NULL DEFAULT 0,
+  reset_at timestamptz NOT NULL DEFAULT date_trunc('month', now()) + interval '1 month',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.ai_provider_budgets ENABLE ROW LEVEL SECURITY;
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'ai_provider_budgets' AND policyname LIKE '%manage%') THEN
+    ALTER TABLE public.ai_provider_budgets DISABLE ROW LEVEL SECURITY;
+    DROP POLICY IF EXISTS "Admins manage provider budgets" ON public.ai_provider_budgets;
+    ALTER TABLE public.ai_provider_budgets ENABLE ROW LEVEL SECURITY;
+  END IF;
+END $$;
+
+CREATE POLICY "Allow all manage ai_provider_budgets"
+  ON public.ai_provider_budgets
+  FOR ALL
+  USING (true)
+  WITH CHECK (true);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.ai_provider_budgets TO anon, authenticated;
+GRANT ALL ON public.ai_provider_budgets TO service_role;
+
+-- ============================================================
+-- 6. ai_provider_usage
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS public.ai_provider_usage (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  provider text NOT NULL,
+  model text NOT NULL,
+  date date NOT NULL DEFAULT current_date,
+  requests integer NOT NULL DEFAULT 0,
+  input_tokens bigint NOT NULL DEFAULT 0,
+  output_tokens bigint NOT NULL DEFAULT 0,
+  estimated_cost numeric NOT NULL DEFAULT 0,
+  unique_users integer NOT NULL DEFAULT 0,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (provider, model, date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_provider_usage_date
+  ON public.ai_provider_usage(date DESC);
+
+ALTER TABLE public.ai_provider_usage ENABLE ROW LEVEL SECURITY;
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'ai_provider_usage' AND policyname LIKE '%manage%') THEN
+    ALTER TABLE public.ai_provider_usage DISABLE ROW LEVEL SECURITY;
+    DROP POLICY IF EXISTS "Service manages provider usage" ON public.ai_provider_usage;
+    ALTER TABLE public.ai_provider_usage ENABLE ROW LEVEL SECURITY;
+  END IF;
+END $$;
+
+CREATE POLICY "Allow all manage ai_provider_usage"
+  ON public.ai_provider_usage
+  FOR ALL
+  USING (true)
+  WITH CHECK (true);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.ai_provider_usage TO anon, authenticated;
+GRANT ALL ON public.ai_provider_usage TO service_role;
+
+-- ============================================================
+-- 7. ai_credit_balances
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS public.ai_credit_balances (
+  user_id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  daily_credits integer NOT NULL DEFAULT 0,
+  daily_reset_at timestamptz NOT NULL DEFAULT now(),
+  monthly_credits integer NOT NULL DEFAULT 0,
+  monthly_reset_at timestamptz NOT NULL DEFAULT date_trunc('month', now()) + interval '1 month',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.ai_credit_balances ENABLE ROW LEVEL SECURITY;
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'ai_credit_balances' AND policyname LIKE '%own%') THEN
+    ALTER TABLE public.ai_credit_balances DISABLE ROW LEVEL SECURITY;
+    DROP POLICY IF EXISTS "Users view own credit balance" ON public.ai_credit_balances;
+    DROP POLICY IF EXISTS "Users update own credit balance" ON public.ai_credit_balances;
+    DROP POLICY IF EXISTS "Service can insert credit balances" ON public.ai_credit_balances;
+    ALTER TABLE public.ai_credit_balances ENABLE ROW LEVEL SECURITY;
+  END IF;
+END $$;
+
+CREATE POLICY "Allow all manage ai_credit_balances"
+  ON public.ai_credit_balances
+  FOR ALL
+  USING (true)
+  WITH CHECK (true);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.ai_credit_balances TO anon, authenticated;
+GRANT ALL ON public.ai_credit_balances TO service_role;
+
+-- ============================================================
+-- 8. ai_credit_usage
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS public.ai_credit_usage (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  project_id uuid REFERENCES public.projects(id) ON DELETE SET NULL,
+  feature_key text NOT NULL,
+  provider text NOT NULL,
+  model text NOT NULL,
+  input_tokens integer NOT NULL DEFAULT 0,
+  output_tokens integer NOT NULL DEFAULT 0,
+  estimated_cost numeric NOT NULL DEFAULT 0,
+  credits_used integer NOT NULL DEFAULT 0,
+  status text NOT NULL DEFAULT 'success',
+  error text,
+  request_id text,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_credit_usage_user_created
+  ON public.ai_credit_usage(user_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_ai_credit_usage_feature
+  ON public.ai_credit_usage(feature_key, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_ai_credit_usage_provider
+  ON public.ai_credit_usage(provider, created_at DESC);
+
+ALTER TABLE public.ai_credit_usage ENABLE ROW LEVEL SECURITY;
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'ai_credit_usage' AND policyname LIKE '%own%') THEN
+    ALTER TABLE public.ai_credit_usage DISABLE ROW LEVEL SECURITY;
+    DROP POLICY IF EXISTS "Users view own credit usage" ON public.ai_credit_usage;
+    DROP POLICY IF EXISTS "Service inserts credit usage" ON public.ai_credit_usage;
+    ALTER TABLE public.ai_credit_usage ENABLE ROW LEVEL SECURITY;
+  END IF;
+END $$;
+
+CREATE POLICY "Allow all manage ai_credit_usage"
+  ON public.ai_credit_usage
+  FOR ALL
+  USING (true)
+  WITH CHECK (true);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.ai_credit_usage TO anon, authenticated;
+GRANT ALL ON public.ai_credit_usage TO service_role;
+
+-- ============================================================
+-- 9. Seed initial data
+-- ============================================================
+
+INSERT INTO public.ai_providers (vendor, type, api_key, active, priority, config)
+VALUES
+  ('google', 'gemini', '', true, 1, '{}'::jsonb),
+  ('openai', 'openai', '', true, 2, '{}'::jsonb),
+  ('ollama', 'ollama', '', false, 99, '{"base_url": "http://localhost:11434"}'::jsonb),
+  ('openrouter', 'openrouter', '', false, 98, '{}'::jsonb)
+ON CONFLICT (vendor) DO NOTHING;
+
+INSERT INTO public.ai_models (provider_id, model_id, label, tier, input_price_per_1k, output_price_per_1k, sort_order)
+SELECT p.id, 'gemini-1.5-flash', 'Gemini 1.5 Flash', 'standard', 0.075, 0.30, 1 FROM public.ai_providers p WHERE p.vendor = 'google' ON CONFLICT (provider_id, model_id) DO NOTHING;
+INSERT INTO public.ai_models (provider_id, model_id, label, tier, input_price_per_1k, output_price_per_1k, sort_order)
+SELECT p.id, 'gemini-1.5-pro', 'Gemini 1.5 Pro', 'pro', 1.25, 5.00, 2 FROM public.ai_providers p WHERE p.vendor = 'google' ON CONFLICT (provider_id, model_id) DO NOTHING;
+INSERT INTO public.ai_models (provider_id, model_id, label, tier, input_price_per_1k, output_price_per_1k, sort_order)
+SELECT p.id, 'gpt-4o-mini', 'GPT-4o Mini', 'standard', 0.15, 0.60, 1 FROM public.ai_providers p WHERE p.vendor = 'openai' ON CONFLICT (provider_id, model_id) DO NOTHING;
+INSERT INTO public.ai_models (provider_id, model_id, label, tier, input_price_per_1k, output_price_per_1k, sort_order)
+SELECT p.id, 'gpt-4o', 'GPT-4o', 'pro', 2.50, 10.00, 2 FROM public.ai_providers p WHERE p.vendor = 'openai' ON CONFLICT (provider_id, model_id) DO NOTHING;
+INSERT INTO public.ai_models (provider_id, model_id, label, tier, input_price_per_1k, output_price_per_1k, sort_order)
+SELECT p.id, 'o3-mini', 'o3 Mini', 'pro', 1.10, 4.40, 3 FROM public.ai_providers p WHERE p.vendor = 'openai' ON CONFLICT (provider_id, model_id) DO NOTHING;
+INSERT INTO public.ai_models (provider_id, model_id, label, tier, input_price_per_1k, output_price_per_1k, sort_order)
+SELECT p.id, 'llama3.1', 'Llama 3.1', 'standard', 0, 0, 1 FROM public.ai_providers p WHERE p.vendor = 'ollama' ON CONFLICT (provider_id, model_id) DO NOTHING;
+INSERT INTO public.ai_models (provider_id, model_id, label, tier, input_price_per_1k, output_price_per_1k, sort_order)
+SELECT p.id, 'llama3.1:70b', 'Llama 3.1 70B', 'pro', 0, 0, 2 FROM public.ai_providers p WHERE p.vendor = 'ollama' ON CONFLICT (provider_id, model_id) DO NOTHING;
+INSERT INTO public.ai_models (provider_id, model_id, label, tier, input_price_per_1k, output_price_per_1k, sort_order)
+SELECT p.id, 'meta-llama/llama-3.1-70b-instruct', 'Llama 3.1 70B Instruct', 'standard', 0.35, 0.40, 1 FROM public.ai_providers p WHERE p.vendor = 'openrouter' ON CONFLICT (provider_id, model_id) DO NOTHING;
+INSERT INTO public.ai_models (provider_id, model_id, label, tier, input_price_per_1k, output_price_per_1k, sort_order)
+SELECT p.id, 'meta-llama/llama-3.1-405b-instruct', 'Llama 3.1 405B Instruct', 'pro', 1.00, 1.00, 2 FROM public.ai_providers p WHERE p.vendor = 'openrouter' ON CONFLICT (provider_id, model_id) DO NOTHING;
+INSERT INTO public.ai_models (provider_id, model_id, label, tier, input_price_per_1k, output_price_per_1k, sort_order)
+SELECT p.id, 'google/gemini-pro-1.5', 'Gemini Pro 1.5', 'standard', 0.35, 1.05, 3 FROM public.ai_providers p WHERE p.vendor = 'openrouter' ON CONFLICT (provider_id, model_id) DO NOTHING;
+
+INSERT INTO public.ai_feature_settings (feature_key, credits, max_input_tokens, max_output_tokens, daily_limit, monthly_limit)
+VALUES
+  ('topic_generation', 2, 4000, 2048, 50, 200),
+  ('chapter_generation', 20, 8000, 4096, 20, 100),
+  ('refinement', 20, 12000, 4096, 20, 100),
+  ('academic_assist', 2, 8000, 2048, 50, 200),
+  ('citation', 2, 4000, 1024, 50, 200),
+  ('quality_check', 8, 12000, 2048, 20, 100),
+  ('defense_basic', 10, 8000, 2048, 30, 150),
+  ('defense_simulation', 10, 12000, 4096, 20, 100),
+  ('originality', 10, 12000, 2048, 20, 100),
+  ('literature', 5, 8000, 2048, 30, 150),
+  ('data_analysis', 8, 16000, 4096, 20, 100)
+ON CONFLICT (feature_key) DO NOTHING;
+
+INSERT INTO public.ai_provider_pricing (provider, model, input_price_per_1k, output_price_per_1k, currency)
+VALUES
+  ('google', 'gemini-1.5-flash', 0.075, 0.30, 'USD'),
+  ('google', 'gemini-1.5-pro', 1.25, 5.00, 'USD'),
+  ('openai', 'gpt-4o-mini', 0.15, 0.60, 'USD'),
+  ('openai', 'gpt-4o', 2.50, 10.00, 'USD'),
+  ('openai', 'o3-mini', 1.10, 4.40, 'USD'),
+  ('openrouter', 'meta-llama/llama-3.1-70b-instruct', 0.35, 0.40, 'USD'),
+  ('openrouter', 'meta-llama/llama-3.1-405b-instruct', 1.00, 1.00, 'USD'),
+  ('openrouter', 'google/gemini-pro-1.5', 0.35, 1.05, 'USD')
+ON CONFLICT (provider, model, effective_from) DO NOTHING;
+
+INSERT INTO public.ai_provider_budgets (provider, monthly_budget, warning_threshold, hard_limit)
+VALUES
+  ('google', 5000, 0.8, 1.0),
+  ('openai', 10000, 0.8, 1.0),
+  ('ollama', 0, 0.8, 1.0),
+  ('openrouter', 5000, 0.8, 1.0)
+ON CONFLICT (provider) DO NOTHING;

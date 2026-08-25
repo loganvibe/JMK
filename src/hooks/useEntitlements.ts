@@ -74,6 +74,7 @@ export function useEntitlements() {
   const [creditsUsed, setCreditsUsed] = useState(0);
   const [userId, setUserId] = useState<string | null>(null);
   const [freeMode, setFreeMode] = useState(false);
+  const [featureSettings, setFeatureSettings] = useState<Record<string, boolean>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -85,7 +86,7 @@ export function useEntitlements() {
     monthStart.setUTCDate(1);
     monthStart.setUTCHours(0, 0, 0, 0);
 
-    const [subRes, freeRes, usageRes, settingsRes] = await Promise.all([
+    const [subRes, freeRes, usageRes, settingsRes, featuresRes] = await Promise.all([
       supabase
         .from("user_subscriptions")
         .select("*, subscription_plans(*)")
@@ -101,6 +102,7 @@ export function useEntitlements() {
         .eq("user_id", user.id)
         .gte("created_at", monthStart.toISOString()),
       supabase.from("app_settings").select("pricing_mode").eq("id", "global").maybeSingle(),
+      supabase.from("ai_feature_settings").select("feature_key, enabled"),
     ]);
 
     setFreeMode(settingsRes.data?.pricing_mode === "free");
@@ -112,6 +114,7 @@ export function useEntitlements() {
     setSubscription(expired ? null : active);
     setPlan((resolved as Plan) ?? null);
     setCreditsUsed((usageRes.data ?? []).reduce((s, r: { credits_used?: number }) => s + (r.credits_used || 0), 0));
+    setFeatureSettings((featuresRes.data ?? []).reduce((acc, f) => ({ ...acc, [f.feature_key]: f.enabled }), {} as Record<string, boolean>));
     setLoading(false);
   }, []);
 
@@ -125,6 +128,7 @@ export function useEntitlements() {
   const creditsRemaining = Math.max(0, creditsLimit - creditsUsed);
 
   const can = (feature: FeatureKey) => rank >= FEATURE_MIN_RANK[feature];
+  const isFeatureEnabled = (feature: FeatureKey) => featureSettings[feature] !== false;
   const canUseChapter = (chapter: string) => {
     if (freeMode) return true;
     const allowed = plan?.ai_limits?.chapters;
@@ -145,6 +149,6 @@ export function useEntitlements() {
     loading, plan, slug, rank, subscription, userId, freeMode,
     creditsUsed, creditsLimit, creditsRemaining,
     maxProjects: freeMode ? 999 : Number(plan?.ai_limits?.max_projects ?? 1),
-    can, canUseChapter, refresh: load,
+    can, canUseChapter, isFeatureEnabled, refresh: load,
   };
 }
