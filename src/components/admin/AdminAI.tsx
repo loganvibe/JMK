@@ -91,6 +91,9 @@ const AdminAI = () => {
   const [activeTab, setActiveTab] = useState("features");
 
   const [error, setError] = useState<string | null>(null);
+  const [providerApiKeys, setProviderApiKeys] = useState<Record<string, string>>({});
+  const [providerConfigs, setProviderConfigs] = useState<Record<string, Record<string, unknown>>>({});
+  const [savingProvider, setSavingProvider] = useState<string | null>(null);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -111,6 +114,15 @@ const AdminAI = () => {
       setPricing((pricingRes.data ?? []) as Pricing[]);
       setBudgets((budgetsRes.data ?? []) as Budget[]);
       setUsage((usageRes.data ?? []) as Usage[]);
+
+      const apiKeys: Record<string, string> = {};
+      const configs: Record<string, Record<string, unknown>> = {};
+      (providersRes.data ?? []).forEach((p: Record<string, unknown>) => {
+        apiKeys[String(p.id)] = String(p.api_key ?? "");
+        configs[String(p.id)] = (p.config as Record<string, unknown>) ?? {};
+      });
+      setProviderApiKeys(apiKeys);
+      setProviderConfigs(configs);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Failed to load AI settings";
       setError(msg);
@@ -381,15 +393,8 @@ const AdminAI = () => {
                     id={`api-key-${provider.id}`}
                     type="password"
                     placeholder={provider.type === "ollama" ? "Not required for local Ollama" : "sk-..."}
-                    defaultValue={provider.type === "ollama" ? "" : ""}
-                    onChange={async (e) => {
-                      const { error } = await supabase
-                        .from("ai_providers")
-                        .update({ api_key: e.target.value })
-                        .eq("id", provider.id);
-                      if (error) return toast({ title: "Save failed", description: error.message, variant: "destructive" });
-                      toast({ title: "API key saved" });
-                    }}
+                    value={providerApiKeys[provider.id] ?? ""}
+                    onChange={(e) => setProviderApiKeys((prev) => ({ ...prev, [provider.id]: e.target.value }))}
                   />
                 </div>
 
@@ -399,21 +404,36 @@ const AdminAI = () => {
                     <Input
                       id={`base-url-${provider.id}`}
                       placeholder="http://localhost:11434"
-                      defaultValue={provider.config?.base_url || "http://localhost:11434"}
-                      onChange={async (e) => {
-                        const { error } = await supabase
-                          .from("ai_providers")
-                          .update({ config: { ...(provider.config || {}), base_url: e.target.value } })
-                          .eq("id", provider.id);
-                        if (error) return toast({ title: "Save failed", description: error.message, variant: "destructive" });
-                        toast({ title: "Base URL saved" });
-                      }}
+                      value={String(providerConfigs[provider.id]?.base_url ?? "http://localhost:11434")}
+                      onChange={(e) => setProviderConfigs((prev) => ({
+                        ...prev,
+                        [provider.id]: { ...(prev[provider.id] ?? {}), base_url: e.target.value },
+                      }))}
                     />
                   </div>
                 )}
               </div>
 
-              <div className="mt-4">
+              <div className="mt-4 flex items-center gap-3">
+                <Button
+                  size="sm"
+                  onClick={async () => {
+                    setSavingProvider(provider.id);
+                    const { error } = await supabase
+                      .from("ai_providers")
+                      .update({
+                        api_key: providerApiKeys[provider.id] ?? "",
+                        config: providerConfigs[provider.id] ?? {},
+                      })
+                      .eq("id", provider.id);
+                    setSavingProvider(null);
+                    if (error) return toast({ title: "Save failed", description: error.message, variant: "destructive" });
+                    toast({ title: `${provider.vendor} saved` });
+                  }}
+                  disabled={savingProvider === provider.id}
+                >
+                  {savingProvider === provider.id ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <><Save className="w-4 h-4 mr-1" />Save {provider.vendor}</>}
+                </Button>
                 <p className="text-xs text-muted-foreground">
                   {provider.type === "ollama"
                     ? "Ollama runs locally. Make sure your Ollama server is accessible and the model is pulled (e.g., ollama pull llama3.1)."
