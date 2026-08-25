@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -90,29 +90,39 @@ const AdminAI = () => {
   const [usage, setUsage] = useState<Usage[]>([]);
   const [activeTab, setActiveTab] = useState("features");
 
+  const [error, setError] = useState<string | null>(null);
+
+  const loadAll = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [featuresRes, providersRes, modelsRes, pricingRes, budgetsRes, usageRes] = await Promise.all([
+        supabase.from("ai_feature_settings").select("*").order("feature_key"),
+        supabase.from("ai_providers").select("*").order("priority"),
+        supabase.from("ai_models").select("*").order("sort_order"),
+        supabase.from("ai_provider_pricing").select("*"),
+        supabase.from("ai_provider_budgets").select("*"),
+        supabase.from("ai_provider_usage").select("*").order("date", { ascending: false }).limit(30),
+      ]);
+
+      setFeatures((featuresRes.data ?? []) as FeatureSetting[]);
+      setProviders((providersRes.data ?? []) as Provider[]);
+      setModels((modelsRes.data ?? []) as Model[]);
+      setPricing((pricingRes.data ?? []) as Pricing[]);
+      setBudgets((budgetsRes.data ?? []) as Budget[]);
+      setUsage((usageRes.data ?? []) as Usage[]);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Failed to load AI settings";
+      setError(msg);
+      toast({ title: "Could not load AI data", description: msg, variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
+
   useEffect(() => {
     loadAll();
-  }, []);
-
-  const loadAll = async () => {
-    setLoading(true);
-    const [featuresRes, providersRes, modelsRes, pricingRes, budgetsRes, usageRes] = await Promise.all([
-      supabase.from("ai_feature_settings").select("*").order("feature_key"),
-      supabase.from("ai_providers").select("*").order("priority"),
-      supabase.from("ai_models").select("*").order("sort_order"),
-      supabase.from("ai_provider_pricing").select("*"),
-      supabase.from("ai_provider_budgets").select("*"),
-      supabase.from("ai_provider_usage").select("*").order("date", { ascending: false }).limit(30),
-    ]);
-
-    setFeatures((featuresRes.data ?? []) as FeatureSetting[]);
-    setProviders((providersRes.data ?? []) as Provider[]);
-    setModels((modelsRes.data ?? []) as Model[]);
-    setPricing((pricingRes.data ?? []) as Pricing[]);
-    setBudgets((budgetsRes.data ?? []) as Budget[]);
-    setUsage((usageRes.data ?? []) as Usage[]);
-    setLoading(false);
-  };
+  }, [loadAll]);
 
   const saveFeature = async (feature: FeatureSetting) => {
     setSaving(true);
@@ -150,6 +160,18 @@ const AdminAI = () => {
     return (
       <div className="py-16 grid place-items-center">
         <Loader2 className="w-6 h-6 animate-spin text-accent" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="py-8 space-y-4">
+        <div className="p-4 rounded-xl border border-destructive/30 bg-destructive/5 text-sm text-destructive">
+          <p className="font-medium mb-1">AI tables not found</p>
+          <p>Run the Supabase migrations in <code>supabase/migrations/</code> to create the AI provider tables, then refresh this page.</p>
+        </div>
+        <Button size="sm" onClick={loadAll}>Retry</Button>
       </div>
     );
   }
