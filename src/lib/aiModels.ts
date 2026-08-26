@@ -2,50 +2,64 @@
 export type AIModel = {
   id: string;
   label: string;
-  vendor: "Google" | "OpenAI";
+  vendor: "Google" | "OpenAI" | "OpenRouter";
   tier: "standard" | "pro";
   blurb: string;
 };
 
 export const AI_MODELS: AIModel[] = [
   {
-    id: "google/gemini-3.6-flash",
-    label: "Gemini 3.6 Flash",
+    id: "google/gemini-1.5-flash",
+    label: "Gemini 1.5 Flash",
     vendor: "Google",
     tier: "standard",
     blurb: "Fast, balanced default for everyday academic writing.",
   },
   {
-    id: "google/gemini-3.1-pro-preview",
-    label: "Gemini 3.1 Pro",
+    id: "google/gemini-1.5-pro",
+    label: "Gemini 1.5 Pro",
     vendor: "Google",
     tier: "pro",
     blurb: "Deeper reasoning for literature reviews and methodology.",
   },
   {
-    id: "openai/gpt-5.4-mini",
-    label: "GPT-5.4 Mini",
+    id: "openai/gpt-4o-mini",
+    label: "GPT-4o Mini",
     vendor: "OpenAI",
     tier: "standard",
     blurb: "OpenAI quality at low latency — great for edits and citations.",
   },
   {
-    id: "openai/gpt-5.6-terra",
-    label: "GPT-5.6 Terra",
+    id: "openai/gpt-4o",
+    label: "GPT-4o",
     vendor: "OpenAI",
     tier: "pro",
     blurb: "Balanced OpenAI flagship for full chapters and analysis.",
   },
   {
-    id: "openai/gpt-5.5",
-    label: "GPT-5.5",
+    id: "openai/o3-mini",
+    label: "o3 Mini",
     vendor: "OpenAI",
     tier: "pro",
     blurb: "Strongest reasoning for defense prep and deep critique.",
   },
+  {
+    id: "openrouter/z-ai/glm-5.2:free",
+    label: "GLM-5.2 Free",
+    vendor: "OpenRouter",
+    tier: "standard",
+    blurb: "Free OpenRouter model for testing.",
+  },
+  {
+    id: "openrouter/stealth/ox-alpha",
+    label: "Stealth OX Alpha",
+    vendor: "OpenRouter",
+    tier: "standard",
+    blurb: "Free OpenRouter model for testing.",
+  },
 ];
 
-export const DEFAULT_MODEL = "google/gemini-3.6-flash";
+export const DEFAULT_MODEL = "google/gemini-1.5-flash";
 const STORAGE_KEY = "jmk.ai.model";
 
 export const modelLabel = (id: string) =>
