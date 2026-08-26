@@ -47,12 +47,11 @@ Deno.serve(async (req) => {
 
   try {
     const body = (await req.json()) as Body;
+    const { action } = body;
     const feature = action === "generate_topics" ? "topic_generation" : "chapter_generation";
     const callAI = makeCallAI(feature, (body as Record<string, unknown>)?.model);
-    const { action } = body;
 
     // --- server-side auth, plan and credit enforcement ---
-    const feature = action === "generate_topics" ? "topic_generation" : "chapter_generation";
     const ctx = await guard(req, feature, {
       projectId: body.project?.id ?? null,
       chapter: body.chapter ?? null,
