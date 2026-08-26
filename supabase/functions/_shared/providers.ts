@@ -2,6 +2,7 @@
 // Each adapter implements the same interface so features don't need to know which provider is active.
 
 import { adminClient } from "./entitlements.ts";
+import { OpenRouter } from "@openrouter/sdk";
 
 export type ProviderType = "ollama" | "openrouter" | "gemini" | "openai" | "groq";
 
@@ -196,34 +197,20 @@ class OpenRouterAdapter implements ProviderAdapter {
     const modelName = model.model_id;
     const maxTokens = opts.maxOutputTokens ?? 4096;
 
-    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
+    const openrouter = new OpenRouter({ apiKey });
+
+    const response = await openrouter.chat.send({
+      chatRequest: {
         model: modelName,
         max_tokens: maxTokens,
         messages: [
           ...(system ? [{ role: "system", content: system }] : []),
           { role: "user", content: user },
         ],
-      }),
+      },
     });
 
-    const text = await res.text();
-    if (!res.ok) {
-      console.error(`OpenRouter error [${res.status}]`, text.slice(0, 1000));
-      throw new Error(`OpenRouter error [${res.status}]: ${text.slice(0, 300)}`);
-    }
-
-    let data: Record<string, unknown> = {};
-    try { data = JSON.parse(text); } catch {
-      throw new Error("OpenRouter returned an invalid response.");
-    }
-
-    const extracted = data?.choices?.[0]?.message?.content ?? "";
+    const extracted = response.choices?.[0]?.message?.content ?? "";
     if (!extracted.trim()) throw new Error("OpenRouter returned an empty response.");
 
     return {
