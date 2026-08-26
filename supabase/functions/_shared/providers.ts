@@ -3,7 +3,7 @@
 
 import { adminClient } from "./entitlements.ts";
 
-export type ProviderType = "ollama" | "openrouter" | "gemini" | "openai";
+export type ProviderType = "ollama" | "openrouter" | "gemini" | "openai" | "groq";
 
 export interface ProviderConfig {
   id: string;
@@ -346,11 +346,61 @@ class OpenAIAdapter implements ProviderAdapter {
   }
 }
 
+class GroqAdapter implements ProviderAdapter {
+  type: ProviderType = "groq";
+  label = "Groq";
+
+  async call(model: ModelConfig, system: string, user: string, opts: { json?: boolean; maxInputTokens?: number; maxOutputTokens?: number }): Promise<AIResponse> {
+    const apiKey = String(model.provider_api_key ?? "");
+    if (!apiKey) throw new Error("Groq API key is not configured.");
+
+    const modelName = model.model_id;
+    const maxTokens = opts.maxOutputTokens ?? 4096;
+
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: modelName,
+        max_tokens: maxTokens,
+        messages: [
+          ...(system ? [{ role: "system", content: system }] : []),
+          { role: "user", content: user },
+        ],
+      }),
+    });
+
+    const text = await res.text();
+    if (!res.ok) {
+      console.error(`Groq error [${res.status}]`, text.slice(0, 1000));
+      throw new Error(`Groq error [${res.status}]: ${text.slice(0, 300)}`);
+    }
+
+    let data: Record<string, unknown> = {};
+    try { data = JSON.parse(text); } catch {
+      throw new Error("Groq returned an invalid response.");
+    }
+
+    const extracted = data?.choices?.[0]?.message?.content ?? "";
+    if (!extracted.trim()) throw new Error("Groq returned an empty response.");
+
+    return {
+      content: extracted,
+      model: modelName,
+      provider: "groq",
+    };
+  }
+}
+
 const ADAPTERS: Record<ProviderType, ProviderAdapter> = {
   ollama: new OllamaAdapter(),
   openrouter: new OpenRouterAdapter(),
   gemini: new GeminiAdapter(),
   openai: new OpenAIAdapter(),
+  groq: new GroqAdapter(),
 };
 
 // ============================================================
