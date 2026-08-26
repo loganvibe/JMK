@@ -464,6 +464,7 @@ const AdminAI = () => {
                     <SelectItem value="openrouter">OpenRouter</SelectItem>
                     <SelectItem value="gemini">Gemini</SelectItem>
                     <SelectItem value="openai">OpenAI</SelectItem>
+                    <SelectItem value="groq">Groq</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
