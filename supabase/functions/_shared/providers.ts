@@ -219,6 +219,49 @@ class OpenRouterAdapter implements ProviderAdapter {
       provider: "openrouter",
     };
   }
+
+  async streamChat(
+    model: ModelConfig,
+    system: string,
+    user: string,
+    opts: { maxInputTokens?: number; maxOutputTokens?: number },
+  ): Promise<ReadableStream> {
+    const apiKey = String(model.provider_api_key ?? "");
+    if (!apiKey) throw new Error("OpenRouter API key is not configured.");
+
+    const modelName = model.model_id;
+    const maxTokens = opts.maxOutputTokens ?? 4096;
+
+    const openrouter = new OpenRouter({ apiKey });
+
+    const stream = await openrouter.chat.send({
+      chatRequest: {
+        model: modelName,
+        max_tokens: maxTokens,
+        messages: [
+          ...(system ? [{ role: "system", content: system }] : []),
+          { role: "user", content: user },
+        ],
+        stream: true,
+      },
+    });
+
+    return new ReadableStream({
+      async pull(controller) {
+        try {
+          for await (const chunk of stream) {
+            const content = chunk.choices?.[0]?.delta?.content;
+            if (content) {
+              controller.enqueue(new TextEncoder().encode(content));
+            }
+          }
+          controller.close();
+        } catch (e) {
+          controller.error(e);
+        }
+      },
+    });
+  }
 }
 
 class GeminiAdapter implements ProviderAdapter {
