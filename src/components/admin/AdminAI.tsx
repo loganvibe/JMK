@@ -517,6 +517,7 @@ const AdminAI = () => {
           {models.map((model) => {
             const provider = providers.find((p) => p.id === model.provider_id);
             const price = pricing.find((p) => p.provider === provider?.vendor && p.model === model.model_id);
+            const isFree = (price?.input_price_per_1k ?? 0) === 0 && (price?.output_price_per_1k ?? 0) === 0;
             return (
               <Card key={model.id} className="p-5">
                 <div className="flex items-center justify-between mb-2">
@@ -526,9 +527,14 @@ const AdminAI = () => {
                       {provider?.vendor} · {model.tier} · {model.model_id}
                     </p>
                   </div>
-                  <Badge variant={model.active ? "default" : "secondary"}>
-                    {model.active ? "Active" : "Inactive"}
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={model.active ? "default" : "secondary"}>
+                      {model.active ? "Active" : "Inactive"}
+                    </Badge>
+                    {isFree && (
+                      <Badge variant="outline" className="text-emerald-600 border-emerald-600">FREE</Badge>
+                    )}
+                  </div>
                 </div>
                 {price && (
                   <p className="text-xs text-muted-foreground">
