@@ -318,10 +318,12 @@ export async function enforce(
     );
   }
 
-  // Check daily/monthly credit limits
-  const creditCheck = await checkCreditLimit(user.id, feature);
-  if (!creditCheck.allowed) {
-    throw new AccessError(creditCheck.reason ?? "Credit limit exceeded.", 402, "credits_exhausted");
+  // Check daily/monthly credit limits (skip in free mode)
+  if (!freeMode) {
+    const creditCheck = await checkCreditLimit(user.id, feature);
+    if (!creditCheck.allowed) {
+      throw new AccessError(creditCheck.reason ?? "Credit limit exceeded.", 402, "credits_exhausted");
+    }
   }
 
   return {
