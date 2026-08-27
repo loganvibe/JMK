@@ -513,12 +513,21 @@ class KiloAdapter implements ProviderAdapter {
       throw new Error("Kilo AI returned an invalid response.");
     }
 
-    const extracted = data?.choices?.[0]?.message?.content ?? "";
+    // Handle Kilo AI response format
+    const choice = data?.choices?.[0] as Record<string, unknown> | undefined;
+    const message = choice?.message as Record<string, unknown> | undefined;
+    
+    // Some models return content in reasoning field instead of content
+    let extracted = String(message?.content ?? "");
+    if (!extracted.trim() && message?.reasoning) {
+      extracted = String(message.reasoning);
+    }
+    
     if (!extracted.trim()) throw new Error("Kilo AI returned an empty response.");
 
     return {
       content: extracted,
-      model: modelName,
+      model: String(data?.model ?? modelName),
       provider: "kilo",
     };
   }
