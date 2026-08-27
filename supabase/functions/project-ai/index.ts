@@ -167,8 +167,10 @@ ${ctxBlock}`;
   } catch (e: unknown) {
     console.error("project-ai error", e);
     const status = (e as { status?: number } | undefined)?.status ?? 500;
+    const code = (e as { code?: string } | undefined)?.code ?? "server_error";
+    const message = (e instanceof Error ? e.message : String(e)) ?? "Unexpected server error";
     return new Response(
-      JSON.stringify({ error: (e instanceof Error ? e.message : String(e)) ?? "Unexpected server error" }),
+      JSON.stringify({ error: message, code, details: e instanceof Error ? e.stack : undefined }),
       { status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }

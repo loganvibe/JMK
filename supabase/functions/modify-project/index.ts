@@ -60,7 +60,13 @@ Produce the full refreshed project now.`;
      });
   } catch (e) {
     console.error("modify-project error", e);
-    return accessErrorResponse(e, corsHeaders);
+    const status = e?.status ?? 500;
+    const code = e?.code ?? "server_error";
+    const message = (e instanceof Error ? e.message : String(e)) ?? "Unexpected server error";
+    return new Response(
+      JSON.stringify({ error: message, code }),
+      { status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
   }
 });
 
