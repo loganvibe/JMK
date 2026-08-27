@@ -486,20 +486,28 @@ class KiloAdapter implements ProviderAdapter {
     const modelName = model.model_id;
     const maxTokens = opts.maxOutputTokens ?? 4096;
 
+    const body: Record<string, unknown> = {
+      model: modelName,
+      max_tokens: maxTokens,
+      messages: [
+        ...(system ? [{ role: "system", content: system }] : []),
+        { role: "user", content: user },
+      ],
+    };
+
+    // Only add response_format for JSON mode if not using auto-routing
+    // Some free models don't support json_object format well
+    if (opts.json && !modelName.includes("auto/free")) {
+      body.response_format = { type: "json_object" };
+    }
+
     const res = await fetch("https://api.kilo.ai/api/gateway/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
       },
-      body: JSON.stringify({
-        model: modelName,
-        max_tokens: maxTokens,
-        messages: [
-          ...(system ? [{ role: "system", content: system }] : []),
-          { role: "user", content: user },
-        ],
-      }),
+      body: JSON.stringify(body),
     });
 
     const text = await res.text();
@@ -516,13 +524,13 @@ class KiloAdapter implements ProviderAdapter {
     // Handle Kilo AI response format
     const choice = data?.choices?.[0] as Record<string, unknown> | undefined;
     const message = choice?.message as Record<string, unknown> | undefined;
-    
+
     // Some models return content in reasoning field instead of content
     let extracted = String(message?.content ?? "");
     if (!extracted.trim() && message?.reasoning) {
       extracted = String(message.reasoning);
     }
-    
+
     if (!extracted.trim()) throw new Error("Kilo AI returned an empty response.");
 
     return {

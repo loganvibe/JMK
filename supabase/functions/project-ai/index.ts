@@ -89,12 +89,19 @@ Student inputs:
 - Research field: ${inputs.research_field ?? ""}
 - Difficulty level: ${inputs.difficulty_level ?? ""}
 
-Generate 5 topic ideas now.`;
+Generate 5 topic ideas now. Output ONLY valid JSON, no other text.`;
       const raw = await callAI(system, user, true);
       let parsed: unknown = {};
-      try { parsed = JSON.parse(raw); } catch {
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        // Try to extract JSON from the response
         const m = raw.match(/\{[\s\S]*\}/);
-        parsed = m ? JSON.parse(m[0]) : { topics: [] };
+        if (m) {
+          try { parsed = JSON.parse(m[0]); } catch { parsed = { topics: [] }; }
+        } else {
+          parsed = { topics: [] };
+        }
       }
       await deductCredits(ctx.user.id, FEATURE_RULES.topic_generation.credits, feature, body.project?.id ?? null);
       return new Response(JSON.stringify(parsed), {
