@@ -16,7 +16,7 @@ export type ModelId = string;
 /** Validates a client-supplied model id, falling back to the default. */
 export function resolveModel(requested?: unknown): ModelId {
   const id = typeof requested === "string" ? requested.trim() : "";
-  if (!id) return "google/gemini-1.5-flash";
+  if (!id) return "groq/llama-3.3-70b-versatile";
   return id;
 }
 
@@ -53,7 +53,7 @@ export async function resolveModelForFeature(featureKey: string, requestedModel?
     const { data } = await db
       .from("ai_models")
       .select("*, ai_providers(type, api_key, config)")
-      .eq("model_id", requested.replace(/^(google\/|openai\/|openrouter\/|ollama\/)/, ""))
+      .eq("model_id", requested.replace(/^(google\/|openai\/|openrouter\/|ollama\/|groq\/)/, ""))
       .eq("active", true)
       .maybeSingle();
 
@@ -122,7 +122,7 @@ export async function resolveModelForFeature(featureKey: string, requestedModel?
     };
   }
 
-  const adapter = getAdapter(modelConfig.provider_type as "ollama" | "openrouter" | "gemini" | "openai");
+  const adapter = getAdapter(modelConfig.provider_type as ProviderType);
   return { model: modelConfig, adapter };
 }
 

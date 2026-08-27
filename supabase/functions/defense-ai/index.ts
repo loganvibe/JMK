@@ -44,7 +44,7 @@ Deno.serve(async (req) => {
 
     // --- server-side auth, plan and credit enforcement ---
     const access = await guard(req, feature, { projectId: project?.id ?? null });
-    await access.log();
+    const userId = access.user.id;
 
 
     if (action === "summary") {
@@ -68,7 +68,7 @@ ${type === "10min" ? "Make content richer with detailed presentation flow and im
 
 ${ctx}`;
       const raw = await callAI(sys, prompt, true);
-      await deductCredits(ctx.userId, FEATURE_RULES.defense_basic.credits, feature, project?.id ?? null);
+      await deductCredits(userId, FEATURE_RULES.defense_basic.credits, feature, project?.id ?? null);
       return Response.json({ content: parseJson(raw) }, { headers: corsHeaders });
     }
 
@@ -88,7 +88,7 @@ Follow this structure exactly, in order:
 
 ${ctx}`;
       const raw = await callAI(sys, prompt, true);
-      await deductCredits(ctx.userId, FEATURE_RULES.defense_basic.credits, feature, project?.id ?? null);
+      await deductCredits(userId, FEATURE_RULES.defense_basic.credits, feature, project?.id ?? null);
       return Response.json({ content: parseJson(raw) }, { headers: corsHeaders });
     }
 
@@ -105,7 +105,7 @@ Return JSON:
 
 ${ctx}`;
       const raw = await callAI(sys, prompt, true);
-      await deductCredits(ctx.userId, FEATURE_RULES.defense_basic.credits, feature, project?.id ?? null);
+      await deductCredits(userId, FEATURE_RULES.defense_basic.credits, feature, project?.id ?? null);
       return Response.json({ content: parseJson(raw) }, { headers: corsHeaders });
     }
 
@@ -129,7 +129,7 @@ Return JSON:
 
 ${ctx}`;
       const raw = await callAI(sys, prompt, true);
-      await deductCredits(ctx.userId, FEATURE_RULES.defense_basic.credits, feature, project?.id ?? null);
+      await deductCredits(userId, FEATURE_RULES.defense_basic.credits, feature, project?.id ?? null);
       return Response.json({ content: parseJson(raw) }, { headers: corsHeaders });
     }
 
@@ -142,7 +142,7 @@ Answer using their actual project data below. Give concrete talking points and p
 
 ${ctx}`;
        const raw = await callAI(sys, prompt, false);
-       await deductCredits(access.user.id, FEATURE_RULES.defense_basic.credits, feature, project?.id ?? null);
+       await deductCredits(userId, FEATURE_RULES.defense_basic.credits, feature, project?.id ?? null);
        return Response.json({ content: raw }, { headers: corsHeaders });
     }
 
@@ -154,7 +154,7 @@ Return JSON:
 
 ${ctx}`;
        const raw = await callAI(sys, prompt, true);
-       await deductCredits(access.user.id, FEATURE_RULES.defense_basic.credits, feature, project?.id ?? null);
+       await deductCredits(userId, FEATURE_RULES.defense_basic.credits, feature, project?.id ?? null);
        return Response.json({ content: parseJson(raw) }, { headers: corsHeaders });
      }
 
@@ -162,9 +162,10 @@ ${ctx}`;
       status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: unknown) {
-    console.error(e);
+    console.error("defense-ai error", e);
+    const status = (e as { status?: number } | undefined)?.status ?? 500;
     return new Response(JSON.stringify({ error: (e instanceof Error ? e.message : String(e)) ?? "error" }), {
-      status: e.status ?? 500,
+      status,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
