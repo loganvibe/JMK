@@ -3,7 +3,7 @@
 
 import { adminClient } from "./entitlements.ts";
 
-export type ProviderType = "ollama" | "openrouter" | "gemini" | "openai" | "groq";
+export type ProviderType = "ollama" | "openrouter" | "gemini" | "openai" | "groq" | "kilo";
 
 export interface ProviderConfig {
   id: string;
@@ -475,12 +475,142 @@ class GroqAdapter implements ProviderAdapter {
   }
 }
 
+class KiloAdapter implements ProviderAdapter {
+  type: ProviderType = "kilo";
+  label = "Kilo AI";
+
+  async call(model: ModelConfig, system: string, user: string, opts: { json?: boolean; maxInputTokens?: number; maxOutputTokens?: number }): Promise<AIResponse> {
+    const apiKey = String(model.provider_api_key ?? "");
+    if (!apiKey) throw new Error("Kilo AI API key is not configured.");
+
+    const modelName = model.model_id;
+    const maxTokens = opts.maxOutputTokens ?? 4096;
+
+    const res = await fetch("https://api.kilo.ai/api/gateway/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: modelName,
+        max_tokens: maxTokens,
+        messages: [
+          ...(system ? [{ role: "system", content: system }] : []),
+          { role: "user", content: user },
+        ],
+      }),
+    });
+
+    const text = await res.text();
+    if (!res.ok) {
+      console.error(`Kilo AI error [${res.status}]`, text.slice(0, 1000));
+      throw new Error(`Kilo AI error [${res.status}]: ${text.slice(0, 300)}`);
+    }
+
+    let data: Record<string, unknown> = {};
+    try { data = JSON.parse(text); } catch {
+      throw new Error("Kilo AI returned an invalid response.");
+    }
+
+    const extracted = data?.choices?.[0]?.message?.content ?? "";
+    if (!extracted.trim()) throw new Error("Kilo AI returned an empty response.");
+
+    return {
+      content: extracted,
+      model: modelName,
+      provider: "kilo",
+    };
+  }
+
+  async streamChat(
+    model: ModelConfig,
+    system: string,
+    user: string,
+    opts: { maxInputTokens?: number; maxOutputTokens?: number },
+  ): Promise<ReadableStream> {
+    const apiKey = String(model.provider_api_key ?? "");
+    if (!apiKey) throw new Error("Kilo AI API key is not configured.");
+
+    const modelName = model.model_id;
+    const maxTokens = opts.maxOutputTokens ?? 4096;
+
+    const res = await fetch("https://api.kilo.ai/api/gateway/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: modelName,
+        max_tokens: maxTokens,
+        messages: [
+          ...(system ? [{ role: "system", content: system }] : []),
+          { role: "user", content: user },
+        ],
+        stream: true,
+      }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      console.error(`Kilo AI error [${res.status}]`, text.slice(0, 1000));
+      throw new Error(`Kilo AI error [${res.status}]: ${text.slice(0, 300)}`);
+    }
+
+    if (!res.body) throw new Error("Kilo AI response body is missing.");
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    return new ReadableStream({
+      async pull(controller) {
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) {
+              controller.close();
+              return;
+            }
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() ?? "";
+
+            for (const line of lines) {
+              const trimmed = line.trim();
+              if (!trimmed || !trimmed.startsWith("data:")) continue;
+              const payload = trimmed.slice(5).trim();
+              if (payload === "[DONE]") {
+                controller.close();
+                return;
+              }
+              try {
+                const parsed = JSON.parse(payload) as { choices?: Array<{ delta?: { content?: string } }> };
+                const content = parsed.choices?.[0]?.delta?.content;
+                if (content) {
+                  controller.enqueue(new TextEncoder().encode(content));
+                }
+              } catch {
+                // skip malformed chunk
+              }
+            }
+          }
+        } catch (e) {
+          controller.error(e);
+        }
+      },
+    });
+  }
+}
+
 const ADAPTERS: Record<ProviderType, ProviderAdapter> = {
   ollama: new OllamaAdapter(),
   openrouter: new OpenRouterAdapter(),
   gemini: new GeminiAdapter(),
   openai: new OpenAIAdapter(),
   groq: new GroqAdapter(),
+  kilo: new KiloAdapter(),
 };
 
 // ============================================================

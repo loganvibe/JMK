@@ -4,7 +4,38 @@ JMK supports multiple AI providers with generous **free tiers**. This guide help
 
 ## Quick Start: Recommended Free Providers
 
-### Option 1: Groq (Recommended - Easiest Setup)
+### Option 1: Kilo AI (Recommended - Default)
+
+Kilo AI provides a free auto-routing model that automatically selects the best available free model.
+
+**Steps:**
+1. Sign up at [https://kilo.ai](https://kilo.ai)
+2. Get your API key from the dashboard
+3. Add the key to your Supabase environment:
+
+```bash
+KILO_API_KEY=your_kilo_api_key_here
+```
+
+4. Update the provider in your database:
+
+```sql
+UPDATE ai_providers
+SET api_key = 'your_kilo_api_key_here', active = true, priority = 0
+WHERE vendor = 'kilo';
+```
+
+**Free Model:**
+- `kilo-auto/free` - Auto-routes to best available free model (200 requests/hour)
+
+**Notes:**
+- No credit card required
+- Rate limited to 200 requests/hour per IP
+- May route to NVIDIA free endpoints (see their privacy policy)
+
+---
+
+### Option 2: Groq (Fastest Free Tier)
 
 Groq offers a generous free tier with fast inference speeds.
 
@@ -104,6 +135,7 @@ Add these secrets in your Supabase Dashboard:
 3. Add each provider key:
 
 ```
+KILO_API_KEY=your_kilo_key
 GROQ_API_KEY=your_groq_key
 OPENROUTER_API_KEY=your_openrouter_key
 GEMINI_API_KEY=your_gemini_key

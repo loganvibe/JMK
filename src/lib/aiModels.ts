@@ -2,12 +2,20 @@
 export type AIModel = {
   id: string;
   label: string;
-  vendor: "Google" | "OpenAI" | "OpenRouter" | "Groq";
+  vendor: "Google" | "OpenAI" | "OpenRouter" | "Groq" | "Kilo";
   tier: "standard" | "pro";
   blurb: string;
 };
 
 export const AI_MODELS: AIModel[] = [
+  // Kilo AI free model (recommended - highest priority)
+  {
+    id: "kilo/kilo-auto/free",
+    label: "Kilo Auto Free",
+    vendor: "Kilo",
+    tier: "standard",
+    blurb: "Auto-routes to best free model. 200 requests/hour free.",
+  },
   // Free models (recommended)
   {
     id: "groq/llama-3.3-70b-versatile",
@@ -90,11 +98,11 @@ export const AI_MODELS: AIModel[] = [
   },
 ];
 
-export const DEFAULT_MODEL = "groq/llama-3.3-70b-versatile";
+export const DEFAULT_MODEL = "kilo/kilo-auto/free";
 const STORAGE_KEY = "jmk.ai.model";
 
 export const modelLabel = (id: string) =>
-  AI_MODELS.find((m) => m.id === id)?.label ?? "Llama 3.3 70B (Groq)";
+  AI_MODELS.find((m) => m.id === id)?.label ?? "Kilo Auto Free";
 
 /** The model every AI request should use. Read synchronously anywhere. */
 export function getPreferredModel(): string {

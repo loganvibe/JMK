@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const adapter = getAdapter(modelConfig.provider_type as "ollama" | "openrouter" | "gemini" | "openai" | "groq");
+    const adapter = getAdapter(modelConfig.provider_type as "ollama" | "openrouter" | "gemini" | "openai" | "groq" | "kilo");
     if (!adapter.streamChat) {
       return new Response(JSON.stringify({ error: `Streaming is not supported for ${adapter.label}.` }), {
         status: 400,

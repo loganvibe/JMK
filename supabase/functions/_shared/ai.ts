@@ -16,7 +16,7 @@ export type ModelId = string;
 /** Validates a client-supplied model id, falling back to the default. */
 export function resolveModel(requested?: unknown): ModelId {
   const id = typeof requested === "string" ? requested.trim() : "";
-  if (!id) return "groq/llama-3.3-70b-versatile";
+  if (!id) return "kilo/kilo-auto/free";
   return id;
 }
 
@@ -53,7 +53,7 @@ export async function resolveModelForFeature(featureKey: string, requestedModel?
     const { data } = await db
       .from("ai_models")
       .select("*, ai_providers(type, api_key, config)")
-      .eq("model_id", requested.replace(/^(google\/|openai\/|openrouter\/|ollama\/|groq\/)/, ""))
+      .eq("model_id", requested.replace(/^(google\/|openai\/|openrouter\/|ollama\/|groq\/|kilo\/)/, ""))
       .eq("active", true)
       .maybeSingle();
 
