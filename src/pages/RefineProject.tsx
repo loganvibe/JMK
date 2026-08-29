@@ -173,13 +173,13 @@ const RefineProject = () => {
       return;
     }
     try {
-      const { data, error } = await supabase.from("project_refinement_requests").insert({
+      const { data, error: supabaseError } = await supabase.from("project_refinement_requests").insert({
         user_id: user.id,
         document_id: documentId,
         user_answers: answers,
         refinement_status: "in_progress",
       }).select("id").single();
-      if (error) throw error;
+      if (supabaseError) throw supabaseError;
       setRefinementId(data.id);
       setStep(3);
       await splitSections();

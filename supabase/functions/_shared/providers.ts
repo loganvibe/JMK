@@ -172,7 +172,7 @@ class OllamaAdapter implements ProviderAdapter {
               if (chunk) {
                 controller.enqueue(new TextEncoder().encode(chunk));
               }
-            } catch {
+            } catch (err) {
               // skip malformed JSON
             }
           }
@@ -219,7 +219,7 @@ class OpenRouterAdapter implements ProviderAdapter {
     }
 
     let data: Record<string, unknown> = {};
-    try { data = JSON.parse(text); } catch {
+    try { data = JSON.parse(text); } catch (err) {
       throw new Error("OpenRouter returned an invalid response.");
     }
 
@@ -301,7 +301,7 @@ class OpenRouterAdapter implements ProviderAdapter {
                 if (content) {
                   controller.enqueue(new TextEncoder().encode(content));
                 }
-              } catch {
+              } catch (err) {
                 // skip malformed chunk
               }
             }
@@ -359,7 +359,7 @@ class GeminiAdapter implements ProviderAdapter {
     }
 
     let data: Record<string, unknown> = {};
-    try { data = JSON.parse(text); } catch {
+    try { data = JSON.parse(text); } catch (err) {
       throw new Error("Gemini returned an invalid response.");
     }
 
@@ -411,7 +411,7 @@ class OpenAIAdapter implements ProviderAdapter {
     }
 
     let data: Record<string, unknown> = {};
-    try { data = JSON.parse(text); } catch {
+    try { data = JSON.parse(text); } catch (err) {
       throw new Error("OpenAI returned an invalid response.");
     }
 
@@ -460,7 +460,7 @@ class GroqAdapter implements ProviderAdapter {
     }
 
     let data: Record<string, unknown> = {};
-    try { data = JSON.parse(text); } catch {
+    try { data = JSON.parse(text); } catch (err) {
       throw new Error("Groq returned an invalid response.");
     }
 
@@ -517,7 +517,7 @@ class KiloAdapter implements ProviderAdapter {
     }
 
     let data: Record<string, unknown> = {};
-    try { data = JSON.parse(text); } catch {
+    try { data = JSON.parse(text); } catch (err) {
       throw new Error("Kilo AI returned an invalid response.");
     }
 
@@ -608,7 +608,7 @@ class KiloAdapter implements ProviderAdapter {
                 if (content) {
                   controller.enqueue(new TextEncoder().encode(content));
                 }
-              } catch {
+              } catch (err) {
                 // skip malformed chunk
               }
             }

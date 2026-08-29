@@ -122,7 +122,7 @@ const Dashboard = () => {
       toast({ title: "Already saved", description: "This project is already in your list." });
       return;
     }
-    const { data, error } = await supabase
+    const { data, error: supabaseError } = await supabase
       .from("projects")
       .insert({
         user_id: user.id,

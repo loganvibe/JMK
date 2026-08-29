@@ -16,6 +16,21 @@ export const AI_MODELS: AIModel[] = [
     tier: "standard",
     blurb: "Auto-routes to best free model. 200 requests/hour free.",
   },
+  // OpenRouter free models
+  {
+    id: "openrouter/z-ai/glm-5.2:free",
+    label: "GLM-5.2 Free",
+    vendor: "OpenRouter",
+    tier: "standard",
+    blurb: "Free OpenRouter model — good for testing.",
+  },
+  {
+    id: "openrouter/stealth/ox-alpha",
+    label: "Stealth OX Alpha",
+    vendor: "OpenRouter",
+    tier: "standard",
+    blurb: "Free experimental model.",
+  },
   // Free models (recommended)
   {
     id: "groq/llama-3.3-70b-versatile",
@@ -44,20 +59,6 @@ export const AI_MODELS: AIModel[] = [
     vendor: "Groq",
     tier: "standard",
     blurb: "Google's open model — good for writing.",
-  },
-  {
-    id: "openrouter/z-ai/glm-5.2:free",
-    label: "GLM-5.2 Free",
-    vendor: "OpenRouter",
-    tier: "standard",
-    blurb: "Free OpenRouter model — good for testing.",
-  },
-  {
-    id: "openrouter/stealth/ox-alpha",
-    label: "Stealth OX Alpha",
-    vendor: "OpenRouter",
-    tier: "standard",
-    blurb: "Free experimental model.",
   },
   // Standard paid models
   {
@@ -98,7 +99,10 @@ export const AI_MODELS: AIModel[] = [
   },
 ];
 
-export const DEFAULT_MODEL = "kilo/kilo-auto/free";
+/** Hardcoded free model for safe usage */
+export const FREE_MODEL_ID = "kilo/kilo-auto/free";
+
+export const DEFAULT_MODEL = FREE_MODEL_ID;
 const STORAGE_KEY = "jmk.ai.model";
 
 export const modelLabel = (id: string) =>

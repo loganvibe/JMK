@@ -89,7 +89,7 @@ const Pricing = () => {
     if (plan.slug === ent.slug) { navigate("/billing"); return; }
 
     setBusy(plan.slug);
-    const { data, error } = await supabase.functions.invoke("payments", {
+    const { data, error: supabaseError } = await supabase.functions.invoke("payments", {
       body: { action: "initialize", planSlug: plan.slug, callbackUrl: `${window.location.origin}/billing` },
     });
     setBusy(null);

@@ -161,12 +161,12 @@ const ProjectWorkspace = () => {
       content,
       status,
     };
-    const { data, error } = await supabase
+    const { data, error: supabaseError } = await supabase
       .from("project_sections")
       .upsert(payload, { onConflict: "project_id,chapter,section_type" })
       .select()
       .single();
-    if (error) throw error;
+    if (supabaseError) throw supabaseError;
 
     setSections((prev) => {
       const others = prev.filter(

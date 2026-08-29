@@ -94,11 +94,11 @@ Generate 5 topic ideas now. Output ONLY valid JSON, no other text.`;
       let parsed: unknown = {};
       try {
         parsed = JSON.parse(raw);
-      } catch {
+      } catch (err) {
         // Try to extract JSON from the response
         const m = raw.match(/\{[\s\S]*\}/);
         if (m) {
-          try { parsed = JSON.parse(m[0]); } catch { parsed = { topics: [] }; }
+          try { parsed = JSON.parse(m[0]); } catch (err2) { parsed = { topics: [] }; }
         } else {
           parsed = { topics: [] };
         }

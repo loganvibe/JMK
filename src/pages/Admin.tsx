@@ -118,7 +118,7 @@ const Admin = () => {
 
   const addUni = async () => {
     if (!newUni.name.trim()) return;
-    const { data, error } = await supabase.from("universities").insert(newUni).select().single();
+    const { data, error: supabaseError } = await supabase.from("universities").insert(newUni).select().single();
     if (error) return toast({ title: "Failed", description: error.message, variant: "destructive" });
     setUniversities((x) => [...x, data]);
     setNewUni({ name: "", short_name: "", city: "", type: "Federal" });
@@ -137,7 +137,7 @@ const Admin = () => {
       common_methodologies: newDept.common_methodologies.split(",").map((s) => s.trim()).filter(Boolean),
       ai_guidance: newDept.ai_guidance,
     };
-    const { data, error } = await supabase.from("departments").insert(payload).select().single();
+    const { data, error: supabaseError } = await supabase.from("departments").insert(payload).select().single();
     if (error) return toast({ title: "Failed", description: error.message, variant: "destructive" });
     setDepartments((x) => [...x, data]);
     setNewDept({ name: "", description: "", specializations: "", common_methodologies: "", ai_guidance: "" });
@@ -149,7 +149,7 @@ const Admin = () => {
 
   const addField = async () => {
     if (!newField.name.trim()) return;
-    const { data, error } = await supabase.from("research_fields").insert(newField).select().single();
+    const { data, error: supabaseError } = await supabase.from("research_fields").insert(newField).select().single();
     if (error) return toast({ title: "Failed", description: error.message, variant: "destructive" });
     setFields((x) => [...x, data]);
     setNewField({ name: "", department_hint: "", description: "" });

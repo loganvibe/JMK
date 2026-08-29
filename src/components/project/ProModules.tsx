@@ -115,7 +115,7 @@ const ProModules = ({ user, profile, project, sections }: Props) => {
   };
 
   const saveSource = async (s: Record<string, unknown>) => {
-    const { data, error } = await supabase
+    const { data, error: supabaseError } = await supabase
       .from("literature_sources")
       .insert({
         project_id: project.id,

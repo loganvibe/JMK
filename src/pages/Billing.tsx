@@ -48,7 +48,7 @@ const Billing = () => {
     if (!reference) return;
     (async () => {
       setVerifying(true);
-      const { data, error } = await supabase.functions.invoke("payments", {
+      const { data, error: supabaseError } = await supabase.functions.invoke("payments", {
         body: { action: "verify", reference },
       });
       setVerifying(false);
@@ -72,7 +72,7 @@ const Billing = () => {
 
   const startCheckout = async (slug: string) => {
     setBusy(slug);
-    const { data, error } = await supabase.functions.invoke("payments", {
+    const { data, error: supabaseError } = await supabase.functions.invoke("payments", {
       body: { action: "initialize", planSlug: slug, callbackUrl: `${window.location.origin}/billing` },
     });
     setBusy(null);

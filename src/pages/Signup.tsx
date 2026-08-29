@@ -33,7 +33,7 @@ const Signup = () => {
     setIsLoading(true);
 
     try {
-      const { data, error } = await supabase.auth.signUp({
+      const { data, error: supabaseError } = await supabase.auth.signUp({
         email: email.trim(),
         password,
         options: {
@@ -42,7 +42,7 @@ const Signup = () => {
         },
       });
 
-      if (error) throw error;
+      if (supabaseError) throw supabaseError;
 
       // Email confirmation is on: signUp returns no session until the link is clicked.
       if (data.session) {
@@ -78,7 +78,7 @@ const Signup = () => {
         email: sentTo,
         options: { emailRedirectTo: `${window.location.origin}/dashboard` },
       });
-      if (error) throw error;
+      if (supabaseError) throw supabaseError;
       toast({ title: "Verification email resent", description: `Sent again to ${sentTo}.` });
     } catch (error: unknown) {
       const err = error instanceof Error ? error : new Error(String(error));
@@ -99,7 +99,7 @@ const Signup = () => {
         provider: "google",
         options: { redirectTo: `${window.location.origin}/auth/callback` },
       });
-      if (error) throw error;
+      if (supabaseError) throw supabaseError;
     } catch (error: unknown) {
       const err = error instanceof Error ? error : new Error(String(error));
       const message = err.message || "";

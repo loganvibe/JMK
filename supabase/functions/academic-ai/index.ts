@@ -16,7 +16,7 @@ const makeCallAI = (feature: string, model: unknown) =>
     sharedCallAI(system, user, { model, json: jsonMode, feature });
 
 function parseJson(raw: string) {
-  try { return JSON.parse(raw); } catch {
+  try { return JSON.parse(raw); } catch (err) {
     const m = raw.match(/\{[\s\S]*\}/);
     return m ? JSON.parse(m[0]) : {};
   }

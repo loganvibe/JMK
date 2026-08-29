@@ -19,7 +19,7 @@ async function paystackInitialize(provider: Record<string, unknown>, payload: Re
   });
   const text = await res.text();
   let data: Record<string, unknown> = {};
-  try { data = JSON.parse(text); } catch { data = { raw: text }; }
+  try { data = JSON.parse(text); } catch (err) { data = { raw: text }; }
   if (!res.ok || data?.status === false) {
     console.error(`Paystack initialize failed [${res.status}]: ${text}`);
     throw new AccessError(data?.message || "Paystack error", res.status || 502, "provider_error");
@@ -36,7 +36,7 @@ async function paystackVerify(provider: Record<string, unknown>, reference: stri
   });
   const text = await res.text();
   let data: Record<string, unknown> = {};
-  try { data = JSON.parse(text); } catch { data = { raw: text }; }
+  try { data = JSON.parse(text); } catch (err) { data = { raw: text }; }
   if (!res.ok || data?.status === false) {
     console.error(`Paystack verify failed [${res.status}]: ${text}`);
     throw new AccessError(data?.message || "Paystack verify error", res.status || 502, "provider_error");
@@ -58,7 +58,7 @@ async function flutterwaveInitialize(provider: Record<string, unknown>, payload:
   });
   const text = await res.text();
   let data: Record<string, unknown> = {};
-  try { data = JSON.parse(text); } catch { data = { raw: text }; }
+  try { data = JSON.parse(text); } catch (err) { data = { raw: text }; }
   if (!res.ok || data?.status !== "success") {
     console.error(`Flutterwave initialize failed [${res.status}]: ${text}`);
     throw new AccessError(data?.message || "Flutterwave error", res.status || 502, "provider_error");
@@ -75,7 +75,7 @@ async function flutterwaveVerify(provider: Record<string, unknown>, reference: s
   });
   const text = await res.text();
   let data: Record<string, unknown> = {};
-  try { data = JSON.parse(text); } catch { data = { raw: text }; }
+  try { data = JSON.parse(text); } catch (err) { data = { raw: text }; }
   if (!res.ok || data?.status !== "success") {
     console.error(`Flutterwave verify failed [${res.status}]: ${text}`);
     throw new AccessError(data?.message || "Flutterwave verify error", res.status || 502, "provider_error");
@@ -114,7 +114,7 @@ async function stripeInitialize(provider: Record<string, unknown>, payload: Reco
   });
   const text = await res.text();
   let data: Record<string, unknown> = {};
-  try { data = JSON.parse(text); } catch { data = { raw: text }; }
+  try { data = JSON.parse(text); } catch (err) { data = { raw: text }; }
   if (!res.ok || data?.error) {
     console.error(`Stripe initialize failed [${res.status}]: ${text}`);
     throw new AccessError((data as Record<string, unknown>)?.error?.message || "Stripe error", res.status || 502, "provider_error");
@@ -131,7 +131,7 @@ async function stripeVerify(provider: Record<string, unknown>, reference: string
   });
   const text = await res.text();
   let data: Record<string, unknown> = {};
-  try { data = JSON.parse(text); } catch { data = { raw: text }; }
+  try { data = JSON.parse(text); } catch (err) { data = { raw: text }; }
   if (!res.ok || data?.error) {
     console.error(`Stripe verify failed [${res.status}]: ${text}`);
     throw new AccessError((data as Record<string, unknown>)?.error?.message || "Stripe verify error", res.status || 502, "provider_error");

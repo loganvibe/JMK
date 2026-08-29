@@ -134,8 +134,8 @@ export async function invokeFunction<T = unknown>(
 
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      const { data, error } = await supabase.functions.invoke(name, { body: payload });
-      if (error) throw await unwrapFunctionError(error);
+      const { data, error: supabaseError } = await supabase.functions.invoke(name, { body: payload });
+      if (supabaseError) throw await unwrapFunctionError(supabaseError);
 
       if (data && (data as Record<string, unknown>).error) throw new Error(String((data as Record<string, unknown>).error));
       return data as T;
@@ -159,7 +159,7 @@ export async function invokeFunction<T = unknown>(
     }
   }
 
-  await logError(scope, (err instanceof Error ? err.message : String(err)) ?? "unknown", { function: name });
+  await logError(scope, (lastErr instanceof Error ? lastErr.message : String(lastErr)) ?? "unknown", { function: name });
   throw new Error(friendlyError(lastErr, scope));
 }
 

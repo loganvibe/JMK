@@ -26,7 +26,7 @@ const ResetPassword = () => {
       const url = new URL(window.location.href);
       const code = url.searchParams.get("code");
       if (code) {
-        const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+        const { data, error: supabaseError } = await supabase.auth.exchangeCodeForSession(code);
         if (!error && data.session) {
           setReady(true);
           window.history.replaceState({}, "", "/reset-password");
@@ -48,7 +48,7 @@ const ResetPassword = () => {
     setIsLoading(true);
     try {
       const { error } = await supabase.auth.updateUser({ password });
-      if (error) throw error;
+      if (supabaseError) throw supabaseError;
       toast({ title: "Password updated", description: "You can now use your new password." });
       navigate("/dashboard");
     } catch (error: unknown) {

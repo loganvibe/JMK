@@ -124,7 +124,7 @@ const CreateProject = () => {
     const t = topics[selectedIdx];
     setSaving(true);
     try {
-      const { data, error } = await supabase
+      const { data, error: supabaseError } = await supabase
         .from("projects")
         .insert({
           user_id: user.id,
@@ -150,7 +150,7 @@ const CreateProject = () => {
         })
         .select("id")
         .single();
-      if (error) throw error;
+      if (supabaseError) throw supabaseError;
 
       await supabase.from("activity_log").insert({
         user_id: user.id,

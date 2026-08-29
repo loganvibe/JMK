@@ -13,10 +13,13 @@ import {
 
 export type ModelId = string;
 
+/** Hardcoded free model for safe usage */
+export const FREE_MODEL_ID = "kilo/kilo-auto/free";
+
 /** Validates a client-supplied model id, falling back to the default. */
 export function resolveModel(requested?: unknown): ModelId {
   const id = typeof requested === "string" ? requested.trim() : "";
-  if (!id) return "kilo/kilo-auto/free";
+  if (!id) return FREE_MODEL_ID;
   return id;
 }
 
@@ -162,12 +165,12 @@ export function parseJson<T = unknown>(raw: string): T {
   const cleaned = raw.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
   try {
     return JSON.parse(cleaned);
-  } catch {
+  } catch (err) {
     const match = cleaned.match(/\{[\s\S]*\}/);
     if (match) {
       try {
         return JSON.parse(match[0]);
-      } catch { /* fall through */ }
+      } catch (err2) { /* fall through */ }
     }
     return {} as T;
   }
