@@ -8,7 +8,15 @@ export type AIModel = {
 };
 
 export const AI_MODELS: AIModel[] = [
-  // Kilo AI free model (recommended - highest priority)
+  // OpenRouter free model (recommended - highest priority)
+  {
+    id: "openrouter/meta-llama/llama-3.1-8b-instruct",
+    label: "Llama 3.1 8B (OpenRouter)",
+    vendor: "OpenRouter",
+    tier: "standard",
+    blurb: "Fast, free model — great for most academic tasks.",
+  },
+  // Kilo AI free model
   {
     id: "kilo/kilo-auto/free",
     label: "Kilo Auto Free",
@@ -99,8 +107,8 @@ export const AI_MODELS: AIModel[] = [
   },
 ];
 
-/** Hardcoded free model for safe usage */
-export const FREE_MODEL_ID = "kilo/kilo-auto/free";
+/** Hardcoded free model for safe usage - OpenRouter Llama 3.1 8B */
+export const FREE_MODEL_ID = "openrouter/meta-llama/llama-3.1-8b-instruct";
 
 export const DEFAULT_MODEL = FREE_MODEL_ID;
 const STORAGE_KEY = "jmk.ai.model";

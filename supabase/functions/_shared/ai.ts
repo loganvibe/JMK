@@ -14,8 +14,8 @@ import {
 
 export type ModelId = string;
 
-/** Hardcoded free model for safe usage */
-export const FREE_MODEL_ID = "kilo/kilo-auto/free";
+/** Hardcoded free model for safe usage - OpenRouter Llama 3.1 8B */
+export const FREE_MODEL_ID = "openrouter/meta-llama/llama-3.1-8b-instruct";
 
 /** Validates a client-supplied model id, falling back to the default. */
 export function resolveModel(requested?: unknown): ModelId {
