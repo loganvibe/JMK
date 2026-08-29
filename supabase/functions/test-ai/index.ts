@@ -1,60 +1,50 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
-import { guard, deductCredits, FEATURE_RULES } from "../_shared/entitlements.ts";
 import { callAI } from "../_shared/ai.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  const startTime = Date.now();
   try {
-    const body = await req.json();
-    const action = body.action || "test";
+    const system = `You are an expert Nigerian university final-year project advisor.
+Generate 3 concrete, realistic, well-scoped project topic ideas.
+Return STRICT JSON of the shape:
+{
+  "topics": [
+    {
+      "title": "...",
+      "introduction": "...",
+      "problem_statement": "...",
+      "objectives": ["...", "..."]
+    }
+  ]
+}`;
 
-    if (action === "test_guard") {
-      const feature = body.feature || "topic_generation";
-      const access = await guard(req, feature, { projectId: null });
-      return new Response(JSON.stringify({
-        success: true,
-        user_id: access.user.id,
-        plan: access.plan,
-        creditsRemaining: access.creditsRemaining,
-      }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    const user = `Generate 3 topic ideas for Computer Science student interested in AI.`;
+
+    const raw = await callAI(system, user, { model: "kilo/kilo-auto/free", json: true, feature: "topic_generation" });
+    let parsed: unknown = {};
+    try {
+      parsed = JSON.parse(raw);
+    } catch (err) {
+      const m = raw.match(/\{[\s\S]*\}/);
+      parsed = m ? JSON.parse(m[0]) : { topics: [] };
     }
 
-    if (action === "test_full") {
-      const feature = body.feature || "topic_generation";
-      const access = await guard(req, feature, { projectId: null });
-      await access.log();
-
-      const content = await callAI(
-        "You are a test assistant.",
-        "Say hello.",
-        { model: "kilo/kilo-auto/free", feature }
-      );
-
-      await deductCredits(access.user.id, FEATURE_RULES[feature].credits, feature, null);
-
-      return new Response(JSON.stringify({
-        success: true,
-        content,
-        user_id: access.user.id,
-      }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    return new Response(JSON.stringify({ error: "Unknown action" }), {
-      status: 400,
+    const elapsed = Date.now() - startTime;
+    return new Response(JSON.stringify({
+      success: true,
+      topics: parsed,
+      elapsed_ms: elapsed,
+    }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
+    const elapsed = Date.now() - startTime;
     console.error("test error:", e);
     return new Response(JSON.stringify({
       success: false,
       error: e.message,
-      code: e.code,
-      status: e.status,
-      stack: e.stack,
+      elapsed_ms: elapsed,
     }), {
       status: e.status || 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

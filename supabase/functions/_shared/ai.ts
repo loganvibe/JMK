@@ -8,6 +8,7 @@ import {
   type FeatureSettings,
   type ModelConfig,
   type ProviderAdapter,
+  type ProviderType,
   type AIResponse,
 } from "./providers.ts";
 
@@ -55,7 +56,7 @@ export async function resolveModelForFeature(featureKey: string, requestedModel?
     const db = adminClient();
     const { data } = await db
       .from("ai_models")
-      .select("*, ai_providers(type, api_key, config)")
+      .select("*, ai_providers!inner(type, api_key, config)")
       .eq("model_id", requested.replace(/^(google\/|openai\/|openrouter\/|ollama\/|groq\/|kilo\/)/, ""))
       .eq("active", true)
       .maybeSingle();
@@ -130,8 +131,60 @@ export async function resolveModelForFeature(featureKey: string, requestedModel?
 }
 
 /**
+ * Get all active providers ordered by priority for fallback.
+ */
+async function getAllProviders(): Promise<Array<{ type: string; api_key: string; config: Record<string, unknown> }>> {
+  const db = adminClient();
+  const { data } = await db
+    .from("ai_providers")
+    .select("*")
+    .eq("active", true)
+    .order("priority");
+
+  if (!data || data.length === 0) return [];
+  return data.map((p: Record<string, unknown>) => ({
+    type: String(p.type),
+    api_key: String(p.api_key ?? ""),
+    config: (p.config as Record<string, unknown>) ?? {},
+  }));
+}
+
+/**
+ * Get models for a provider.
+ */
+async function getModelsForProvider(providerType: string): Promise<ModelConfig[]> {
+  const db = adminClient();
+  const { data } = await db
+    .from("ai_models")
+    .select("*, ai_providers!inner(type, api_key, config)")
+    .eq("active", true)
+    .eq("ai_providers.type", providerType)
+    .order("sort_order");
+
+  if (!data || data.length === 0) return [];
+  return data.map((m: Record<string, unknown>) => {
+    const provider = m.ai_providers as Record<string, unknown> | null;
+    return {
+      id: String(m.id),
+      provider_id: String(m.provider_id),
+      model_id: String(m.model_id),
+      label: String(m.label),
+      tier: String(m.tier),
+      input_price_per_1k: Number(m.input_price_per_1k ?? 0),
+      output_price_per_1k: Number(m.output_price_per_1k ?? 0),
+      currency: String(m.currency ?? "USD"),
+      active: !!m.active,
+      provider_type: provider ? String(provider.type) : "unknown",
+      provider_api_key: provider ? String(provider.api_key ?? "") : null,
+      provider_config: provider ? ((provider.config as Record<string, unknown>) ?? {}) : {},
+      config_json: (provider?.config as Record<string, unknown>) ?? {},
+    };
+  });
+}
+
+/**
  * One entry point for every AI call in the app.
- * Now uses feature-based provider resolution.
+ * Now uses feature-based provider resolution with automatic fallback.
  */
 export async function callAI(
   system: string,
@@ -140,10 +193,13 @@ export async function callAI(
 ): Promise<string> {
   const feature = opts.feature ?? "unknown";
   const json = !!opts.json;
+  const errors: Array<{ provider: string; error: string }> = [];
+  let primaryProviderType = "";
 
+  // First try the feature-configured model
   try {
     const { model, adapter } = await resolveModelForFeature(feature, opts.model);
-
+    primaryProviderType = model.provider_type;
     const maxInput = Math.min(opts.json ? 6000 : 8000, model.input_price_per_1k > 0 ? 16000 : 32000);
     const maxOutput = Math.min(4096, model.output_price_per_1k > 0 ? 8192 : 16384);
 
@@ -152,12 +208,49 @@ export async function callAI(
       maxInputTokens: maxInput,
       maxOutputTokens: maxOutput,
     });
-
     return response.content;
   } catch (e) {
-    console.error(`AI call failed [feature=${feature}]`, e);
-    throw e;
+    const primaryError = e instanceof Error ? e.message : String(e);
+    errors.push({ provider: feature, error: primaryError });
+    console.warn(`Primary AI provider failed [feature=${feature}]: ${primaryError}`);
   }
+
+  // Fallback: try all providers in priority order (skip the one that already failed)
+  try {
+    const providers = await getAllProviders();
+    for (const provider of providers) {
+      // Skip the primary provider that already failed
+      if (provider.type === primaryProviderType) continue;
+
+      try {
+        const models = await getModelsForProvider(provider.type);
+        if (models.length === 0) continue;
+
+        const model = models[0];
+        const adapter = getAdapter(provider.type as ProviderType);
+        const maxInput = Math.min(opts.json ? 6000 : 8000, 32000);
+        const maxOutput = Math.min(4096, 16384);
+
+        const response: AIResponse = await adapter.call(model, system, user.slice(0, maxInput), {
+          json,
+          maxInputTokens: maxInput,
+          maxOutputTokens: maxOutput,
+        });
+        console.info(`AI fallback succeeded with provider: ${provider.type}/${model.model_id}`);
+        return response.content;
+      } catch (e) {
+        const errMsg = e instanceof Error ? e.message : String(e);
+        errors.push({ provider: provider.type, error: errMsg });
+        console.warn(`Fallback provider ${provider.type} failed: ${errMsg}`);
+      }
+    }
+  } catch (e) {
+    console.error("Failed to get fallback providers:", e);
+  }
+
+  // All providers failed
+  const errorDetails = errors.map((e) => `${e.provider}: ${e.error}`).join("; ");
+  throw new Error(`All AI providers failed. ${errorDetails}`);
 }
 
 /** Tolerant JSON parser for model output. */

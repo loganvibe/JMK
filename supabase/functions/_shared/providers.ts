@@ -3,7 +3,7 @@
 
 import { adminClient } from "./entitlements.ts";
 
-export type ProviderType = "ollama" | "openrouter" | "gemini" | "openai" | "groq" | "kilo";
+export type ProviderType = "ollama" | "openrouter" | "gemini" | "google" | "openai" | "groq" | "kilo";
 
 export interface ProviderConfig {
   id: string;
@@ -196,6 +196,9 @@ class OpenRouterAdapter implements ProviderAdapter {
     const modelName = model.model_id;
     const maxTokens = opts.maxOutputTokens ?? 4096;
 
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+
     const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -210,7 +213,9 @@ class OpenRouterAdapter implements ProviderAdapter {
           { role: "user", content: user },
         ],
       }),
+      signal: controller.signal,
     });
+    clearTimeout(timeout);
 
     const text = await res.text();
     if (!res.ok) {
@@ -245,6 +250,9 @@ class OpenRouterAdapter implements ProviderAdapter {
     const modelName = model.model_id;
     const maxTokens = opts.maxOutputTokens ?? 4096;
 
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+
     const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -260,7 +268,9 @@ class OpenRouterAdapter implements ProviderAdapter {
         ],
         stream: true,
       }),
+      signal: controller.signal,
     });
+    clearTimeout(timeout);
 
     if (!res.ok) {
       const text = await res.text();
@@ -346,11 +356,16 @@ class GeminiAdapter implements ProviderAdapter {
       };
     }
 
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
+      signal: controller.signal,
     });
+    clearTimeout(timeout);
 
     const text = await res.text();
     if (!res.ok) {
@@ -501,6 +516,9 @@ class KiloAdapter implements ProviderAdapter {
       body.response_format = { type: "json_object" };
     }
 
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000); // 8s timeout
+
     const res = await fetch("https://api.kilo.ai/api/gateway/chat/completions", {
       method: "POST",
       headers: {
@@ -508,7 +526,9 @@ class KiloAdapter implements ProviderAdapter {
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify(body),
+      signal: controller.signal,
     });
+    clearTimeout(timeout);
 
     const text = await res.text();
     if (!res.ok) {
@@ -552,6 +572,9 @@ class KiloAdapter implements ProviderAdapter {
     const modelName = model.model_id;
     const maxTokens = opts.maxOutputTokens ?? 4096;
 
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+
     const res = await fetch("https://api.kilo.ai/api/gateway/chat/completions", {
       method: "POST",
       headers: {
@@ -567,7 +590,9 @@ class KiloAdapter implements ProviderAdapter {
         ],
         stream: true,
       }),
+      signal: controller.signal,
     });
+    clearTimeout(timeout);
 
     if (!res.ok) {
       const text = await res.text();
@@ -625,6 +650,7 @@ const ADAPTERS: Record<ProviderType, ProviderAdapter> = {
   ollama: new OllamaAdapter(),
   openrouter: new OpenRouterAdapter(),
   gemini: new GeminiAdapter(),
+  google: new GeminiAdapter(),
   openai: new OpenAIAdapter(),
   groq: new GroqAdapter(),
   kilo: new KiloAdapter(),
@@ -659,7 +685,7 @@ export async function getModel(modelId: string): Promise<ModelConfig | null> {
   const db = adminClient();
   const { data } = await db
     .from("ai_models")
-    .select("*, ai_providers(type, api_key, config)")
+    .select("*, ai_providers!inner(type, api_key, config)")
     .eq("id", modelId)
     .eq("active", true)
     .maybeSingle();
