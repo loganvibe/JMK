@@ -17,7 +17,6 @@ Deno.serve(async (req) => {
 
     // --- server-side auth, plan and credit enforcement ---
     const access = await guard(req, "refinement", { projectId: body?.projectId ?? null });
-    await access.log();
 
 
     if (!projectText.trim() || !changes.trim()) {

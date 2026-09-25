@@ -82,7 +82,6 @@ Deno.serve(async (req) => {
 
     // --- server-side auth, plan and credit enforcement ---
     const access = await guard(req, feature, { projectId: body.project?.id ?? null });
-    await access.log();
 
 
     if (action === "research_assistant") {
@@ -92,7 +91,7 @@ Answer using the student's project context and department intelligence. Be concr
 Use British English. Reply in clean Markdown.`;
       const user = `${contextBlock(ctx)}\n\nSTUDENT QUESTION:\n${question}`;
       const content = await callAI(system, user);
-      await deductCredits(ctx.user.id, FEATURE_RULES.academic_assist.credits, feature, body.project?.id ?? null);
+      await deductCredits(access.user.id, FEATURE_RULES.academic_assist.credits, feature, body.project?.id ?? null);
       return new Response(JSON.stringify({ content }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -106,7 +105,7 @@ No markdown, no commentary.`;
       const user = `Source data:\n${JSON.stringify(source, null, 2)}\n\nGenerate the ${style} citation now.`;
       const raw = await callAI(system, user, true);
       const parsed = parseJson(raw);
-      await deductCredits(ctx.user.id, FEATURE_RULES.citation.credits, feature, body.project?.id ?? null);
+      await deductCredits(access.user.id, FEATURE_RULES.citation.credits, feature, body.project?.id ?? null);
       return new Response(JSON.stringify(parsed), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -148,7 +147,7 @@ Return STRICT JSON only:
        const user = `${contextBlock(ctx)}\n\nEvaluate the project now.`;
        const raw = await callAI(system, user, true);
        const parsed = parseJson(raw);
-       await deductCredits(ctx.user.id, FEATURE_RULES.quality_check.credits, feature, body.project?.id ?? null);
+       await deductCredits(access.user.id, FEATURE_RULES.quality_check.credits, feature, body.project?.id ?? null);
        return new Response(JSON.stringify(parsed), {
          headers: { ...corsHeaders, "Content-Type": "application/json" },
        });
@@ -175,7 +174,7 @@ Return STRICT JSON only:
        const user = `${contextBlock(ctx)}\n\nSUPERVISOR FEEDBACK:\n"""\n${feedback}\n"""`;
        const raw = await callAI(system, user, true);
        const parsed = parseJson(raw);
-       await deductCredits(ctx.user.id, FEATURE_RULES.academic_assist.credits, feature, body.project?.id ?? null);
+       await deductCredits(access.user.id, FEATURE_RULES.academic_assist.credits, feature, body.project?.id ?? null);
        return new Response(JSON.stringify(parsed), {
          headers: { ...corsHeaders, "Content-Type": "application/json" },
        });
@@ -192,7 +191,7 @@ Return STRICT JSON: { "new_content": "clean markdown", "change_summary": "1-2 se
       const user = `${contextBlock(ctx)}\n\nTarget: ${chapter} / ${section}\n\nFIX TO APPLY:\n${fix}\n\nORIGINAL:\n"""\n${original}\n"""`;
        const raw = await callAI(system, user, true);
        const parsed = parseJson(raw);
-       await deductCredits(ctx.user.id, FEATURE_RULES.academic_assist.credits, feature, body.project?.id ?? null);
+       await deductCredits(access.user.id, FEATURE_RULES.academic_assist.credits, feature, body.project?.id ?? null);
        return new Response(JSON.stringify(parsed), {
          headers: { ...corsHeaders, "Content-Type": "application/json" },
        });

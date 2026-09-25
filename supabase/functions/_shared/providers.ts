@@ -25,6 +25,10 @@ export interface ModelConfig {
   output_price_per_1k: number;
   currency: string;
   active: boolean;
+  provider_type: string;
+  provider_api_key: string | null;
+  provider_config: Record<string, unknown>;
+  config_json: Record<string, unknown>;
 }
 
 export interface FeatureSettings {
@@ -520,6 +524,7 @@ export async function getModel(modelId: string): Promise<ModelConfig | null> {
   if (!data) return null;
 
   const provider = data.ai_providers as Record<string, unknown> | null;
+  const providerType = provider ? (String(provider.type) as ProviderType) : "unknown";
   return {
     id: String(data.id),
     provider_id: String(data.provider_id),
@@ -530,8 +535,8 @@ export async function getModel(modelId: string): Promise<ModelConfig | null> {
     output_price_per_1k: Number(data.output_price_per_1k ?? 0),
     currency: String(data.currency ?? "USD"),
     active: !!data.active,
-    provider_type: provider ? String(provider.type) : "unknown",
-    provider_api_key: provider ? String(provider.api_key ?? "") : null,
+    provider_type: providerType,
+    provider_api_key: provider ? resolveApiKey(providerType, String(provider.api_key ?? "")) : null,
     provider_config: provider ? ((provider.config as Record<string, unknown>) ?? {}) : {},
     config_json: (provider?.config as Record<string, unknown>) ?? {},
   };
@@ -603,4 +608,25 @@ export function getAdapter(type: ProviderType): ProviderAdapter {
   const adapter = ADAPTERS[type];
   if (!adapter) throw new Error(`Unknown provider type: ${type}`);
   return adapter;
+}
+
+// Maps a provider type to the Edge Function env var that holds its API key.
+const ENV_VAR_BY_TYPE: Record<ProviderType, string | undefined> = {
+  gemini: "GEMINI_API_KEY",
+  openai: "OPENAI_API_KEY",
+  openrouter: "OPENROUTER_API_KEY",
+  groq: "GROQ_API_KEY",
+  ollama: undefined,
+};
+
+// DB-stored api_key takes precedence; otherwise fall back to the deployment's
+// env vars so Google/OpenAI providers work without persisting secrets in the DB.
+export function resolveApiKey(type: ProviderType, dbKey: string | null | undefined): string {
+  if (dbKey && dbKey.trim()) return dbKey;
+  const envVar = ENV_VAR_BY_TYPE[type];
+  if (!envVar) return "";
+  if (type === "gemini") {
+    return Deno.env.get("GEMINI_API_KEY") ?? Deno.env.get("GOOGLE_API_KEY") ?? "";
+  }
+  return Deno.env.get(envVar) ?? "";
 }

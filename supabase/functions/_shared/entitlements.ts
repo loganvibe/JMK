@@ -190,6 +190,26 @@ export async function deductCredits(userId: string, credits: number, featureKey:
     status: "success",
   });
 
+  // Notify when monthly credits are running low (threshold was previously in enforce().log)
+  const monthlyRemaining = Number(updated.monthly_credits ?? 0);
+  const settings = await siteSettings();
+  const freeMode = settings.pricing_mode === "free";
+  let monthlyLimit = 100000;
+  if (!freeMode) {
+    const plan = await getPlan(userId);
+    const limits = plan.ai_limits ?? {};
+    monthlyLimit = Number(limits.credits ?? 10);
+  }
+  if (monthlyRemaining <= Math.max(2, Math.round(monthlyLimit * 0.1))) {
+    await db.from("notifications").insert({
+      user_id: userId,
+      title: "AI credits running low",
+      body: `You have ${monthlyRemaining} AI credits left this month.`,
+      type: "warning",
+      link: "/billing",
+    });
+  }
+
   return updated;
 }
 
@@ -333,7 +353,12 @@ export async function enforce(
       await db.from("ai_credit_usage").insert({
         user_id: user.id,
         project_id: opts.projectId ?? null,
-        feature,
+        feature_key: feature,
+        provider: "pending",
+        model: "pending",
+        input_tokens: 0,
+        output_tokens: 0,
+        estimated_cost: 0,
         credits_used: rule.credits,
         status: "success",
       });

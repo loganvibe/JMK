@@ -44,7 +44,6 @@ Deno.serve(async (req) => {
 
     // --- server-side auth, plan and credit enforcement ---
     const access = await guard(req, feature, { projectId: project?.id ?? null });
-    await access.log();
 
 
     if (action === "summary") {
@@ -68,7 +67,7 @@ ${type === "10min" ? "Make content richer with detailed presentation flow and im
 
 ${ctx}`;
       const raw = await callAI(sys, prompt, true);
-      await deductCredits(ctx.userId, FEATURE_RULES.defense_basic.credits, feature, project?.id ?? null);
+      await deductCredits(access.user.id, FEATURE_RULES.defense_basic.credits, feature, project?.id ?? null);
       return Response.json({ content: parseJson(raw) }, { headers: corsHeaders });
     }
 
@@ -88,7 +87,7 @@ Follow this structure exactly, in order:
 
 ${ctx}`;
       const raw = await callAI(sys, prompt, true);
-      await deductCredits(ctx.userId, FEATURE_RULES.defense_basic.credits, feature, project?.id ?? null);
+      await deductCredits(access.user.id, FEATURE_RULES.defense_basic.credits, feature, project?.id ?? null);
       return Response.json({ content: parseJson(raw) }, { headers: corsHeaders });
     }
 
@@ -105,7 +104,7 @@ Return JSON:
 
 ${ctx}`;
       const raw = await callAI(sys, prompt, true);
-      await deductCredits(ctx.userId, FEATURE_RULES.defense_basic.credits, feature, project?.id ?? null);
+      await deductCredits(access.user.id, FEATURE_RULES.defense_basic.credits, feature, project?.id ?? null);
       return Response.json({ content: parseJson(raw) }, { headers: corsHeaders });
     }
 
@@ -129,7 +128,7 @@ Return JSON:
 
 ${ctx}`;
       const raw = await callAI(sys, prompt, true);
-      await deductCredits(ctx.userId, FEATURE_RULES.defense_basic.credits, feature, project?.id ?? null);
+      await deductCredits(access.user.id, FEATURE_RULES.defense_basic.credits, feature, project?.id ?? null);
       return Response.json({ content: parseJson(raw) }, { headers: corsHeaders });
     }
 
