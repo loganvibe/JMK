@@ -56,7 +56,6 @@ Deno.serve(async (req) => {
       projectId: body.project?.id ?? null,
       chapter: body.chapter ?? null,
     });
-    await ctx.log();
 
 
     if (action === "generate_topics") {

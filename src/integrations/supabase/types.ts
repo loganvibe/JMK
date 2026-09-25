@@ -1542,6 +1542,426 @@ export type Database = {
           },
         ]
       }
+      ai_providers: {
+        Row: {
+          active: boolean
+          api_key: string
+          config: Json
+          created_at: string
+          id: string
+          priority: number
+          type: string
+          updated_at: string
+          vendor: string
+        }
+        Insert: {
+          active?: boolean
+          api_key?: string
+          config?: Json
+          created_at?: string
+          id?: string
+          priority?: number
+          type?: string
+          updated_at?: string
+          vendor: string
+        }
+        Update: {
+          active?: boolean
+          api_key?: string
+          config?: Json
+          created_at?: string
+          id?: string
+          priority?: number
+          type?: string
+          updated_at?: string
+          vendor?: string
+        }
+        Relationships: []
+      }
+      ai_models: {
+        Row: {
+          active: boolean
+          created_at: string
+          currency: string
+          id: string
+          input_price_per_1k: number
+          label: string
+          model_id: string
+          output_price_per_1k: number
+          provider_id: string
+          sort_order: number
+          tier: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          currency?: string
+          id?: string
+          input_price_per_1k?: number
+          label: string
+          model_id: string
+          output_price_per_1k?: number
+          provider_id: string
+          sort_order?: number
+          tier?: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          currency?: string
+          id?: string
+          input_price_per_1k?: number
+          label?: string
+          model_id?: string
+          output_price_per_1k?: number
+          provider_id?: string
+          sort_order?: number
+          tier?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_models_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "ai_providers"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      ai_feature_settings: {
+        Row: {
+          credits: number
+          daily_limit: number | null
+          enabled: boolean
+          feature_key: string
+          max_input_tokens: number
+          max_output_tokens: number
+          model_id: string | null
+          monthly_limit: number | null
+          provider_id: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          credits?: number
+          daily_limit?: number | null
+          enabled?: boolean
+          feature_key: string
+          max_input_tokens?: number
+          max_output_tokens?: number
+          model_id?: string | null
+          monthly_limit?: number | null
+          provider_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          credits?: number
+          daily_limit?: number | null
+          enabled?: boolean
+          feature_key?: string
+          max_input_tokens?: number
+          max_output_tokens?: number
+          model_id?: string | null
+          monthly_limit?: number | null
+          provider_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_feature_settings_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "ai_providers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_feature_settings_model_id_fkey"
+            columns: ["model_id"]
+            isOneToOne: false
+            referencedRelation: "ai_models"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      ai_provider_pricing: {
+        Row: {
+          created_at: string
+          currency: string
+          effective_from: string
+          effective_to: string | null
+          id: number
+          input_price_per_1k: number
+          model: string
+          output_price_per_1k: number
+          provider: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          currency?: string
+          effective_from?: string
+          effective_to?: string | null
+          id?: number
+          input_price_per_1k?: number
+          model: string
+          output_price_per_1k?: number
+          provider: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          currency?: string
+          effective_from?: string
+          effective_to?: string | null
+          id?: number
+          input_price_per_1k?: number
+          model?: string
+          output_price_per_1k?: number
+          provider?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      ai_provider_budgets: {
+        Row: {
+          created_at: string
+          current_spend: number
+          hard_limit: number
+          monthly_budget: number
+          provider: string
+          reset_at: string
+          updated_at: string
+          warning_threshold: number
+        }
+        Insert: {
+          created_at?: string
+          current_spend?: number
+          hard_limit?: number
+          monthly_budget?: number
+          provider: string
+          reset_at?: string
+          updated_at?: string
+          warning_threshold?: number
+        }
+        Update: {
+          created_at?: string
+          current_spend?: number
+          hard_limit?: number
+          monthly_budget?: number
+          provider?: string
+          reset_at?: string
+          updated_at?: string
+          warning_threshold?: number
+        }
+        Relationships: []
+      }
+      ai_provider_usage: {
+        Row: {
+          created_at: string
+          date: string
+          estimated_cost: number
+          id: number
+          input_tokens: number
+          model: string
+          output_tokens: number
+          provider: string
+          requests: number
+          unique_users: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          date?: string
+          estimated_cost?: number
+          id?: number
+          input_tokens?: number
+          model: string
+          output_tokens?: number
+          provider: string
+          requests?: number
+          unique_users?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          estimated_cost?: number
+          id?: number
+          input_tokens?: number
+          model?: string
+          output_tokens?: number
+          provider?: string
+          requests?: number
+          unique_users?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      ai_credit_balances: {
+        Row: {
+          created_at: string
+          daily_credits: number
+          daily_reset_at: string
+          monthly_credits: number
+          monthly_reset_at: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          daily_credits?: number
+          daily_reset_at?: string
+          monthly_credits?: number
+          monthly_reset_at?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          daily_credits?: number
+          daily_reset_at?: string
+          monthly_credits?: number
+          monthly_reset_at?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      ai_credit_usage: {
+        Row: {
+          credits_used: number
+          created_at: string
+          error: string | null
+          estimated_cost: number
+          feature_key: string
+          id: number
+          input_tokens: number
+          model: string
+          output_tokens: number
+          project_id: string | null
+          provider: string
+          request_id: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          credits_used?: number
+          created_at?: string
+          error?: string | null
+          estimated_cost?: number
+          feature_key: string
+          id?: number
+          input_tokens?: number
+          model?: string
+          output_tokens?: number
+          project_id?: string | null
+          provider?: string
+          request_id?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          credits_used?: number
+          created_at?: string
+          error?: string | null
+          estimated_cost?: number
+          feature_key?: string
+          id?: number
+          input_tokens?: number
+          model?: string
+          output_tokens?: number
+          project_id?: string | null
+          provider?: string
+          request_id?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_credit_usage_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      payment_providers: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          public_key: string | null
+          secret_key: string | null
+          slug: string
+          name: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          public_key?: string | null
+          secret_key?: string | null
+          slug: string
+          name: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          public_key?: string | null
+          secret_key?: string | null
+          slug?: string
+          name?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      payment_provider_settings: {
+        Row: {
+          created_at: string
+          id: string
+          provider_id: string
+          setting_key: string
+          setting_value: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          provider_id: string
+          setting_key: string
+          setting_value?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          provider_id?: string
+          setting_key?: string
+          setting_value?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_provider_settings_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "payment_providers"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Views: {
       [_ in never]: never

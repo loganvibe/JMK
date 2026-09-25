@@ -22,7 +22,6 @@ Deno.serve(async (req) => {
     const model = resolveModel(body?.model);
 
     const ctx = await guard(req, FEATURE[action], { projectId });
-    await ctx.log();
 
     const project = body?.project ?? {};
     const profile = body?.profile ?? {};

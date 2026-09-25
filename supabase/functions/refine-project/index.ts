@@ -28,7 +28,6 @@ Deno.serve(async (req) => {
 
     // --- server-side auth, plan and credit enforcement ---
     const access = await guard(req, "refinement", { projectId: body.project_id ?? body.project?.id ?? null });
-    await access.log();
 
 
     if (action === "analyze") {
@@ -60,7 +59,7 @@ No markdown, no commentary.`;
       const user = `Project draft:\n"""\n${text}\n"""`;
       const raw = await callAI(system, user, true);
       const parsed = parseJson(raw);
-      await deductCredits(ctx.user.id, FEATURE_RULES.refinement.credits, "refinement", body.project_id ?? body.project?.id ?? null);
+      await deductCredits(access.user.id, FEATURE_RULES.refinement.credits, "refinement", body.project_id ?? body.project?.id ?? null);
       return new Response(JSON.stringify(parsed), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -96,7 +95,7 @@ ${original}
 """`;
       const raw = await callAI(system, user, true);
       const parsed = parseJson(raw);
-      await deductCredits(ctx.user.id, FEATURE_RULES.refinement.credits, "refinement", body.project_id ?? body.project?.id ?? null);
+      await deductCredits(access.user.id, FEATURE_RULES.refinement.credits, "refinement", body.project_id ?? body.project?.id ?? null);
       return new Response(JSON.stringify(parsed), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

@@ -5,9 +5,11 @@ import {
   getAdapter,
   getFeatureSettings,
   getModel,
+  resolveApiKey,
   type FeatureSettings,
   type ModelConfig,
   type ProviderAdapter,
+  type ProviderType,
   type AIResponse,
 } from "./providers.ts";
 
@@ -53,7 +55,7 @@ export async function resolveModelForFeature(featureKey: string, requestedModel?
     const { data } = await db
       .from("ai_models")
       .select("*, ai_providers(type, api_key, config)")
-      .eq("model_id", requested.replace(/^(google\/|openai\/|openrouter\/|ollama\/)/, ""))
+      .eq("model_id", requested.replace(/^(google\/|openai\/|openrouter\/|ollama\/|groq\/)/, ""))
       .eq("active", true)
       .maybeSingle();
 
@@ -69,8 +71,10 @@ export async function resolveModelForFeature(featureKey: string, requestedModel?
         output_price_per_1k: Number(data.output_price_per_1k ?? 0),
         currency: String(data.currency ?? "USD"),
         active: !!data.active,
-        provider_type: provider ? String(provider.type) : "unknown",
-        provider_api_key: provider ? String(provider.api_key ?? "") : null,
+        provider_type: provider ? (String(provider.type) as ProviderType) : "unknown",
+        provider_api_key: provider
+          ? resolveApiKey(String(provider.type) as ProviderType, String(provider.api_key ?? ""))
+          : null,
         provider_config: provider ? ((provider.config as Record<string, unknown>) ?? {}) : {},
         config_json: (provider?.config as Record<string, unknown>) ?? {},
       };
@@ -115,14 +119,17 @@ export async function resolveModelForFeature(featureKey: string, requestedModel?
       output_price_per_1k: Number(defaultModel.output_price_per_1k ?? 0),
       currency: String(defaultModel.currency ?? "USD"),
       active: !!defaultModel.active,
-      provider_type: String(defaultProvider.type),
-      provider_api_key: String(defaultProvider.api_key ?? ""),
+      provider_type: String(defaultProvider.type) as ProviderType,
+      provider_api_key: resolveApiKey(
+        String(defaultProvider.type) as ProviderType,
+        String(defaultProvider.api_key ?? ""),
+      ),
       provider_config: (defaultProvider.config as Record<string, unknown>) ?? {},
       config_json: (defaultProvider.config as Record<string, unknown>) ?? {},
     };
   }
 
-  const adapter = getAdapter(modelConfig.provider_type as "ollama" | "openrouter" | "gemini" | "openai");
+  const adapter = getAdapter(modelConfig.provider_type as ProviderType);
   return { model: modelConfig, adapter };
 }
 
