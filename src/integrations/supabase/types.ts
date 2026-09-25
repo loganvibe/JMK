@@ -44,6 +44,211 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_feature_settings: {
+        Row: {
+          credits: number
+          daily_limit: number | null
+          enabled: boolean
+          feature_key: string
+          max_input_tokens: number
+          max_output_tokens: number
+          model_id: string | null
+          monthly_limit: number | null
+          provider_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          credits?: number
+          daily_limit?: number | null
+          enabled?: boolean
+          feature_key: string
+          max_input_tokens?: number
+          max_output_tokens?: number
+          model_id?: string | null
+          monthly_limit?: number | null
+          provider_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          credits?: number
+          daily_limit?: number | null
+          enabled?: boolean
+          feature_key?: string
+          max_input_tokens?: number
+          max_output_tokens?: number
+          model_id?: string | null
+          monthly_limit?: number | null
+          provider_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_feature_settings_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "ai_providers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_models: {
+        Row: {
+          active: boolean
+          created_at: string | null
+          id: string
+          label: string
+          model_id: string
+          provider_id: string | null
+          sort_order: number
+          tier: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string | null
+          id?: string
+          label: string
+          model_id: string
+          provider_id?: string | null
+          sort_order?: number
+          tier?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string | null
+          id?: string
+          label?: string
+          model_id?: string
+          provider_id?: string | null
+          sort_order?: number
+          tier?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_models_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "ai_providers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_provider_budgets: {
+        Row: {
+          current_spend: number
+          hard_limit: number
+          id: string
+          monthly_budget: number
+          provider: string
+          warning_threshold: number
+        }
+        Insert: {
+          current_spend?: number
+          hard_limit?: number
+          id?: string
+          monthly_budget?: number
+          provider: string
+          warning_threshold?: number
+        }
+        Update: {
+          current_spend?: number
+          hard_limit?: number
+          id?: string
+          monthly_budget?: number
+          provider?: string
+          warning_threshold?: number
+        }
+        Relationships: []
+      }
+      ai_provider_pricing: {
+        Row: {
+          id: string
+          input_price_per_1k: number
+          model: string
+          output_price_per_1k: number
+          provider: string
+        }
+        Insert: {
+          id?: string
+          input_price_per_1k?: number
+          model: string
+          output_price_per_1k?: number
+          provider: string
+        }
+        Update: {
+          id?: string
+          input_price_per_1k?: number
+          model?: string
+          output_price_per_1k?: number
+          provider?: string
+        }
+        Relationships: []
+      }
+      ai_provider_usage: {
+        Row: {
+          date: string
+          estimated_cost: number
+          id: string
+          input_tokens: number
+          model: string
+          output_tokens: number
+          provider: string
+          requests: number
+        }
+        Insert: {
+          date?: string
+          estimated_cost?: number
+          id?: string
+          input_tokens?: number
+          model: string
+          output_tokens?: number
+          provider: string
+          requests?: number
+        }
+        Update: {
+          date?: string
+          estimated_cost?: number
+          id?: string
+          input_tokens?: number
+          model?: string
+          output_tokens?: number
+          provider?: string
+          requests?: number
+        }
+        Relationships: []
+      }
+      ai_providers: {
+        Row: {
+          active: boolean
+          api_key: string | null
+          config: Json | null
+          created_at: string | null
+          id: string
+          priority: number
+          type: string
+          vendor: string
+        }
+        Insert: {
+          active?: boolean
+          api_key?: string | null
+          config?: Json | null
+          created_at?: string | null
+          id?: string
+          priority?: number
+          type?: string
+          vendor: string
+        }
+        Update: {
+          active?: boolean
+          api_key?: string | null
+          config?: Json | null
+          created_at?: string | null
+          id?: string
+          priority?: number
+          type?: string
+          vendor?: string
+        }
+        Relationships: []
+      }
       ai_usage: {
         Row: {
           created_at: string

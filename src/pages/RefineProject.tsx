@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
+import type { User } from "@supabase/supabase-js";
 import {
   Upload, FileCheck2, Loader2, Sparkles, ArrowLeft, ArrowRight, Download,
   CheckCircle2, AlertTriangle, TrendingUp, Wand2, GraduationCap, FileText,
@@ -15,6 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { extractTextFromFile } from "@/lib/extractText";
 import { invokeFunction } from "@/lib/errors";
+import type { Json } from "@/integrations/supabase/types";
 
 type Analysis = {
   title?: string;
@@ -38,8 +40,8 @@ const STEPS = ["Upload", "Analysis", "Interview", "Refine", "Review", "Export"] 
 const RefineProject = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [user, setUser] = useState<unknown>(null);
-  const [profile, setProfile] = useState<unknown>({});
+  const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<Record<string, unknown>>({});
   const [tier, setTier] = useState<string>("free");
   const [step, setStep] = useState(0);
 
@@ -90,6 +92,7 @@ const RefineProject = () => {
 
   const handleFile = async (f: File | null) => {
     if (!f) return;
+    if (!user) return;
     if (f.size > 15 * 1024 * 1024) {
       toast({ title: "File too large", description: "Maximum 15MB.", variant: "destructive" });
       return;
@@ -149,10 +152,10 @@ const RefineProject = () => {
     }
     setAnalyzing(true);
     try {
-       const data = await invokeFunction<unknown>("refine-project", { action: "analyze", text: extracted, profile });
-      setAnalysis(data as Analysis);
+       const data = await invokeFunction<Analysis>("refine-project", { action: "analyze", text: extracted, profile });
+      setAnalysis(data);
       if (documentId) {
-        await supabase.from("project_documents").update({ analysis: data, upload_status: "analyzed" }).eq("id", documentId);
+        await supabase.from("project_documents").update({ analysis: data as unknown as Json, upload_status: "analyzed" }).eq("id", documentId);
       }
       setStep(1);
     } catch (e: unknown) {
@@ -172,6 +175,7 @@ const RefineProject = () => {
       });
       return;
     }
+    if (!user) return;
     try {
       const { data, error } = await supabase.from("project_refinement_requests").insert({
         user_id: user.id,
@@ -192,8 +196,8 @@ const RefineProject = () => {
   const splitSections = async () => {
     setSplitting(true);
     try {
-       const data = await invokeFunction<unknown>("refine-project", { action: "split_sections", text: extracted });
-       const list: Section[] = (data?.sections ?? []).filter((s: unknown) => (s as { content?: string } | undefined)?.content?.trim());
+       const data = await invokeFunction<{ sections: { chapter: string; section: string; content: string }[] }>("refine-project", { action: "split_sections", text: extracted });
+       const list: Section[] = (data?.sections ?? []).filter((s) => s.content?.trim());
       setSections(list.length ? list : [{ chapter: "Full Document", section: "Content", content: extracted.slice(0, 8000) }]);
     } catch (e: unknown) {
       const err = e instanceof Error ? e : new Error(String(e));
@@ -205,10 +209,11 @@ const RefineProject = () => {
   };
 
   const refineSection = async (idx: number, instruction = "Improve, strengthen arguments, fix flow and grammar") => {
+    if (!user) return;
     setRefiningIdx(idx);
     try {
       const s = sections[idx];
-       const data = await invokeFunction<unknown>("refine-project", {
+       const data = await invokeFunction<{ new_content: string; change_summary: string; changes?: string[] }>("refine-project", {
         action: "refine_section",
         section: `${s.chapter} — ${s.section}`,
         original: s.content,
