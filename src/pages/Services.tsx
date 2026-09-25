@@ -25,7 +25,7 @@ const categories = [
   "Other",
 ];
 
-const statusVariant: Record<string, string> = {
+const statusVariant: Record<string, "default" | "destructive" | "outline" | "secondary"> = {
   pending: "secondary",
   reviewing: "secondary",
   quoted: "default",
@@ -35,10 +35,21 @@ const statusVariant: Record<string, string> = {
   rejected: "destructive",
 };
 
+type ServiceRequest = {
+  id: string;
+  category: string;
+  department: string | null;
+  description: string;
+  requirements: string | null;
+  deadline: string | null;
+  status: string;
+  created_at: string;
+};
+
 const Services = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [requests, setRequests] = useState<unknown[]>([]);
+  const [requests, setRequests] = useState<ServiceRequest[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({
     category: "",
