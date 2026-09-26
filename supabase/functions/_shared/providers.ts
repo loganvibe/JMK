@@ -1,9 +1,9 @@
 // Provider abstraction layer for JMK AI.
-// Each adapter implements the same interface so features don't need to know which provider is active.
+// OpenRouter is the sole AI provider.
 
 import { adminClient } from "./entitlements.ts";
 
-export type ProviderType = "ollama" | "openrouter" | "gemini" | "openai" | "groq";
+export type ProviderType = "openrouter";
 
 export interface ProviderConfig {
   id: string;
@@ -77,7 +77,7 @@ export interface ProviderAdapter {
     user: string,
     opts: { json?: boolean; maxInputTokens?: number; maxOutputTokens?: number },
   ): Promise<AIResponse>;
-  streamChat?(
+  streamChat(
     model: ModelConfig,
     system: string,
     user: string,
@@ -85,126 +85,31 @@ export interface ProviderAdapter {
   ): Promise<ReadableStream>;
 }
 
-class OllamaAdapter implements ProviderAdapter {
-  type: ProviderType = "ollama";
-  label = "Ollama";
-
-  async call(model: ModelConfig, system: string, user: string, opts: { json?: boolean; maxInputTokens?: number; maxOutputTokens?: number }): Promise<AIResponse> {
-    const baseUrl = String(model.config_json?.base_url ?? "http://localhost:11434");
-    const modelName = model.model_id;
-    const maxTokens = opts.maxOutputTokens ?? 4096;
-
-    const res = await fetch(`${baseUrl.replace(/\/$/, "")}/api/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: modelName,
-        stream: false,
-        options: { num_predict: maxTokens },
-        messages: [
-          ...(system ? [{ role: "system", content: system }] : []),
-          { role: "user", content: user },
-        ],
-      }),
-    });
-
-    if (!res.ok) {
-      const text = await res.text().catch(() => "");
-      throw new Error(`Ollama error [${res.status}]: ${text.slice(0, 300)}`);
-    }
-
-    const data = (await res.json()) as Record<string, unknown>;
-    const content = String(data?.message?.content ?? "");
-    if (!content.trim()) throw new Error("Ollama returned an empty response.");
-
-    return {
-      content,
-      model: modelName,
-      provider: "ollama",
-    };
-  }
-
-  async streamChat(model: ModelConfig, system: string, user: string, opts: { maxInputTokens?: number; maxOutputTokens?: number }): Promise<ReadableStream> {
-    const baseUrl = String(model.config_json?.base_url ?? "http://localhost:11434");
-    const modelName = model.model_id;
-    const maxTokens = opts.maxOutputTokens ?? 4096;
-
-    const res = await fetch(`${baseUrl.replace(/\/$/, "")}/api/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: modelName,
-        stream: true,
-        options: { num_predict: maxTokens },
-        messages: [
-          ...(system ? [{ role: "system", content: system }] : []),
-          { role: "user", content: user },
-        ],
-      }),
-    });
-
-    if (!res.ok) {
-      const text = await res.text().catch(() => "");
-      throw new Error(`Ollama error [${res.status}]: ${text.slice(0, 300)}`);
-    }
-
-    if (!res.body) throw new Error("Ollama stream response body is missing.");
-
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-
-    return new ReadableStream({
-      async pull(controller) {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) {
-            controller.close();
-            break;
-          }
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() ?? "";
-
-          for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed || !trimmed.startsWith("{")) continue;
-            try {
-              const json = JSON.parse(trimmed);
-              const chunk = String(json?.message?.content ?? "");
-              if (chunk) {
-                controller.enqueue(new TextEncoder().encode(chunk));
-              }
-            } catch {
-              // skip malformed JSON
-            }
-          }
-        }
-      },
-      cancel() {
-        reader.cancel();
-      },
-    });
-  }
-}
+const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 class OpenRouterAdapter implements ProviderAdapter {
   type: ProviderType = "openrouter";
   label = "OpenRouter";
 
-  async call(model: ModelConfig, system: string, user: string, opts: { json?: boolean; maxInputTokens?: number; maxOutputTokens?: number }): Promise<AIResponse> {
+  async call(
+    model: ModelConfig,
+    system: string,
+    user: string,
+    opts: { json?: boolean; maxInputTokens?: number; maxOutputTokens?: number },
+  ): Promise<AIResponse> {
     const apiKey = String(model.provider_api_key ?? "");
     if (!apiKey) throw new Error("OpenRouter API key is not configured.");
 
     const modelName = model.model_id;
     const maxTokens = opts.maxOutputTokens ?? 4096;
 
-    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    const res = await fetch(OPENROUTER_BASE_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
+        "HTTP-Referer": "https://jmk.ng",
+        "X-Title": "JMK AI",
       },
       body: JSON.stringify({
         model: modelName,
@@ -230,10 +135,14 @@ class OpenRouterAdapter implements ProviderAdapter {
     const extracted = data?.choices?.[0]?.message?.content ?? "";
     if (!extracted.trim()) throw new Error("OpenRouter returned an empty response.");
 
+    const usage = data?.usage as Record<string, unknown> | undefined;
+
     return {
       content: extracted,
       model: modelName,
       provider: "openrouter",
+      input_tokens: usage ? Number(usage.prompt_tokens ?? 0) : undefined,
+      output_tokens: usage ? Number(usage.completion_tokens ?? 0) : undefined,
     };
   }
 
@@ -249,11 +158,13 @@ class OpenRouterAdapter implements ProviderAdapter {
     const modelName = model.model_id;
     const maxTokens = opts.maxOutputTokens ?? 4096;
 
-    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    const res = await fetch(OPENROUTER_BASE_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
+        "HTTP-Referer": "https://jmk.ng",
+        "X-Title": "JMK AI",
       },
       body: JSON.stringify({
         model: modelName,
@@ -267,7 +178,7 @@ class OpenRouterAdapter implements ProviderAdapter {
     });
 
     if (!res.ok) {
-      const text = await res.text();
+      const text = await res.text().catch(() => "");
       console.error(`OpenRouter error [${res.status}]`, text.slice(0, 1000));
       throw new Error(`OpenRouter error [${res.status}]: ${text.slice(0, 300)}`);
     }
@@ -318,185 +229,20 @@ class OpenRouterAdapter implements ProviderAdapter {
   }
 }
 
-class GeminiAdapter implements ProviderAdapter {
-  type: ProviderType = "gemini";
-  label = "Gemini";
-
-  async call(model: ModelConfig, system: string, user: string, opts: { json?: boolean; maxInputTokens?: number; maxOutputTokens?: number }): Promise<AIResponse> {
-    const apiKey = String(model.provider_api_key ?? "");
-    if (!apiKey) throw new Error("Gemini API key is not configured.");
-
-    const modelName = model.model_id;
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelName)}:generateContent?key=${apiKey}`;
-
-    const body: Record<string, unknown> = {
-      contents: [
-        {
-          parts: [
-            { text: system ? `${system}\n\n${user}` : user },
-          ],
-        },
-      ],
-      generationConfig: {
-        temperature: 0.7,
-        maxOutputTokens: opts.maxOutputTokens ?? 4096,
-      },
-    };
-
-    if (opts.json) {
-      body.generationConfig = {
-        ...(body.generationConfig as Record<string, unknown>),
-        responseMimeType: "application/json",
-      };
-    }
-
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-
-    const text = await res.text();
-    if (!res.ok) {
-      console.error(`Gemini error [${res.status}]`, text.slice(0, 1000));
-      throw new Error(`Gemini error [${res.status}]: ${text.slice(0, 300)}`);
-    }
-
-    let data: Record<string, unknown> = {};
-    try { data = JSON.parse(text); } catch {
-      throw new Error("Gemini returned an invalid response.");
-    }
-
-    const extracted = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-    if (!extracted.trim()) throw new Error("Gemini returned an empty response.");
-
-    return {
-      content: extracted,
-      model: modelName,
-      provider: "gemini",
-    };
-  }
-}
-
-class OpenAIAdapter implements ProviderAdapter {
-  type: ProviderType = "openai";
-  label = "OpenAI";
-
-  async call(model: ModelConfig, system: string, user: string, opts: { json?: boolean; maxInputTokens?: number; maxOutputTokens?: number }): Promise<AIResponse> {
-    const apiKey = String(model.provider_api_key ?? "");
-    if (!apiKey) throw new Error("OpenAI API key is not configured.");
-
-    const modelName = model.model_id;
-    const body: Record<string, unknown> = {
-      model: modelName,
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: user },
-      ],
-      temperature: 0.7,
-      max_tokens: opts.maxOutputTokens ?? 4096,
-    };
-
-    if (opts.json) body.response_format = { type: "json_object" };
-
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify(body),
-    });
-
-    const text = await res.text();
-    if (!res.ok) {
-      console.error(`OpenAI error [${res.status}]`, text.slice(0, 1000));
-      throw new Error(`OpenAI error [${res.status}]: ${text.slice(0, 300)}`);
-    }
-
-    let data: Record<string, unknown> = {};
-    try { data = JSON.parse(text); } catch {
-      throw new Error("OpenAI returned an invalid response.");
-    }
-
-    const extracted = data?.choices?.[0]?.message?.content ?? "";
-    if (!extracted.trim()) throw new Error("OpenAI returned an empty response.");
-
-    return {
-      content: extracted,
-      model: modelName,
-      provider: "openai",
-    };
-  }
-}
-
-class GroqAdapter implements ProviderAdapter {
-  type: ProviderType = "groq";
-  label = "Groq";
-
-  async call(model: ModelConfig, system: string, user: string, opts: { json?: boolean; maxInputTokens?: number; maxOutputTokens?: number }): Promise<AIResponse> {
-    const apiKey = String(model.provider_api_key ?? "");
-    if (!apiKey) throw new Error("Groq API key is not configured.");
-
-    const modelName = model.model_id;
-    const maxTokens = opts.maxOutputTokens ?? 4096;
-
-    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: modelName,
-        max_tokens: maxTokens,
-        messages: [
-          ...(system ? [{ role: "system", content: system }] : []),
-          { role: "user", content: user },
-        ],
-      }),
-    });
-
-    const text = await res.text();
-    if (!res.ok) {
-      console.error(`Groq error [${res.status}]`, text.slice(0, 1000));
-      throw new Error(`Groq error [${res.status}]: ${text.slice(0, 300)}`);
-    }
-
-    let data: Record<string, unknown> = {};
-    try { data = JSON.parse(text); } catch {
-      throw new Error("Groq returned an invalid response.");
-    }
-
-    const extracted = data?.choices?.[0]?.message?.content ?? "";
-    if (!extracted.trim()) throw new Error("Groq returned an empty response.");
-
-    return {
-      content: extracted,
-      model: modelName,
-      provider: "groq",
-    };
-  }
-}
-
 const ADAPTERS: Record<ProviderType, ProviderAdapter> = {
-  ollama: new OllamaAdapter(),
   openrouter: new OpenRouterAdapter(),
-  gemini: new GeminiAdapter(),
-  openai: new OpenAIAdapter(),
-  groq: new GroqAdapter(),
 };
 
 // ============================================================
 // Database queries
 // ============================================================
 
-export async function getActiveProvider(vendor: string): Promise<ProviderConfig | null> {
+export async function getActiveProvider(): Promise<ProviderConfig | null> {
   const db = adminClient();
   const { data } = await db
     .from("ai_providers")
     .select("*")
-    .eq("vendor", vendor)
+    .eq("vendor", "openrouter")
     .eq("active", true)
     .maybeSingle();
 
@@ -504,7 +250,7 @@ export async function getActiveProvider(vendor: string): Promise<ProviderConfig 
   return {
     id: String(data.id),
     vendor: String(data.vendor),
-    type: String(data.type) as ProviderType,
+    type: "openrouter",
     api_key: String(data.api_key ?? ""),
     config: ((data.config as Record<string, unknown>) ?? {}) as Record<string, unknown>,
     active: !!data.active,
@@ -524,7 +270,7 @@ export async function getModel(modelId: string): Promise<ModelConfig | null> {
   if (!data) return null;
 
   const provider = data.ai_providers as Record<string, unknown> | null;
-  const providerType = provider ? (String(provider.type) as ProviderType) : "unknown";
+  const providerType = provider ? (String(provider.type) as ProviderType) : "openrouter";
   return {
     id: String(data.id),
     provider_id: String(data.provider_id),
@@ -536,7 +282,7 @@ export async function getModel(modelId: string): Promise<ModelConfig | null> {
     currency: String(data.currency ?? "USD"),
     active: !!data.active,
     provider_type: providerType,
-    provider_api_key: provider ? resolveApiKey(providerType, String(provider.api_key ?? "")) : null,
+    provider_api_key: provider ? resolveApiKey(String(provider.api_key ?? "")) : null,
     provider_config: provider ? ((provider.config as Record<string, unknown>) ?? {}) : {},
     config_json: (provider?.config as Record<string, unknown>) ?? {},
   };
@@ -610,23 +356,11 @@ export function getAdapter(type: ProviderType): ProviderAdapter {
   return adapter;
 }
 
-// Maps a provider type to the Edge Function env var that holds its API key.
-const ENV_VAR_BY_TYPE: Record<ProviderType, string | undefined> = {
-  gemini: "GEMINI_API_KEY",
-  openai: "OPENAI_API_KEY",
-  openrouter: "OPENROUTER_API_KEY",
-  groq: "GROQ_API_KEY",
-  ollama: undefined,
-};
-
-// DB-stored api_key takes precedence; otherwise fall back to the deployment's
-// env vars so Google/OpenAI providers work without persisting secrets in the DB.
-export function resolveApiKey(type: ProviderType, dbKey: string | null | undefined): string {
-  if (dbKey && dbKey.trim()) return dbKey;
-  const envVar = ENV_VAR_BY_TYPE[type];
-  if (!envVar) return "";
-  if (type === "gemini") {
-    return Deno.env.get("GEMINI_API_KEY") ?? Deno.env.get("GOOGLE_API_KEY") ?? "";
-  }
-  return Deno.env.get(envVar) ?? "";
+/**
+ * OpenRouter API key is sourced exclusively from the OPENROUTER_API_KEY
+ * Edge Function secret. The database api_key column is intentionally ignored
+ * so the key is never stored in or exposed from any DB record.
+ */
+export function resolveApiKey(dbKey?: string | null): string {
+  return Deno.env.get("OPENROUTER_API_KEY") ?? "";
 }

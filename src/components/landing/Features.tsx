@@ -68,8 +68,8 @@ const features = [
   },
   {
     icon: Cpu,
-    title: "Choose Your AI Engine",
-    description: "Switch between Google Gemini and OpenAI GPT models per task — speed for drafting, deep reasoning for defense prep.",
+    title: "Powered by OpenRouter",
+    description: "All AI generation runs through OpenRouter with carefully selected models — speed for drafting, deep reasoning for defense prep.",
   },
   {
     icon: Brain,

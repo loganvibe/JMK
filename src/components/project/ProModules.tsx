@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   ShieldCheck,
   Library,
@@ -19,7 +19,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { invokeFunction } from "@/lib/errors";
-import { getPreferredModel, modelLabel } from "@/lib/aiModels";
 import { extractTextFromFile } from "@/lib/extractText";
 
 type Props = { user: unknown; profile: unknown; project: unknown; sections: Section[] };
@@ -29,13 +28,6 @@ const scoreTone = (n: number) =>
 
 const ProModules = ({ user, profile, project, sections }: Props) => {
   const { toast } = useToast();
-  const [model, setModel] = useState(getPreferredModel());
-
-  useEffect(() => {
-    const onChange = (e: Event) => setModel((e as CustomEvent).detail as string);
-    window.addEventListener("jmk:model-changed", onChange);
-    return () => window.removeEventListener("jmk:model-changed", onChange);
-  }, []);
 
   // ---------- Originality ----------
   const [origSection, setOrigSection] = useState<string>("");
@@ -69,7 +61,7 @@ const ProModules = ({ user, profile, project, sections }: Props) => {
         verdict: data?.verdict ?? null,
         flagged: data?.flagged ?? [],
         suggestions: data?.suggestions ?? [],
-        model: data?.model ?? model,
+        model: data?.model ?? "openrouter/meta-llama/llama-3.1-70b-instruct",
       });
     } catch (e: unknown) {
       const err = e instanceof Error ? e : new Error(String(e));
@@ -176,7 +168,7 @@ const ProModules = ({ user, profile, project, sections }: Props) => {
         findings: data?.findings ?? [],
         tables: data?.tables ?? [],
         narrative: data?.narrative ?? null,
-        model: data?.model ?? model,
+        model: data?.model ?? "openrouter/meta-llama/llama-3.1-70b-instruct",
       });
     } catch (e: unknown) {
       const err = e instanceof Error ? e : new Error(String(e));
@@ -197,7 +189,7 @@ const ProModules = ({ user, profile, project, sections }: Props) => {
         </div>
         <Badge variant="outline" className="gap-1.5">
           <Sparkles className="w-3.5 h-3.5 text-accent" />
-          {modelLabel(model)}
+          OpenRouter
         </Badge>
       </div>
 

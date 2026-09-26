@@ -49,11 +49,11 @@ ${newTopic ? `NEW/UPDATED TOPIC FOCUS: ${newTopic}` : ""}
 
 Produce the full refreshed project now.`;
 
-     const content = await callAI(systemPrompt, userPrompt, { model: body?.model, feature: "refinement" });
+      const response = await callAI(systemPrompt, userPrompt, { model: body?.model, feature: "refinement" });
 
-     await deductCredits(access.user.id, FEATURE_RULES.refinement.credits, "refinement", body?.projectId ?? null);
+      await deductCredits(access.user.id, FEATURE_RULES.refinement.credits, "refinement", body?.projectId ?? null, { provider: response.provider, model: response.model, inputTokens: response.input_tokens, outputTokens: response.output_tokens });
 
-     return new Response(JSON.stringify({ content }), {
+      return new Response(JSON.stringify({ content: response.content }), {
        status: 200,
        headers: { ...corsHeaders, "Content-Type": "application/json" },
      });

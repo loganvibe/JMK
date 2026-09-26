@@ -19,7 +19,6 @@ import AcademicAssistant from "@/components/project/AcademicAssistant";
 import DefensePreparation from "@/components/project/DefensePreparation";
 import ProModules from "@/components/project/ProModules";
 import Collaboration from "@/components/project/Collaboration";
-import ModelPicker from "@/components/ai/ModelPicker";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -276,7 +275,6 @@ const ProjectWorkspace = () => {
               <span className="text-xs text-muted-foreground">{completionPercent}% complete</span>
               <Progress value={completionPercent} className="h-1.5 w-32" />
             </div>
-            <ModelPicker compact />
             <Link to="/" className="hidden sm:flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-gradient-accent flex items-center justify-center">
                 <GraduationCap className="w-4 h-4 text-accent-foreground" />

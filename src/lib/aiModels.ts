@@ -1,71 +1,57 @@
-// Client-side mirror of the models the backend accepts (supabase/functions/_shared/ai.ts).
+// Client-side mirror of OpenRouter models available to JMK.
 export type AIModel = {
   id: string;
   label: string;
-  vendor: "Google" | "OpenAI" | "OpenRouter";
+  vendor: "OpenRouter";
   tier: "standard" | "pro";
   blurb: string;
 };
 
 export const AI_MODELS: AIModel[] = [
   {
-    id: "google/gemini-1.5-flash",
-    label: "Gemini 1.5 Flash",
-    vendor: "Google",
+    id: "openrouter/meta-llama/llama-3.1-70b-instruct",
+    label: "Llama 3.1 70B Instruct",
+    vendor: "OpenRouter",
     tier: "standard",
-    blurb: "Fast, balanced default for everyday academic writing.",
+    blurb: "Balanced general-purpose model for everyday academic writing.",
   },
   {
-    id: "google/gemini-1.5-pro",
-    label: "Gemini 1.5 Pro",
-    vendor: "Google",
+    id: "openrouter/meta-llama/llama-3.1-405b-instruct",
+    label: "Llama 3.1 405B Instruct",
+    vendor: "OpenRouter",
     tier: "pro",
-    blurb: "Deeper reasoning for literature reviews and methodology.",
+    blurb: "Deep reasoning for literature reviews and defense prep.",
   },
   {
-    id: "openai/gpt-4o-mini",
-    label: "GPT-4o Mini",
-    vendor: "OpenAI",
+    id: "openrouter/google/gemini-pro-1.5",
+    label: "Gemini Pro 1.5 (via OpenRouter)",
+    vendor: "OpenRouter",
     tier: "standard",
-    blurb: "OpenAI quality at low latency — great for edits and citations.",
-  },
-  {
-    id: "openai/gpt-4o",
-    label: "GPT-4o",
-    vendor: "OpenAI",
-    tier: "pro",
-    blurb: "Balanced OpenAI flagship for full chapters and analysis.",
-  },
-  {
-    id: "openai/o3-mini",
-    label: "o3 Mini",
-    vendor: "OpenAI",
-    tier: "pro",
-    blurb: "Strongest reasoning for defense prep and deep critique.",
+    blurb: "Strong all-around model via OpenRouter.",
   },
   {
     id: "openrouter/z-ai/glm-5.2:free",
     label: "GLM-5.2 Free",
     vendor: "OpenRouter",
     tier: "standard",
-    blurb: "Free OpenRouter model for testing.",
+    blurb: "Free OpenRouter model.",
   },
   {
     id: "openrouter/stealth/ox-alpha",
     label: "Stealth OX Alpha",
     vendor: "OpenRouter",
     tier: "standard",
-    blurb: "Free OpenRouter model for testing.",
+    blurb: "Free OpenRouter model.",
   },
 ];
 
-export const DEFAULT_MODEL = "google/gemini-1.5-flash";
+export const DEFAULT_MODEL = "openrouter/meta-llama/llama-3.1-70b-instruct";
 const STORAGE_KEY = "jmk.ai.model";
 
 export const modelLabel = (id: string) =>
-  AI_MODELS.find((m) => m.id === id)?.label ?? "Gemini 3.6 Flash";
+  AI_MODELS.find((m) => m.id === id)?.label ?? "Llama 3.1 70B Instruct";
 
-/** The model every AI request should use. Read synchronously anywhere. */
+/** Returns the default OpenRouter model. Kept for backward compatibility. */
 export function getPreferredModel(): string {
   if (typeof window === "undefined") return DEFAULT_MODEL;
   const saved = window.localStorage.getItem(STORAGE_KEY) ?? "";

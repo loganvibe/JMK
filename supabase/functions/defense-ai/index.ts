@@ -67,8 +67,8 @@ ${type === "10min" ? "Make content richer with detailed presentation flow and im
 
 ${ctx}`;
       const raw = await callAI(sys, prompt, true);
-      await deductCredits(access.user.id, FEATURE_RULES.defense_basic.credits, feature, project?.id ?? null);
-      return Response.json({ content: parseJson(raw) }, { headers: corsHeaders });
+      await deductCredits(access.user.id, FEATURE_RULES.defense_basic.credits, feature, project?.id ?? null, { provider: raw.provider, model: raw.model, inputTokens: raw.input_tokens, outputTokens: raw.output_tokens });
+      return Response.json({ content: parseJson(raw.content) }, { headers: corsHeaders });
     }
 
     if (action === "slides") {
@@ -87,8 +87,8 @@ Follow this structure exactly, in order:
 
 ${ctx}`;
       const raw = await callAI(sys, prompt, true);
-      await deductCredits(access.user.id, FEATURE_RULES.defense_basic.credits, feature, project?.id ?? null);
-      return Response.json({ content: parseJson(raw) }, { headers: corsHeaders });
+      await deductCredits(access.user.id, FEATURE_RULES.defense_basic.credits, feature, project?.id ?? null, { provider: raw.provider, model: raw.model, inputTokens: raw.input_tokens, outputTokens: raw.output_tokens });
+      return Response.json({ content: parseJson(raw.content) }, { headers: corsHeaders });
     }
 
     if (action === "generate_questions") {
@@ -104,8 +104,8 @@ Return JSON:
 
 ${ctx}`;
       const raw = await callAI(sys, prompt, true);
-      await deductCredits(access.user.id, FEATURE_RULES.defense_basic.credits, feature, project?.id ?? null);
-      return Response.json({ content: parseJson(raw) }, { headers: corsHeaders });
+      await deductCredits(access.user.id, FEATURE_RULES.defense_basic.credits, feature, project?.id ?? null, { provider: raw.provider, model: raw.model, inputTokens: raw.input_tokens, outputTokens: raw.output_tokens });
+      return Response.json({ content: parseJson(raw.content) }, { headers: corsHeaders });
     }
 
     if (action === "evaluate_answers") {
@@ -128,8 +128,8 @@ Return JSON:
 
 ${ctx}`;
       const raw = await callAI(sys, prompt, true);
-      await deductCredits(access.user.id, FEATURE_RULES.defense_basic.credits, feature, project?.id ?? null);
-      return Response.json({ content: parseJson(raw) }, { headers: corsHeaders });
+      await deductCredits(access.user.id, FEATURE_RULES.defense_basic.credits, feature, project?.id ?? null, { provider: raw.provider, model: raw.model, inputTokens: raw.input_tokens, outputTokens: raw.output_tokens });
+      return Response.json({ content: parseJson(raw.content) }, { headers: corsHeaders });
     }
 
     if (action === "coach") {
@@ -140,9 +140,9 @@ ${ctx}`;
 Answer using their actual project data below. Give concrete talking points and phrasing they can use.
 
 ${ctx}`;
-       const raw = await callAI(sys, prompt, false);
-       await deductCredits(access.user.id, FEATURE_RULES.defense_basic.credits, feature, project?.id ?? null);
-       return Response.json({ content: raw }, { headers: corsHeaders });
+        const raw = await callAI(sys, prompt, false);
+        await deductCredits(access.user.id, FEATURE_RULES.defense_basic.credits, feature, project?.id ?? null, { provider: raw.provider, model: raw.model, inputTokens: raw.input_tokens, outputTokens: raw.output_tokens });
+        return Response.json({ content: raw.content }, { headers: corsHeaders });
     }
 
     if (action === "readiness") {
@@ -152,9 +152,9 @@ Return JSON:
 { "score": 0, "strong_areas": ["…"], "improve_areas": ["…"], "advice": "…" }
 
 ${ctx}`;
-       const raw = await callAI(sys, prompt, true);
-       await deductCredits(access.user.id, FEATURE_RULES.defense_basic.credits, feature, project?.id ?? null);
-       return Response.json({ content: parseJson(raw) }, { headers: corsHeaders });
+        const raw = await callAI(sys, prompt, true);
+        await deductCredits(access.user.id, FEATURE_RULES.defense_basic.credits, feature, project?.id ?? null, { provider: raw.provider, model: raw.model, inputTokens: raw.input_tokens, outputTokens: raw.output_tokens });
+        return Response.json({ content: parseJson(raw.content) }, { headers: corsHeaders });
      }
 
      return new Response(JSON.stringify({ error: "unknown action" }), {

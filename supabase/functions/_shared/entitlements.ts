@@ -119,7 +119,7 @@ export async function getCreditBalance(userId: string) {
   if (!data) {
     const plan = await getPlan(userId);
     const limits = plan.ai_limits ?? {};
-    const dailyLimit = Number(limits.credits ?? 10);
+    const dailyLimit = Number(limits.credits ?? 100);
     const monthlyLimit = dailyLimit * 30;
     const now = new Date();
     const dailyReset = new Date(now);
@@ -144,7 +144,13 @@ export async function getCreditBalance(userId: string) {
   return data;
 }
 
-export async function deductCredits(userId: string, credits: number, featureKey: string, projectId?: string | null) {
+export async function deductCredits(
+  userId: string,
+  credits: number,
+  featureKey: string,
+  projectId?: string | null,
+  usageInfo?: { provider?: string; model?: string; inputTokens?: number; outputTokens?: number; estimatedCost?: number },
+) {
   const db = adminClient();
   const now = new Date().toISOString();
 
@@ -176,16 +182,16 @@ export async function deductCredits(userId: string, credits: number, featureKey:
 
   const updated = data[0];
 
-  // Log usage
+  // Log usage with actual provider and model
   await db.from("ai_credit_usage").insert({
     user_id: userId,
     project_id: projectId ?? null,
     feature_key: featureKey,
-    provider: "pending",
-    model: "pending",
-    input_tokens: 0,
-    output_tokens: 0,
-    estimated_cost: 0,
+    provider: usageInfo?.provider ?? "openrouter",
+    model: usageInfo?.model ?? "unknown",
+    input_tokens: usageInfo?.inputTokens ?? 0,
+    output_tokens: usageInfo?.outputTokens ?? 0,
+    estimated_cost: usageInfo?.estimatedCost ?? 0,
     credits_used: credits,
     status: "success",
   });
@@ -328,7 +334,7 @@ export async function enforce(
     }
   }
 
-  const limit = freeMode ? 100000 : Number(limits.credits ?? 10);
+  const limit = freeMode ? 100000 : Number(limits.credits ?? 100);
   const used = await creditsUsedThisMonth(user.id);
   if (used + rule.credits > limit) {
     throw new AccessError(
@@ -348,17 +354,17 @@ export async function enforce(
     user,
     plan,
     creditsRemaining: limit - used,
-    async log() {
+    async log(usageInfo?: { provider?: string; model?: string; inputTokens?: number; outputTokens?: number; estimatedCost?: number }) {
       const db = adminClient();
       await db.from("ai_credit_usage").insert({
         user_id: user.id,
         project_id: opts.projectId ?? null,
         feature_key: feature,
-        provider: "pending",
-        model: "pending",
-        input_tokens: 0,
-        output_tokens: 0,
-        estimated_cost: 0,
+        provider: usageInfo?.provider ?? "openrouter",
+        model: usageInfo?.model ?? "unknown",
+        input_tokens: usageInfo?.inputTokens ?? 0,
+        output_tokens: usageInfo?.outputTokens ?? 0,
+        estimated_cost: usageInfo?.estimatedCost ?? 0,
         credits_used: rule.credits,
         status: "success",
       });
