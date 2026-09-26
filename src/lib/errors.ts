@@ -1,6 +1,5 @@
 // Centralised error handling: friendly messages, logging and retry helpers.
 import { supabase } from "@/integrations/supabase/client";
-import { getPreferredModel } from "@/lib/aiModels";
 
 
 export type ErrorScope =
@@ -129,8 +128,8 @@ export async function invokeFunction<T = unknown>(
   const scope = opts.scope ?? "ai";
   let lastErr: unknown;
 
-  // Every AI call carries the student's selected engine unless one is explicit.
-  const payload = { model: getPreferredModel(), ...body };
+  // Every AI call uses the OpenRouter default unless a specific model is passed.
+  const payload = { model: "openrouter/meta-llama/llama-3.1-70b-instruct", ...body };
 
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {

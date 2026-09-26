@@ -47,9 +47,9 @@ Return STRICT JSON only:
   "suggestions": ["actionable rewrite advice"]
 }`;
       const raw = await callAI(system, `${context}\n\nTEXT:\n"""\n${text}\n"""`, { model, json: true, feature: FEATURE[action] });
-      const parsed = parseJson<unknown>(raw);
-      await deductCredits(ctx.user.id, FEATURE_RULES[FEATURE[action]].credits, FEATURE[action], projectId);
-      return json({ ...parsed, model });
+      const parsed = parseJson<unknown>(raw.content);
+      await deductCredits(ctx.user.id, FEATURE_RULES[FEATURE[action]].credits, FEATURE[action], projectId, { provider: raw.provider, model: raw.model, inputTokens: raw.input_tokens, outputTokens: raw.output_tokens });
+      return json({ ...parsed, model: raw.model });
     }
 
     if (action === "literature") {
@@ -69,9 +69,9 @@ Return STRICT JSON only:
 }
 Never invent DOIs or URLs.`;
        const raw = await callAI(system, `${context}\n\nLiterature needed: ${query}`, { model, json: true, feature: FEATURE[action] });
-       const parsed = parseJson<unknown>(raw);
-       await deductCredits(ctx.user.id, FEATURE_RULES[FEATURE[action]].credits, FEATURE[action], projectId);
-       return json({ ...parsed, model });
+       const parsed = parseJson<unknown>(raw.content);
+       await deductCredits(ctx.user.id, FEATURE_RULES[FEATURE[action]].credits, FEATURE[action], projectId, { provider: raw.provider, model: raw.model, inputTokens: raw.input_tokens, outputTokens: raw.output_tokens });
+       return json({ ...parsed, model: raw.model });
     }
 
     // data_analysis
@@ -94,9 +94,9 @@ Return STRICT JSON only:
       `${context}\n\nResearch question: ${question || "Not specified"}\n\nDATASET:\n"""\n${dataset}\n"""`,
       { model, json: true, feature: FEATURE[action] },
     );
-    const parsed = parseJson<unknown>(raw);
-    await deductCredits(ctx.user.id, FEATURE_RULES[FEATURE[action]].credits, FEATURE[action], projectId);
-    return json({ ...parsed, model });
+    const parsed = parseJson<unknown>(raw.content);
+    await deductCredits(ctx.user.id, FEATURE_RULES[FEATURE[action]].credits, FEATURE[action], projectId, { provider: raw.provider, model: raw.model, inputTokens: raw.input_tokens, outputTokens: raw.output_tokens });
+    return json({ ...parsed, model: raw.model });
   } catch (e) {
     return accessErrorResponse(e, corsHeaders);
   }

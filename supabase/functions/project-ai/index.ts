@@ -89,13 +89,13 @@ Student inputs:
 - Difficulty level: ${inputs.difficulty_level ?? ""}
 
 Generate 5 topic ideas now.`;
-      const raw = await callAI(system, user, true);
+       const raw = await callAI(system, user, true);
       let parsed: unknown = {};
-      try { parsed = JSON.parse(raw); } catch {
-        const m = raw.match(/\{[\s\S]*\}/);
+      try { parsed = JSON.parse(raw.content); } catch {
+        const m = raw.content.match(/\{[\s\S]*\}/);
         parsed = m ? JSON.parse(m[0]) : { topics: [] };
       }
-      await deductCredits(ctx.user.id, FEATURE_RULES.topic_generation.credits, feature, body.project?.id ?? null);
+      await deductCredits(ctx.user.id, FEATURE_RULES.topic_generation.credits, feature, body.project?.id ?? null, { provider: raw.provider, model: raw.model, inputTokens: raw.input_tokens, outputTokens: raw.output_tokens });
       return new Response(JSON.stringify(parsed), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -151,9 +151,9 @@ ${instruction ? `\nAdditional instruction from student: ${instruction}` : ""}
 ${currentContent ? `\nCurrent draft:\n"""\n${currentContent}\n"""` : ""}
 ${ctxBlock}`;
 
-    const content = await callAI(baseSystem, user);
-    await deductCredits(ctx.user.id, FEATURE_RULES.chapter_generation.credits, feature, body.project?.id ?? null);
-    return new Response(JSON.stringify({ content }), {
+    const response = await callAI(baseSystem, user);
+    await deductCredits(ctx.user.id, FEATURE_RULES.chapter_generation.credits, feature, body.project?.id ?? null, { provider: response.provider, model: response.model, inputTokens: response.input_tokens, outputTokens: response.output_tokens });
+    return new Response(JSON.stringify({ content: response.content }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: unknown) {

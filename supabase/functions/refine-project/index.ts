@@ -57,9 +57,9 @@ Analyze the uploaded project draft and return STRICT JSON only:
 }
 No markdown, no commentary.`;
       const user = `Project draft:\n"""\n${text}\n"""`;
-      const raw = await callAI(system, user, true);
-      const parsed = parseJson(raw);
-      await deductCredits(access.user.id, FEATURE_RULES.refinement.credits, "refinement", body.project_id ?? body.project?.id ?? null);
+       const raw = await callAI(system, user, true);
+      const parsed = parseJson(raw.content);
+      await deductCredits(access.user.id, FEATURE_RULES.refinement.credits, "refinement", body.project_id ?? body.project?.id ?? null, { provider: raw.provider, model: raw.model, inputTokens: raw.input_tokens, outputTokens: raw.output_tokens });
       return new Response(JSON.stringify(parsed), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -93,9 +93,9 @@ ORIGINAL:
 """
 ${original}
 """`;
-      const raw = await callAI(system, user, true);
-      const parsed = parseJson(raw);
-      await deductCredits(access.user.id, FEATURE_RULES.refinement.credits, "refinement", body.project_id ?? body.project?.id ?? null);
+       const raw = await callAI(system, user, true);
+      const parsed = parseJson(raw.content);
+      await deductCredits(access.user.id, FEATURE_RULES.refinement.credits, "refinement", body.project_id ?? body.project?.id ?? null, { provider: raw.provider, model: raw.model, inputTokens: raw.input_tokens, outputTokens: raw.output_tokens });
       return new Response(JSON.stringify(parsed), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -112,7 +112,7 @@ Return STRICT JSON only:
 }
 Merge fragments smartly. Do not invent content — only split what is present.`;
       const raw = await callAI(system, `Text:\n"""\n${text}\n"""`, true);
-      return new Response(JSON.stringify(parseJson(raw)), {
+      return new Response(JSON.stringify(parseJson(raw.content)), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Save, Settings, TrendingUp, DollarSign, AlertTriangle } from "lucide-react";
+import { Loader2, Save, Settings, TrendingUp, DollarSign, AlertTriangle, Cpu } from "lucide-react";
 
 type FeatureSetting = {
   feature_key: string;
@@ -20,14 +20,6 @@ type FeatureSetting = {
   max_output_tokens: number;
   daily_limit: number | null;
   monthly_limit: number | null;
-};
-
-type Provider = {
-  id: string;
-  vendor: string;
-  type: string;
-  active: boolean;
-  priority: number;
 };
 
 type Model = {
@@ -78,12 +70,13 @@ const FEATURE_LABELS: Record<string, string> = {
   data_analysis: "Data Analysis",
 };
 
+const OPENROUTER_DEFAULT_MODEL = "meta-llama/llama-3.1-70b-instruct";
+
 const AdminAI = () => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [features, setFeatures] = useState<FeatureSetting[]>([]);
-  const [providers, setProviders] = useState<Provider[]>([]);
   const [models, setModels] = useState<Model[]>([]);
   const [pricing, setPricing] = useState<Pricing[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
@@ -91,17 +84,14 @@ const AdminAI = () => {
   const [activeTab, setActiveTab] = useState("features");
 
   const [error, setError] = useState<string | null>(null);
-  const [providerApiKeys, setProviderApiKeys] = useState<Record<string, string>>({});
-  const [providerConfigs, setProviderConfigs] = useState<Record<string, Record<string, unknown>>>({});
-  const [savingProvider, setSavingProvider] = useState<string | null>(null);
+  const [savingModel, setSavingModel] = useState<string | null>(null);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [featuresRes, providersRes, modelsRes, pricingRes, budgetsRes, usageRes] = await Promise.all([
+      const [featuresRes, modelsRes, pricingRes, budgetsRes, usageRes] = await Promise.all([
         supabase.from("ai_feature_settings").select("*").order("feature_key"),
-        supabase.from("ai_providers").select("*").order("priority"),
         supabase.from("ai_models").select("*").order("sort_order"),
         supabase.from("ai_provider_pricing").select("*"),
         supabase.from("ai_provider_budgets").select("*"),
@@ -109,20 +99,10 @@ const AdminAI = () => {
       ]);
 
       setFeatures((featuresRes.data ?? []) as FeatureSetting[]);
-      setProviders((providersRes.data ?? []) as Provider[]);
       setModels((modelsRes.data ?? []) as Model[]);
       setPricing((pricingRes.data ?? []) as Pricing[]);
       setBudgets((budgetsRes.data ?? []) as Budget[]);
       setUsage((usageRes.data ?? []) as Usage[]);
-
-      const apiKeys: Record<string, string> = {};
-      const configs: Record<string, Record<string, unknown>> = {};
-      (providersRes.data ?? []).forEach((p: Record<string, unknown>) => {
-        apiKeys[String(p.id)] = String(p.api_key ?? "");
-        configs[String(p.id)] = (p.config as Record<string, unknown>) ?? {};
-      });
-      setProviderApiKeys(apiKeys);
-      setProviderConfigs(configs);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Failed to load AI settings";
       setError(msg);
@@ -141,7 +121,6 @@ const AdminAI = () => {
     const { error } = await supabase
       .from("ai_feature_settings")
       .update({
-        provider_id: feature.provider_id,
         model_id: feature.model_id,
         enabled: feature.enabled,
         credits: feature.credits,
@@ -158,11 +137,6 @@ const AdminAI = () => {
 
   const updateFeature = (featureKey: string, values: Partial<FeatureSetting>) => {
     setFeatures((list) => list.map((f) => (f.feature_key === featureKey ? { ...f, ...values } : f)));
-  };
-
-  const getModelsForProvider = (providerId: string | null) => {
-    if (!providerId) return [];
-    return models.filter((m) => m.provider_id === providerId);
   };
 
   const totalMonthlySpend = usage.reduce((s, u) => s + Number(u.estimated_cost || 0), 0);
@@ -207,10 +181,10 @@ const AdminAI = () => {
         </Card>
         <Card className="p-4">
           <div className="flex items-center gap-2 mb-2">
-            <Settings className="w-4 h-4 text-accent" />
-            <span className="text-xs text-muted-foreground">Active providers</span>
+            <Cpu className="w-4 h-4 text-accent" />
+            <span className="text-xs text-muted-foreground">AI Provider</span>
           </div>
-          <p className="text-2xl font-bold">{providers.filter((p) => p.active).length}</p>
+          <p className="text-2xl font-bold">OpenRouter</p>
         </Card>
         <Card className="p-4">
           <div className="flex items-center gap-2 mb-2">
@@ -225,9 +199,6 @@ const AdminAI = () => {
         <Button variant={activeTab === "features" ? "default" : "ghost"} size="sm" onClick={() => setActiveTab("features")}>
           Feature Settings
         </Button>
-        <Button variant={activeTab === "providers" ? "default" : "ghost"} size="sm" onClick={() => setActiveTab("providers")}>
-          Providers
-        </Button>
         <Button variant={activeTab === "models" ? "default" : "ghost"} size="sm" onClick={() => setActiveTab("models")}>
           Models
         </Button>
@@ -241,8 +212,21 @@ const AdminAI = () => {
 
       {activeTab === "features" && (
         <div className="space-y-4">
+          <Card className="p-4 border border-border">
+            <div className="flex items-start gap-3">
+              <Settings className="w-5 h-5 text-accent mt-0.5" />
+              <div>
+                <h3 className="font-semibold">OpenRouter is the sole AI provider</h3>
+                <p className="text-sm text-muted-foreground">
+                  The OpenRouter API key is configured as a server-side environment variable
+                  (<code>OPENROUTER_API_KEY</code>) and is never stored in or displayed from the database.
+                  Administrators configure which OpenRouter model each feature uses below.
+                </p>
+              </div>
+            </div>
+          </Card>
+
           {features.map((feature) => {
-            const providerModels = getModelsForProvider(feature.provider_id);
             return (
               <Card key={feature.feature_key} className="p-5">
                 <div className="flex items-start justify-between gap-4 mb-4">
@@ -261,36 +245,17 @@ const AdminAI = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div className="space-y-2">
-                    <Label>Provider</Label>
-                    <Select
-                      value={feature.provider_id ?? "none"}
-                      onValueChange={(v) => updateFeature(feature.feature_key, { provider_id: v === "none" ? null : v, model_id: null })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select provider" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">None</SelectItem>
-                        {providers.map((p) => (
-                          <SelectItem key={p.id} value={p.id}>{p.vendor} ({p.type})</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Model</Label>
+                    <Label>OpenRouter Model</Label>
                     <Select
                       value={feature.model_id ?? "none"}
                       onValueChange={(v) => updateFeature(feature.feature_key, { model_id: v === "none" ? null : v })}
-                      disabled={!feature.provider_id}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select model" />
+                        <SelectValue placeholder="Use default model" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="none">None</SelectItem>
-                        {providerModels.map((m) => (
+                        <SelectItem value="none">Use default ({OPENROUTER_DEFAULT_MODEL})</SelectItem>
+                        {models.map((m) => (
                           <SelectItem key={m.id} value={m.id}>{m.label} ({m.tier})</SelectItem>
                         ))}
                       </SelectContent>
@@ -357,166 +322,13 @@ const AdminAI = () => {
         </div>
       )}
 
-      {activeTab === "providers" && (
-        <div className="space-y-4">
-          {providers.length === 0 && (
-            <p className="text-sm text-muted-foreground">No providers configured yet.</p>
-          )}
-          {providers.map((provider) => (
-            <Card key={provider.id} className="p-5">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h3 className="font-semibold text-lg">{provider.vendor}</h3>
-                  <p className="text-xs text-muted-foreground">Type: {provider.type} · Priority: {provider.priority}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">{provider.active ? "Active" : "Inactive"}</span>
-                  <Switch
-                    checked={provider.active}
-                    onCheckedChange={async (v) => {
-                      const { error } = await supabase
-                        .from("ai_providers")
-                        .update({ active: v })
-                        .eq("id", provider.id);
-                      if (error) return toast({ title: "Update failed", description: error.message, variant: "destructive" });
-                      toast({ title: `${provider.vendor} ${v ? "activated" : "deactivated"}` });
-                      loadAll();
-                    }}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor={`api-key-${provider.id}`}>API Key</Label>
-                  <Input
-                    id={`api-key-${provider.id}`}
-                    type="password"
-                    placeholder={provider.type === "ollama" ? "Not required for local Ollama" : "sk-..."}
-                    value={providerApiKeys[provider.id] ?? ""}
-                    onChange={(e) => setProviderApiKeys((prev) => ({ ...prev, [provider.id]: e.target.value }))}
-                  />
-                </div>
-
-                {provider.type === "ollama" && (
-                  <div className="space-y-2">
-                    <Label htmlFor={`base-url-${provider.id}`}>Base URL</Label>
-                    <Input
-                      id={`base-url-${provider.id}`}
-                      placeholder="http://localhost:11434"
-                      value={String(providerConfigs[provider.id]?.base_url ?? "http://localhost:11434")}
-                      onChange={(e) => setProviderConfigs((prev) => ({
-                        ...prev,
-                        [provider.id]: { ...(prev[provider.id] ?? {}), base_url: e.target.value },
-                      }))}
-                    />
-                  </div>
-                )}
-              </div>
-
-              <div className="mt-4 flex items-center gap-3">
-                <Button
-                  size="sm"
-                  onClick={async () => {
-                    setSavingProvider(provider.id);
-                    const { error } = await supabase
-                      .from("ai_providers")
-                      .update({
-                        api_key: providerApiKeys[provider.id] ?? "",
-                        config: providerConfigs[provider.id] ?? {},
-                      })
-                      .eq("id", provider.id);
-                    setSavingProvider(null);
-                    if (error) return toast({ title: "Save failed", description: error.message, variant: "destructive" });
-                    toast({ title: `${provider.vendor} saved` });
-                  }}
-                  disabled={savingProvider === provider.id}
-                >
-                  {savingProvider === provider.id ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <><Save className="w-4 h-4 mr-1" />Save {provider.vendor}</>}
-                </Button>
-                <p className="text-xs text-muted-foreground">
-                  {provider.type === "ollama"
-                    ? "Ollama runs locally. Make sure your Ollama server is accessible and the model is pulled (e.g., ollama pull llama3.1)."
-                    : "API keys are stored server-side only and never exposed to the browser."}
-                </p>
-              </div>
-            </Card>
-          ))}
-
-          <Card className="p-5">
-            <h3 className="font-semibold mb-4">Add New Provider</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label>Vendor</Label>
-                <Input
-                  placeholder="e.g., my-custom-provider"
-                  id="new-vendor"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Type</Label>
-                <Select defaultValue="openai" id="new-type">
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ollama">Ollama</SelectItem>
-                    <SelectItem value="openrouter">OpenRouter</SelectItem>
-                    <SelectItem value="gemini">Gemini</SelectItem>
-                    <SelectItem value="openai">OpenAI</SelectItem>
-                    <SelectItem value="groq">Groq</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>API Key (optional)</Label>
-                <Input
-                  type="password"
-                  placeholder="sk-..."
-                  id="new-api-key"
-                />
-              </div>
-            </div>
-            <Button
-              size="sm"
-              className="mt-4"
-              onClick={async () => {
-                const vendor = (document.getElementById("new-vendor") as HTMLInputElement)?.value;
-                const type = (document.getElementById("new-type") as HTMLSelectElement)?.value;
-                const apiKey = (document.getElementById("new-api-key") as HTMLInputElement)?.value;
-
-                if (!vendor) return toast({ title: "Vendor is required", variant: "destructive" });
-
-                const { error } = await supabase
-                  .from("ai_providers")
-                  .insert({
-                    vendor,
-                    type,
-                    api_key: apiKey || "",
-                    active: false,
-                    priority: 99,
-                    config: type === "ollama" ? { base_url: "http://localhost:11434" } : {},
-                  });
-
-                if (error) return toast({ title: "Failed to add provider", description: error.message, variant: "destructive" });
-                toast({ title: "Provider added" });
-                loadAll();
-              }}
-            >
-              Add Provider
-            </Button>
-          </Card>
-        </div>
-      )}
-
       {activeTab === "models" && (
         <div className="space-y-4">
           {models.length === 0 && (
             <p className="text-sm text-muted-foreground">No models configured yet.</p>
           )}
           {models.map((model) => {
-            const provider = providers.find((p) => p.id === model.provider_id);
-            const price = pricing.find((p) => p.provider === provider?.vendor && p.model === model.model_id);
+            const price = pricing.find((p) => p.model === model.model_id);
             const isFree = (price?.input_price_per_1k ?? 0) === 0 && (price?.output_price_per_1k ?? 0) === 0;
             return (
               <Card key={model.id} className="p-5">
@@ -524,7 +336,7 @@ const AdminAI = () => {
                   <div>
                     <h3 className="font-semibold">{model.label}</h3>
                     <p className="text-xs text-muted-foreground">
-                      {provider?.vendor} · {model.tier} · {model.model_id}
+                      OpenRouter · {model.tier} · {model.model_id}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -541,6 +353,27 @@ const AdminAI = () => {
                     Pricing: ${price.input_price_per_1k}/1k input · ${price.output_price_per_1k}/1k output
                   </p>
                 )}
+                <div className="mt-3">
+                  <Button
+                    size="sm"
+                    variant={model.active ? "outline" : "default"}
+                    onClick={async () => {
+                      setSavingModel(model.id);
+                      const { error } = await supabase
+                        .from("ai_models")
+                        .update({ active: !model.active })
+                        .eq("id", model.id);
+                      setSavingModel(null);
+                      if (error) return toast({ title: "Update failed", description: error.message, variant: "destructive" });
+                      toast({ title: `Model ${model.active ? "deactivated" : "activated"}` });
+                      loadAll();
+                    }}
+                    disabled={savingModel === model.id}
+                  >
+                    {savingModel === model.id ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+                    {model.active ? "Deactivate" : "Activate"}
+                  </Button>
+                </div>
               </Card>
             );
           })}
