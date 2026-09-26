@@ -9,7 +9,7 @@ Tech stack & requirements:
 - Frontend: React (Vite preferred for fast builds), Tailwind CSS, shadcn/ui components. Clean, modern, mobile-responsive UI with blue/green color scheme (professional & trustworthy). Support dark mode.
 - Backend/Database/Auth: Use Supabase – email + Google login auth, PostgreSQL tables, row-level security (users only access their own data), Storage for file uploads.
 - Payments: Integrate both Stripe (global) and Paystack (Nigeria-focused, NGN currency). Use test mode first. Handle ₦ pricing.
-- AI: Integrate OpenAI/Anthropic/Groq API for generations (use env vars for API key – I'll add later). Gate heavy features behind subscriptions.
+- AI: Integrate OpenRouter API for generations (use env vars for API key – I'll add later). Gate heavy features behind subscriptions.
 - Deployment: Make code clean, exportable to Netlify/Vercel (frontend + external API calls).
 
 Core pages & features:
@@ -70,14 +70,14 @@ Database tables (set up in Supabase):
 
 Other:
 - Handle errors gracefully (e.g., "Upgrade to Premium+ for full modifications").
-- Use env vars for keys (SUPABASE_URL, SUPABASE_KEY, STRIPE_KEY, PAYSTACK_KEY, OPENAI_KEY).
+- Use env vars for keys (SUPABASE_URL, SUPABASE_KEY, STRIPE_KEY, PAYSTACK_KEY, OPENROUTER_API_KEY).
 - Make app feel reliable/high-quality: Loading spinners, success toasts, clean design.
 
 Generate the full initial structure: landing, auth, dashboard, pricing, database setup guide, and start on Premium+ modify feature. We can iterate from here.
 
 ## Deployment
 
-Deploy the frontend to Netlify/Vercel and configure Supabase, Stripe, Paystack, and AI provider keys in the hosting environment.
+Deploy the frontend to Netlify/Vercel and configure Supabase, Stripe, Paystack, and the OpenRouter API key in the Supabase Edge Function environment.
 
 ## Development
 
