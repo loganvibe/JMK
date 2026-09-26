@@ -24,10 +24,6 @@ export function resolveModel(requested?: unknown): ModelId {
   return id;
 }
 
-export function isOpenAI(model: ModelId) {
-  return model.startsWith("openai/");
-}
-
 /**
  * Resolves the model config for a feature.
  * Priority:
