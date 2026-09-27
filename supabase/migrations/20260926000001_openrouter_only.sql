@@ -36,12 +36,13 @@ DELETE FROM public.ai_provider_usage
 WHERE provider IN ('google', 'openai', 'ollama', 'groq', 'lovable');
 
 -- ============================================================
--- 4. Deactivate and remove non-OpenRouter providers
+-- 4. Clear api_key on openrouter, remove other providers
 --    Keep the openrouter provider row but clear its api_key
 --    (the key now comes from the OPENROUTER_API_KEY env var only)
+--    Use empty string '' because api_key column has NOT NULL constraint.
 -- ============================================================
 UPDATE public.ai_providers
-SET api_key = NULL
+SET api_key = ''
 WHERE vendor = 'openrouter';
 
 DELETE FROM public.ai_providers
@@ -51,10 +52,10 @@ WHERE vendor IN ('google', 'openai', 'ollama', 'groq', 'lovable');
 -- 5. Ensure OpenRouter provider exists and is the only provider
 -- ============================================================
 INSERT INTO public.ai_providers (vendor, type, api_key, active, priority, config)
-VALUES ('openrouter', 'openrouter', NULL, true, 1, '{}'::jsonb)
+VALUES ('openrouter', 'openrouter', '', true, 1, '{}'::jsonb)
 ON CONFLICT (vendor) DO UPDATE SET
   type = 'openrouter',
-  api_key = NULL,
+  api_key = '',
   active = true,
   priority = 1,
   config = '{}'::jsonb;
@@ -108,9 +109,7 @@ ON CONFLICT (provider) DO NOTHING;
 
 -- ============================================================
 -- 9. Update credit system defaults
---    Paying students (Student / Premium+) get 100 credits/day.
---    Free tier gets 10 credits/day.
---    This is achieved by updating the subscription plan ai_limits.
+--    Free: 10/day, Student: 100/day, Premium+: 200/day.
 -- ============================================================
 UPDATE public.subscription_plans
 SET ai_limits = jsonb_set(
@@ -124,7 +123,7 @@ UPDATE public.subscription_plans
 SET ai_limits = jsonb_set(
   ai_limits || '{"max_projects":50,"chapters":["chapter1","chapter2","chapter3","chapter4","chapter5"],"refinement":true,"defense":"full","priority":true}'::jsonb,
   '{credits}',
-  '100'::jsonb
+  '200'::jsonb
 )
 WHERE slug = 'premium_plus';
 
@@ -152,10 +151,10 @@ BEGIN
   LIMIT 1;
 
   IF plan_ai_limits IS NULL THEN
-    plan_ai_limits := '{"credits": 100}'::jsonb;
+    plan_ai_limits := '{"credits": 10}'::jsonb;
   END IF;
 
-  plan_limit := COALESCE((plan_ai_limits->>'credits')::integer, 100);
+  plan_limit := COALESCE((plan_ai_limits->>'credits')::integer, 10);
 
   -- Reset daily credits if reset time has passed
   IF NEW.daily_reset_at IS NULL OR NEW.daily_reset_at < now() THEN
