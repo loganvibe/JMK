@@ -119,7 +119,7 @@ export async function getCreditBalance(userId: string) {
   if (!data) {
     const plan = await getPlan(userId);
     const limits = plan.ai_limits ?? {};
-    const dailyLimit = Number(limits.credits ?? 100);
+    const dailyLimit = Number(limits.credits ?? 10);
     const monthlyLimit = dailyLimit * 30;
     const now = new Date();
     const dailyReset = new Date(now);
@@ -334,7 +334,7 @@ export async function enforce(
     }
   }
 
-  const limit = freeMode ? 100000 : Number(limits.credits ?? 100);
+  const limit = freeMode ? 100000 : Number(limits.credits ?? 10);
   const used = await creditsUsedThisMonth(user.id);
   if (used + rule.credits > limit) {
     throw new AccessError(
