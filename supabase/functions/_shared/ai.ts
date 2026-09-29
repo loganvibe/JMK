@@ -17,6 +17,94 @@ export type ModelId = string;
 
 const DEFAULT_OPENROUTER_MODEL = "meta-llama/llama-3.1-70b-instruct";
 
+/** Standardized AI response contract for all edge functions. */
+export interface StandardAIResponse<T = unknown> {
+  success: boolean;
+  content: string;
+  data: T | null;
+  provider: "openrouter";
+  model: string;
+  usage: {
+    input_tokens: number;
+    output_tokens: number;
+  };
+  credits_used: number;
+}
+
+/** Standardized AI error response contract. */
+export interface StandardAIErrorResponse {
+  success: false;
+  error: {
+    code: string;
+    message: string;
+  };
+}
+
+export type AIResult<T = unknown> = StandardAIResponse<T> | StandardAIErrorResponse;
+
+/**
+ * Creates a successful standardized AI response.
+ */
+export function createAIResponse<T = unknown>(
+  raw: AIResponse,
+  data: T | null,
+  creditsUsed: number,
+): StandardAIResponse<T> {
+  return {
+    success: true,
+    content: raw.content,
+    data,
+    provider: "openrouter",
+    model: raw.model,
+    usage: {
+      input_tokens: raw.input_tokens ?? 0,
+      output_tokens: raw.output_tokens ?? 0,
+    },
+    credits_used: creditsUsed,
+  };
+}
+
+/**
+ * Creates a standardized AI error response.
+ * Never throws - always returns a valid error response object.
+ */
+export function createAIErrorResponse(
+  error: unknown,
+  defaultCode = "AI_GENERATION_FAILED",
+  defaultMessage = "Unable to generate the requested content.",
+): StandardAIErrorResponse {
+  const code = error instanceof Error && "code" in error ? String((error as Record<string, unknown>).code) : defaultCode;
+  const message = error instanceof Error ? error.message : String(error);
+  return {
+    success: false,
+    error: {
+      code,
+      message: message || defaultMessage,
+    },
+  };
+}
+
+/**
+ * Safely parses JSON from model output, with fallback to empty object.
+ * Never throws - returns parsed object or empty object.
+ */
+export function safeParseJson<T = unknown>(raw: string): T | null {
+  try {
+    const cleaned = raw.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
+    return JSON.parse(cleaned) as T;
+  } catch {
+    try {
+      const match = raw.match(/\{[\s\S]*\}/);
+      if (match) {
+        return JSON.parse(match[0]) as T;
+      }
+    } catch {
+      // fall through
+    }
+    return null;
+  }
+}
+
 /** Validates a client-supplied model id, falling back to the OpenRouter default. */
 export function resolveModel(requested?: unknown): ModelId {
   const id = typeof requested === "string" ? requested.trim() : "";

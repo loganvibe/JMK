@@ -198,14 +198,9 @@ export async function deductCredits(
 
   // Notify when monthly credits are running low (threshold was previously in enforce().log)
   const monthlyRemaining = Number(updated.monthly_credits ?? 0);
-  const settings = await siteSettings();
-  const freeMode = settings.pricing_mode === "free";
-  let monthlyLimit = 100000;
-  if (!freeMode) {
-    const plan = await getPlan(userId);
-    const limits = plan.ai_limits ?? {};
-    monthlyLimit = Number(limits.credits ?? 10);
-  }
+  const plan = await getPlan(userId);
+  const limits = plan.ai_limits ?? {};
+  const monthlyLimit = Number(limits.credits ?? 10) * 30;
   if (monthlyRemaining <= Math.max(2, Math.round(monthlyLimit * 0.1))) {
     await db.from("notifications").insert({
       user_id: userId,
@@ -295,7 +290,7 @@ export async function enforce(
   const settings = await siteSettings();
   const freeMode = settings.pricing_mode === "free";
   const rule = FEATURE_RULES[feature];
-  const rank = freeMode ? 99 : (PLAN_RANK[plan.slug] ?? 0);
+  const rank = PLAN_RANK[plan.slug] ?? 0;
 
   if (rank < rule.minRank) {
     throw new AccessError(
@@ -320,7 +315,7 @@ export async function enforce(
     const m = /chapter\s*[-_]?\s*([1-9])/i.exec(String(text));
     return m ? `chapter${m[1]}` : null;
   };
-  if (!freeMode && Array.isArray(limits.chapters) && opts.chapter) {
+  if (Array.isArray(limits.chapters) && opts.chapter) {
     const key = chapterKey(opts.chapter);
     const allowed = limits.chapters
       .map((c: string) => chapterKey(c))
@@ -334,7 +329,7 @@ export async function enforce(
     }
   }
 
-  const limit = freeMode ? 100000 : Number(limits.credits ?? 10);
+  const limit = Number(limits.credits ?? 10);
   const used = await creditsUsedThisMonth(user.id);
   if (used + rule.credits > limit) {
     throw new AccessError(

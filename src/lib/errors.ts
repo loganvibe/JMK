@@ -11,6 +11,31 @@ export type ErrorScope =
   | "network"
   | "app";
 
+/** Standard AI response from edge functions */
+export interface StandardAIResponse<T = unknown> {
+  success: boolean;
+  content: string;
+  data: T | null;
+  provider: "openrouter";
+  model: string;
+  usage: {
+    input_tokens: number;
+    output_tokens: number;
+  };
+  credits_used: number;
+}
+
+/** Standard AI error response from edge functions */
+export interface StandardAIErrorResponse {
+  success: false;
+  error: {
+    code: string;
+    message: string;
+  };
+}
+
+type AIEdgeResponse<T = unknown> = StandardAIResponse<T> | StandardAIErrorResponse;
+
 /** Turns any thrown value into a short, student-friendly sentence. */
 export function friendlyError(err: unknown, scope: ErrorScope = "app"): string {
   const raw =
@@ -105,6 +130,10 @@ async function unwrapFunctionError(err: unknown): Promise<Error> {
       const cloned = typeof ctx.clone === "function" ? ctx.clone() : ctx;
       const body = await cloned.json();
       if (body?.error) return Object.assign(new Error(String(body.error)), { code: body.code });
+      // Handle new standardized error format
+      if (body?.success === false && body?.error?.message) {
+        return Object.assign(new Error(body.error.message), { code: body.error.code });
+      }
     } else if (ctx && typeof ctx.text === "function") {
       const text = await ctx.text();
       if (text) return new Error(text);
@@ -136,6 +165,19 @@ export async function invokeFunction<T = unknown>(
       const { data, error } = await supabase.functions.invoke(name, { body: payload });
       if (error) throw await unwrapFunctionError(error);
 
+      // Handle new standardized AI response format
+      if (data && typeof data === "object" && "success" in data) {
+        const response = data as AIEdgeResponse<T>;
+        if (!response.success) {
+          const err = new Error(response.error.message);
+          (err as Error & { code?: string }).code = response.error.code;
+          throw err;
+        }
+        // Return the data field (structured data) if available, otherwise content
+        return (response.data ?? response.content) as T;
+      }
+
+      // Legacy format: { error: "..." } or direct data
       if (data && (data as Record<string, unknown>).error) throw new Error(String((data as Record<string, unknown>).error));
       return data as T;
     } catch (err: unknown) {

@@ -1,6 +1,6 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
-import { guard, accessErrorResponse, deductCredits, FEATURE_RULES } from "../_shared/entitlements.ts";
-import { callAI } from "../_shared/ai.ts";
+import { guard, accessErrorResponse, deductCredits, FEATURE_RULES, AccessError } from "../_shared/entitlements.ts";
+import { callAI, createAIResponse, createAIErrorResponse } from "../_shared/ai.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -20,10 +20,7 @@ Deno.serve(async (req) => {
 
 
     if (!projectText.trim() || !changes.trim()) {
-      return new Response(
-        JSON.stringify({ error: "projectText and changes are required" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+      throw new AccessError("projectText and changes are required", 400, "bad_request");
     }
 
     const systemPrompt = `You are an expert academic writing assistant for Nigerian university final-year projects.
@@ -51,15 +48,21 @@ Produce the full refreshed project now.`;
 
       const response = await callAI(systemPrompt, userPrompt, { model: body?.model, feature: "refinement" });
 
-      await deductCredits(access.user.id, FEATURE_RULES.refinement.credits, "refinement", body?.projectId ?? null, { provider: response.provider, model: response.model, inputTokens: response.input_tokens, outputTokens: response.output_tokens });
+      const creditsUsed = FEATURE_RULES.refinement.credits;
+      await deductCredits(access.user.id, creditsUsed, "refinement", body?.projectId ?? null, { provider: response.provider, model: response.model, inputTokens: response.input_tokens, outputTokens: response.output_tokens });
 
-      return new Response(JSON.stringify({ content: response.content }), {
+      return new Response(JSON.stringify(createAIResponse(response, { project_id: body?.projectId ?? null, section: "full_project", changes: [] }, creditsUsed)), {
        status: 200,
        headers: { ...corsHeaders, "Content-Type": "application/json" },
      });
   } catch (e) {
     console.error("modify-project error", e);
-    return accessErrorResponse(e, corsHeaders);
+    const errorResponse = createAIErrorResponse(e);
+    const status = e instanceof AccessError ? e.status : 500;
+    return new Response(JSON.stringify(errorResponse), {
+      status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 });
 

@@ -1,6 +1,6 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { guard, accessErrorResponse, AccessError, deductCredits, FEATURE_RULES } from "../_shared/entitlements.ts";
-import { callAI, parseJson, resolveModel } from "../_shared/ai.ts";
+import { callAI, createAIResponse, createAIErrorResponse, safeParseJson, resolveModel } from "../_shared/ai.ts";
 
 type Action = "originality" | "literature" | "data_analysis";
 
@@ -47,9 +47,12 @@ Return STRICT JSON only:
   "suggestions": ["actionable rewrite advice"]
 }`;
       const raw = await callAI(system, `${context}\n\nTEXT:\n"""\n${text}\n"""`, { model, json: true, feature: FEATURE[action] });
-      const parsed = parseJson<unknown>(raw.content);
-      await deductCredits(ctx.user.id, FEATURE_RULES[FEATURE[action]].credits, FEATURE[action], projectId, { provider: raw.provider, model: raw.model, inputTokens: raw.input_tokens, outputTokens: raw.output_tokens });
-      return json({ ...parsed, model: raw.model });
+      const parsed = safeParseJson<unknown>(raw.content);
+      const creditsUsed = FEATURE_RULES[FEATURE[action]].credits;
+      await deductCredits(ctx.user.id, creditsUsed, FEATURE[action], projectId, { provider: raw.provider, model: raw.model, inputTokens: raw.input_tokens, outputTokens: raw.output_tokens });
+      return new Response(JSON.stringify(createAIResponse(raw, parsed ?? {}, creditsUsed)), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     if (action === "literature") {
@@ -69,9 +72,12 @@ Return STRICT JSON only:
 }
 Never invent DOIs or URLs.`;
        const raw = await callAI(system, `${context}\n\nLiterature needed: ${query}`, { model, json: true, feature: FEATURE[action] });
-       const parsed = parseJson<unknown>(raw.content);
-       await deductCredits(ctx.user.id, FEATURE_RULES[FEATURE[action]].credits, FEATURE[action], projectId, { provider: raw.provider, model: raw.model, inputTokens: raw.input_tokens, outputTokens: raw.output_tokens });
-       return json({ ...parsed, model: raw.model });
+       const parsed = safeParseJson<unknown>(raw.content);
+       const creditsUsed = FEATURE_RULES[FEATURE[action]].credits;
+       await deductCredits(ctx.user.id, creditsUsed, FEATURE[action], projectId, { provider: raw.provider, model: raw.model, inputTokens: raw.input_tokens, outputTokens: raw.output_tokens });
+       return new Response(JSON.stringify(createAIResponse(raw, parsed ?? {}, creditsUsed)), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // data_analysis
@@ -94,16 +100,18 @@ Return STRICT JSON only:
       `${context}\n\nResearch question: ${question || "Not specified"}\n\nDATASET:\n"""\n${dataset}\n"""`,
       { model, json: true, feature: FEATURE[action] },
     );
-    const parsed = parseJson<unknown>(raw.content);
-    await deductCredits(ctx.user.id, FEATURE_RULES[FEATURE[action]].credits, FEATURE[action], projectId, { provider: raw.provider, model: raw.model, inputTokens: raw.input_tokens, outputTokens: raw.output_tokens });
-    return json({ ...parsed, model: raw.model });
+    const parsed = safeParseJson<unknown>(raw.content);
+    const creditsUsed = FEATURE_RULES[FEATURE[action]].credits;
+    await deductCredits(ctx.user.id, creditsUsed, FEATURE[action], projectId, { provider: raw.provider, model: raw.model, inputTokens: raw.input_tokens, outputTokens: raw.output_tokens });
+    return new Response(JSON.stringify(createAIResponse(raw, parsed ?? {}, creditsUsed)), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   } catch (e) {
-    return accessErrorResponse(e, corsHeaders);
+    const errorResponse = createAIErrorResponse(e);
+    const status = e instanceof AccessError ? e.status : 500;
+    return new Response(JSON.stringify(errorResponse), {
+      status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 });
-
-function json(payload: unknown) {
-  return new Response(JSON.stringify(payload), {
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}

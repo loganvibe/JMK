@@ -121,16 +121,15 @@ export function useEntitlements() {
   useEffect(() => { load(); }, [load]);
 
   const slug = plan?.slug ?? "free";
-  // When the admin puts the platform in "free for everyone" mode, every student
-  // gets the highest tier regardless of their subscription.
-  const rank = freeMode ? 2 : (PLAN_RANK[slug] ?? 0);
-  const creditsLimit = freeMode ? 9999 : Number(plan?.ai_limits?.credits ?? 10);
+  // Free Mode means payment is waived, NOT unlimited credits.
+  // The selected plan's ai_limits.credits determines the daily credit limit.
+  const rank = PLAN_RANK[slug] ?? 0;
+  const creditsLimit = Number(plan?.ai_limits?.credits ?? 10);
   const creditsRemaining = Math.max(0, creditsLimit - creditsUsed);
 
   const can = (feature: FeatureKey) => rank >= FEATURE_MIN_RANK[feature];
   const isFeatureEnabled = (feature: FeatureKey) => featureSettings[feature] !== false;
   const canUseChapter = (chapter: string) => {
-    if (freeMode) return true;
     const allowed = plan?.ai_limits?.chapters;
     if (!Array.isArray(allowed)) return true;
     // Plans store "chapter1"; the UI passes labels like "Chapter 1: Introduction".
@@ -148,7 +147,7 @@ export function useEntitlements() {
   return {
     loading, plan, slug, rank, subscription, userId, freeMode,
     creditsUsed, creditsLimit, creditsRemaining,
-    maxProjects: freeMode ? 999 : Number(plan?.ai_limits?.max_projects ?? 1),
+    maxProjects: Number(plan?.ai_limits?.max_projects ?? 1),
     can, canUseChapter, isFeatureEnabled, refresh: load,
   };
 }

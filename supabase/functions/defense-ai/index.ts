@@ -1,18 +1,11 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { guard, deductCredits, FEATURE_RULES } from "../_shared/entitlements.ts";
-import { callAI as sharedCallAI } from "../_shared/ai.ts";
+import { callAI as sharedCallAI, createAIResponse, createAIErrorResponse, safeParseJson } from "../_shared/ai.ts";
 
 
 const makeCallAI = (feature: string, model: unknown) =>
   (system: string, user: string, jsonMode = false) =>
     sharedCallAI(system, user, { model, json: jsonMode, feature });
-
-function parseJson(raw: string) {
-  try { return JSON.parse(raw); } catch {
-    const m = raw.match(/\{[\s\S]*\}/);
-    return m ? JSON.parse(m[0]) : {};
-  }
-}
 
 function projectContext({ project, profile, sections }: { project?: Record<string, unknown>; profile?: Record<string, unknown>; sections?: { chapter: string; section_type: string; content?: string }[] }) {
   const sec = (sections ?? [])
@@ -67,8 +60,10 @@ ${type === "10min" ? "Make content richer with detailed presentation flow and im
 
 ${ctx}`;
       const raw = await callAI(sys, prompt, true);
-      await deductCredits(access.user.id, FEATURE_RULES.defense_basic.credits, feature, project?.id ?? null, { provider: raw.provider, model: raw.model, inputTokens: raw.input_tokens, outputTokens: raw.output_tokens });
-      return Response.json({ content: parseJson(raw.content) }, { headers: corsHeaders });
+      const creditsUsed = FEATURE_RULES.defense_basic.credits;
+      const parsed = safeParseJson<{ sections: unknown[]; key_points: string[] }>(raw.content);
+      await deductCredits(access.user.id, creditsUsed, feature, project?.id ?? null, { provider: raw.provider, model: raw.model, inputTokens: raw.input_tokens, outputTokens: raw.output_tokens });
+      return Response.json(createAIResponse(raw, parsed ?? { sections: [], key_points: [] }, creditsUsed), { headers: corsHeaders });
     }
 
     if (action === "slides") {
@@ -87,8 +82,10 @@ Follow this structure exactly, in order:
 
 ${ctx}`;
       const raw = await callAI(sys, prompt, true);
-      await deductCredits(access.user.id, FEATURE_RULES.defense_basic.credits, feature, project?.id ?? null, { provider: raw.provider, model: raw.model, inputTokens: raw.input_tokens, outputTokens: raw.output_tokens });
-      return Response.json({ content: parseJson(raw.content) }, { headers: corsHeaders });
+      const creditsUsed = FEATURE_RULES.defense_basic.credits;
+      const parsed = safeParseJson<{ slides: unknown[] }>(raw.content);
+      await deductCredits(access.user.id, creditsUsed, feature, project?.id ?? null, { provider: raw.provider, model: raw.model, inputTokens: raw.input_tokens, outputTokens: raw.output_tokens });
+      return Response.json(createAIResponse(raw, parsed ?? { slides: [] }, creditsUsed), { headers: corsHeaders });
     }
 
     if (action === "generate_questions") {
@@ -104,8 +101,10 @@ Return JSON:
 
 ${ctx}`;
       const raw = await callAI(sys, prompt, true);
-      await deductCredits(access.user.id, FEATURE_RULES.defense_basic.credits, feature, project?.id ?? null, { provider: raw.provider, model: raw.model, inputTokens: raw.input_tokens, outputTokens: raw.output_tokens });
-      return Response.json({ content: parseJson(raw.content) }, { headers: corsHeaders });
+      const creditsUsed = FEATURE_RULES.defense_basic.credits;
+      const parsed = safeParseJson<{ questions: unknown[] }>(raw.content);
+      await deductCredits(access.user.id, creditsUsed, feature, project?.id ?? null, { provider: raw.provider, model: raw.model, inputTokens: raw.input_tokens, outputTokens: raw.output_tokens });
+      return Response.json(createAIResponse(raw, parsed ?? { questions: [] }, creditsUsed), { headers: corsHeaders });
     }
 
     if (action === "evaluate_answers") {
@@ -128,8 +127,10 @@ Return JSON:
 
 ${ctx}`;
       const raw = await callAI(sys, prompt, true);
-      await deductCredits(access.user.id, FEATURE_RULES.defense_basic.credits, feature, project?.id ?? null, { provider: raw.provider, model: raw.model, inputTokens: raw.input_tokens, outputTokens: raw.output_tokens });
-      return Response.json({ content: parseJson(raw.content) }, { headers: corsHeaders });
+      const creditsUsed = FEATURE_RULES.defense_basic.credits;
+      const parsed = safeParseJson<Record<string, unknown>>(raw.content);
+      await deductCredits(access.user.id, creditsUsed, feature, project?.id ?? null, { provider: raw.provider, model: raw.model, inputTokens: raw.input_tokens, outputTokens: raw.output_tokens });
+      return Response.json(createAIResponse(raw, parsed ?? {}, creditsUsed), { headers: corsHeaders });
     }
 
     if (action === "coach") {
@@ -140,9 +141,10 @@ ${ctx}`;
 Answer using their actual project data below. Give concrete talking points and phrasing they can use.
 
 ${ctx}`;
-        const raw = await callAI(sys, prompt, false);
-        await deductCredits(access.user.id, FEATURE_RULES.defense_basic.credits, feature, project?.id ?? null, { provider: raw.provider, model: raw.model, inputTokens: raw.input_tokens, outputTokens: raw.output_tokens });
-        return Response.json({ content: raw.content }, { headers: corsHeaders });
+       const raw = await callAI(sys, prompt, false);
+       const creditsUsed = FEATURE_RULES.defense_basic.credits;
+       await deductCredits(access.user.id, creditsUsed, feature, project?.id ?? null, { provider: raw.provider, model: raw.model, inputTokens: raw.input_tokens, outputTokens: raw.output_tokens });
+       return Response.json(createAIResponse(raw, null, creditsUsed), { headers: corsHeaders });
     }
 
     if (action === "readiness") {
@@ -152,18 +154,23 @@ Return JSON:
 { "score": 0, "strong_areas": ["…"], "improve_areas": ["…"], "advice": "…" }
 
 ${ctx}`;
-        const raw = await callAI(sys, prompt, true);
-        await deductCredits(access.user.id, FEATURE_RULES.defense_basic.credits, feature, project?.id ?? null, { provider: raw.provider, model: raw.model, inputTokens: raw.input_tokens, outputTokens: raw.output_tokens });
-        return Response.json({ content: parseJson(raw.content) }, { headers: corsHeaders });
-     }
+       const raw = await callAI(sys, prompt, true);
+       const creditsUsed = FEATURE_RULES.defense_basic.credits;
+       const parsed = safeParseJson<Record<string, unknown>>(raw.content);
+       await deductCredits(access.user.id, creditsUsed, feature, project?.id ?? null, { provider: raw.provider, model: raw.model, inputTokens: raw.input_tokens, outputTokens: raw.output_tokens });
+       return Response.json(createAIResponse(raw, parsed ?? {}, creditsUsed), { headers: corsHeaders });
+    }
 
-     return new Response(JSON.stringify({ error: "unknown action" }), {
-      status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    const errorResponse = createAIErrorResponse(new Error("unknown action"), "bad_request", "unknown action");
+    return new Response(JSON.stringify(errorResponse), {
+     status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+   });
   } catch (e: unknown) {
     console.error(e);
-    return new Response(JSON.stringify({ error: (e instanceof Error ? e.message : String(e)) ?? "error" }), {
-      status: e.status ?? 500,
+    const errorResponse = createAIErrorResponse(e);
+    const status = (e as { status?: number } | undefined)?.status ?? 500;
+    return new Response(JSON.stringify(errorResponse), {
+      status,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }

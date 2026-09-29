@@ -1,18 +1,11 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { guard, deductCredits, FEATURE_RULES } from "../_shared/entitlements.ts";
-import { callAI as sharedCallAI } from "../_shared/ai.ts";
+import { callAI as sharedCallAI, createAIResponse, createAIErrorResponse, safeParseJson } from "../_shared/ai.ts";
 
 
 const makeCallAI = (feature: string, model: unknown) =>
   (system: string, user: string, jsonMode = false) =>
     sharedCallAI(system, user, { model, json: jsonMode, feature });
-
-function parseJson(raw: string) {
-  try { return JSON.parse(raw); } catch {
-    const m = raw.match(/\{[\s\S]*\}/);
-    return m ? JSON.parse(m[0]) : {};
-  }
-}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -58,9 +51,10 @@ Analyze the uploaded project draft and return STRICT JSON only:
 No markdown, no commentary.`;
       const user = `Project draft:\n"""\n${text}\n"""`;
        const raw = await callAI(system, user, true);
-      const parsed = parseJson(raw.content);
-      await deductCredits(access.user.id, FEATURE_RULES.refinement.credits, "refinement", body.project_id ?? body.project?.id ?? null, { provider: raw.provider, model: raw.model, inputTokens: raw.input_tokens, outputTokens: raw.output_tokens });
-      return new Response(JSON.stringify(parsed), {
+      const creditsUsed = FEATURE_RULES.refinement.credits;
+      const parsed = safeParseJson<Record<string, unknown>>(raw.content);
+      await deductCredits(access.user.id, creditsUsed, "refinement", body.project_id ?? body.project?.id ?? null, { provider: raw.provider, model: raw.model, inputTokens: raw.input_tokens, outputTokens: raw.output_tokens });
+      return new Response(JSON.stringify(createAIResponse(raw, parsed ?? {}, creditsUsed)), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -94,9 +88,10 @@ ORIGINAL:
 ${original}
 """`;
        const raw = await callAI(system, user, true);
-      const parsed = parseJson(raw.content);
-      await deductCredits(access.user.id, FEATURE_RULES.refinement.credits, "refinement", body.project_id ?? body.project?.id ?? null, { provider: raw.provider, model: raw.model, inputTokens: raw.input_tokens, outputTokens: raw.output_tokens });
-      return new Response(JSON.stringify(parsed), {
+      const creditsUsed = FEATURE_RULES.refinement.credits;
+      const parsed = safeParseJson<{ new_content: string; change_summary: string; changes?: string[] }>(raw.content);
+      await deductCredits(access.user.id, creditsUsed, "refinement", body.project_id ?? body.project?.id ?? null, { provider: raw.provider, model: raw.model, inputTokens: raw.input_tokens, outputTokens: raw.output_tokens });
+      return new Response(JSON.stringify(createAIResponse(raw, parsed ?? {}, creditsUsed)), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -112,19 +107,25 @@ Return STRICT JSON only:
 }
 Merge fragments smartly. Do not invent content — only split what is present.`;
       const raw = await callAI(system, `Text:\n"""\n${text}\n"""`, true);
-      return new Response(JSON.stringify(parseJson(raw.content)), {
+      const creditsUsed = FEATURE_RULES.refinement.credits;
+      const parsed = safeParseJson<{ sections: { chapter: string; section: string; content: string }[] }>(raw.content);
+      await deductCredits(access.user.id, creditsUsed, "refinement", body.project_id ?? body.project?.id ?? null, { provider: raw.provider, model: raw.model, inputTokens: raw.input_tokens, outputTokens: raw.output_tokens });
+      return new Response(JSON.stringify(createAIResponse(raw, parsed ?? { sections: [] }, creditsUsed)), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    return new Response(JSON.stringify({ error: "Unknown action" }), {
+    const errorResponse = createAIErrorResponse(new Error("Unknown action"), "bad_request", "Unknown action");
+    return new Response(JSON.stringify(errorResponse), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: unknown) {
     console.error("refine-project error", e);
-    return new Response(JSON.stringify({ error: (e instanceof Error ? e.message : String(e)) ?? "Server error" }), {
-      status: e?.status ?? 500,
+    const errorResponse = createAIErrorResponse(e);
+    const status = (e as { status?: number } | undefined)?.status ?? 500;
+    return new Response(JSON.stringify(errorResponse), {
+      status,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }

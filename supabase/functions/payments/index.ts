@@ -148,6 +148,84 @@ Deno.serve(async (req) => {
     const user = await requireUser(req);
     const db = adminClient();
 
+    if (action === "activate_plan") {
+      const planSlug = String(body?.planSlug ?? "");
+      if (!planSlug) return json({ success: false, error: { code: "PLAN_SLUG_REQUIRED", message: "planSlug is required" } }, 400);
+
+      const { data: settings } = await db
+        .from("app_settings")
+        .select("pricing_mode")
+        .eq("id", "global")
+        .maybeSingle();
+
+      if (settings?.pricing_mode !== "free") {
+        return json({ success: false, error: { code: "FREE_MODE_DISABLED", message: "Plan activation is only available when free mode is enabled." } }, 400);
+      }
+
+      const { data: plan } = await db
+        .from("subscription_plans")
+        .select("*")
+        .eq("slug", planSlug)
+        .eq("active", true)
+        .maybeSingle();
+
+      if (!plan) return json({ success: false, error: { code: "PLAN_NOT_FOUND", message: "Unknown or inactive plan" } }, 400);
+
+      const allowedSlugs = ["free", "student", "premium_plus"];
+      if (!allowedSlugs.includes(planSlug)) {
+        return json({ success: false, error: { code: "PLAN_NOT_SELECTABLE", message: "This plan cannot be selected directly" } }, 400);
+      }
+
+      await db.from("user_subscriptions").update({ status: "expired" })
+        .eq("user_id", user.id).eq("status", "active");
+
+      const expiry = new Date();
+      expiry.setMonth(expiry.getMonth() + 1);
+
+      await db.from("user_subscriptions").insert({
+        user_id: user.id,
+        plan_id: plan.id,
+        status: "active",
+        start_date: new Date().toISOString(),
+        expiry_date: expiry.toISOString(),
+        payment_reference: `free_mode_${planSlug}_${Date.now()}`,
+      });
+
+      const tierMap: Record<string, string> = {
+        free: "free",
+        student: "beta",
+        premium_plus: "premium",
+      };
+
+      await db.from("subscriptions").upsert(
+        {
+          user_id: user.id,
+          tier: tierMap[planSlug] ?? "free",
+          status: "active",
+          provider: "free_mode",
+          expires_at: expiry.toISOString(),
+        },
+        { onConflict: "user_id" }
+      );
+
+      await db.from("notifications").insert({
+        user_id: user.id,
+        title: "Plan activated",
+        body: `Your ${plan.name} plan is now active until ${expiry.toDateString()}.`,
+        type: "success",
+        link: "/billing",
+      });
+
+      return json({
+        success: true,
+        data: {
+          plan: { slug: plan.slug, name: plan.name },
+          status: "active",
+          expiry_date: expiry.toISOString(),
+        },
+      });
+    }
+
     if (action === "initialize") {
       const planSlug = String(body?.planSlug ?? "");
       const callbackUrl = String(body?.callbackUrl ?? "");

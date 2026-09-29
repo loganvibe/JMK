@@ -84,11 +84,27 @@ const Pricing = () => {
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { navigate("/signup"); return; }
-    if (freeMode || !settings.payments_enabled) { navigate("/dashboard"); return; }
-    if (plan.price <= 0) { navigate("/dashboard"); return; }
     if (plan.slug === ent.slug) { navigate("/billing"); return; }
 
     setBusy(plan.slug);
+
+    if (freeMode || !settings.payments_enabled) {
+      const { data, error } = await supabase.functions.invoke("payments", {
+        body: { action: "activate_plan", planSlug: plan.slug },
+      });
+      setBusy(null);
+      if (error || data?.error || !data?.success) {
+        const msg = data?.error?.message ?? error?.message ?? "Failed to activate plan";
+        toast({ title: "Could not activate plan", description: msg, variant: "destructive" });
+        return;
+      }
+      await ent.refresh();
+      navigate("/dashboard");
+      return;
+    }
+
+    if (plan.price <= 0) { navigate("/dashboard"); return; }
+
     const { data, error } = await supabase.functions.invoke("payments", {
       body: { action: "initialize", planSlug: plan.slug, callbackUrl: `${window.location.origin}/billing` },
     });

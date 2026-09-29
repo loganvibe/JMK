@@ -1,6 +1,6 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { guard, deductCredits, FEATURE_RULES } from "../_shared/entitlements.ts";
-import { callAI as sharedCallAI } from "../_shared/ai.ts";
+import { callAI as sharedCallAI, createAIResponse, createAIErrorResponse, safeParseJson } from "../_shared/ai.ts";
 
 
 type Body = {
@@ -67,13 +67,10 @@ Return STRICT JSON of the shape:
   "topics": [
     {
       "title": "...",
-      "introduction": "...",
-      "problem_statement": "...",
-      "objectives": ["...", "..."],
-      "research_questions": ["...", "..."],
-      "scope": "...",
-      "expected_outcome": "...",
-      "methodology": "..."
+      "description": "...",
+      "research_area": "...",
+      "suggested_methodology": "...",
+      "difficulty": "..."
     }
   ]
 }
@@ -90,13 +87,13 @@ Student inputs:
 
 Generate 5 topic ideas now.`;
        const raw = await callAI(system, user, true);
-      let parsed: unknown = {};
-      try { parsed = JSON.parse(raw.content); } catch {
-        const m = raw.content.match(/\{[\s\S]*\}/);
-        parsed = m ? JSON.parse(m[0]) : { topics: [] };
-      }
-      await deductCredits(ctx.user.id, FEATURE_RULES.topic_generation.credits, feature, body.project?.id ?? null, { provider: raw.provider, model: raw.model, inputTokens: raw.input_tokens, outputTokens: raw.output_tokens });
-      return new Response(JSON.stringify(parsed), {
+      const creditsUsed = FEATURE_RULES.topic_generation.credits;
+      
+      const parsed = safeParseJson<{ topics: unknown[] }>(raw.content);
+      const topics = parsed?.topics ?? [];
+      
+      await deductCredits(ctx.user.id, creditsUsed, feature, body.project?.id ?? null, { provider: raw.provider, model: raw.model, inputTokens: raw.input_tokens, outputTokens: raw.output_tokens });
+      return new Response(JSON.stringify(createAIResponse(raw, { topics }, creditsUsed)), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -152,15 +149,17 @@ ${currentContent ? `\nCurrent draft:\n"""\n${currentContent}\n"""` : ""}
 ${ctxBlock}`;
 
     const response = await callAI(baseSystem, user);
-    await deductCredits(ctx.user.id, FEATURE_RULES.chapter_generation.credits, feature, body.project?.id ?? null, { provider: response.provider, model: response.model, inputTokens: response.input_tokens, outputTokens: response.output_tokens });
-    return new Response(JSON.stringify({ content: response.content }), {
+    const creditsUsed = FEATURE_RULES.chapter_generation.credits;
+    await deductCredits(ctx.user.id, creditsUsed, feature, body.project?.id ?? null, { provider: response.provider, model: response.model, inputTokens: response.input_tokens, outputTokens: response.output_tokens });
+    return new Response(JSON.stringify(createAIResponse(response, { chapter_number: 1, title: section, sections: [] }, creditsUsed)), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: unknown) {
     console.error("project-ai error", e);
+    const errorResponse = createAIErrorResponse(e);
     const status = (e as { status?: number } | undefined)?.status ?? 500;
     return new Response(
-      JSON.stringify({ error: (e instanceof Error ? e.message : String(e)) ?? "Unexpected server error" }),
+      JSON.stringify(errorResponse),
       { status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
