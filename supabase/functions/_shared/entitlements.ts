@@ -116,17 +116,17 @@ export async function getCreditBalance(userId: string) {
     .eq("user_id", userId)
     .maybeSingle();
 
-  if (!data) {
-    const plan = await getPlan(userId);
-    const limits = plan.ai_limits ?? {};
-    const dailyLimit = Number(limits.credits ?? 10);
-    const monthlyLimit = dailyLimit * 30;
-    const now = new Date();
-    const dailyReset = new Date(now);
-    dailyReset.setDate(dailyReset.getDate() + 1);
-    dailyReset.setHours(0, 0, 0, 0);
-    const monthlyReset = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const plan = await getPlan(userId);
+  const limits = plan.ai_limits ?? {};
+  const dailyLimit = Number(limits.credits ?? 10);
+  const monthlyLimit = dailyLimit * 30;
+  const now = new Date();
+  const dailyReset = new Date(now);
+  dailyReset.setDate(dailyReset.getDate() + 1);
+  dailyReset.setHours(0, 0, 0, 0);
+  const monthlyReset = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
+  if (!data) {
     const { data: balance } = await db
       .from("ai_credit_balances")
       .insert({
@@ -136,6 +136,30 @@ export async function getCreditBalance(userId: string) {
         monthly_credits: monthlyLimit,
         monthly_reset_at: monthlyReset.toISOString(),
       })
+      .select("*")
+      .single();
+    return balance;
+  }
+
+  // Check if plan limits have changed (plan upgrade/downgrade)
+  // If the stored daily_credits exceeds the new daily limit, or if the
+  // daily_reset_at has passed, reset to new plan limits.
+  const needsReset = data.daily_credits > dailyLimit
+    || data.daily_reset_at < now.toISOString()
+    || data.monthly_credits > monthlyLimit
+    || data.monthly_reset_at < now.toISOString();
+
+  if (needsReset) {
+    const { data: balance } = await db
+      .from("ai_credit_balances")
+      .update({
+        daily_credits: dailyLimit,
+        daily_reset_at: dailyReset.toISOString(),
+        monthly_credits: monthlyLimit,
+        monthly_reset_at: monthlyReset.toISOString(),
+        updated_at: now.toISOString(),
+      })
+      .eq("user_id", userId)
       .select("*")
       .single();
     return balance;

@@ -252,6 +252,29 @@ Deno.serve(async (req) => {
       });
       console.log(`[payments] activate_plan: notification inserted`);
 
+      // Reset ai_credit_balances to match new plan limits
+      const planLimits = plan.ai_limits ?? {};
+      const dailyLimit = Number(planLimits.credits ?? 10);
+      const monthlyLimit = dailyLimit * 30;
+      const now = new Date();
+      const dailyReset = new Date(now);
+      dailyReset.setDate(dailyReset.getDate() + 1);
+      dailyReset.setHours(0, 0, 0, 0);
+      const monthlyReset = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+      const { error: balanceError } = await db.from("ai_credit_balances").upsert({
+        user_id: user.id,
+        daily_credits: dailyLimit,
+        daily_reset_at: dailyReset.toISOString(),
+        monthly_credits: monthlyLimit,
+        monthly_reset_at: monthlyReset.toISOString(),
+      }, { onConflict: "user_id" });
+      console.log(`[payments] activate_plan: upsert ai_credit_balances error=${balanceError?.message ?? "none"} dailyLimit=${dailyLimit} monthlyLimit=${monthlyLimit}`);
+
+      if (balanceError) {
+        throw balanceError;
+      }
+
       console.log(`[payments] activate_plan: success`);
       return json({
         success: true,
