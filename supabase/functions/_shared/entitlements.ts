@@ -126,6 +126,10 @@ export async function getCreditBalance(userId: string) {
   dailyReset.setHours(0, 0, 0, 0);
   const monthlyReset = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
+  console.log(`[credits] getCreditBalance user_id=${userId}`);
+  console.log(`[credits] plan.slug=${plan.slug} plan.name=${plan.name} dailyLimit=${dailyLimit} monthlyLimit=${monthlyLimit}`);
+  console.log(`[credits] existing balance:`, data ? { daily_credits: data.daily_credits, monthly_credits: data.monthly_credits, daily_reset_at: data.daily_reset_at, monthly_reset_at: data.monthly_reset_at } : 'null');
+
   if (!data) {
     const { data: balance } = await db
       .from("ai_credit_balances")
@@ -138,6 +142,7 @@ export async function getCreditBalance(userId: string) {
       })
       .select("*")
       .single();
+    console.log(`[credits] created new balance:`, balance);
     return balance;
   }
 
@@ -148,6 +153,8 @@ export async function getCreditBalance(userId: string) {
     || data.daily_reset_at < now.toISOString()
     || data.monthly_credits > monthlyLimit
     || data.monthly_reset_at < now.toISOString();
+
+  console.log(`[credits] needsReset=${needsReset} (daily_credits > dailyLimit: ${data.daily_credits} > ${dailyLimit} = ${data.daily_credits > dailyLimit}, daily_reset_passed: ${data.daily_reset_at < now.toISOString()}, monthly_credits > monthlyLimit: ${data.monthly_credits} > ${monthlyLimit} = ${data.monthly_credits > monthlyLimit}, monthly_reset_passed: ${data.monthly_reset_at < now.toISOString()})`);
 
   if (needsReset) {
     const { data: balance } = await db
@@ -162,9 +169,11 @@ export async function getCreditBalance(userId: string) {
       .eq("user_id", userId)
       .select("*")
       .single();
+    console.log(`[credits] reset balance:`, balance);
     return balance;
   }
 
+  console.log(`[credits] returning existing balance`);
   return data;
 }
 
@@ -248,16 +257,27 @@ export async function checkCreditLimit(userId: string, featureKey: string): Prom
 
   const dailyRemaining = Number(balance.daily_credits ?? 0);
   const monthlyRemaining = Number(balance.monthly_credits ?? 0);
-  const creditsNeeded = settings.credits;
 
-  if (settings.daily_limit && dailyRemaining < creditsNeeded) {
+  // FEATURE_RULES is the authoritative per-operation cost. The ai_feature_settings
+  // .credits column is an admin-editable duplicate that can drift out of sync, so it
+  // must never be used to decide whether a request is affordable.
+  const creditsNeeded = FEATURE_RULES[featureKey as FeatureKey]?.credits ?? settings.credits;
+
+  console.log(`[credits] user_id=${userId} feature=${featureKey}`);
+  console.log(`[credits] dailyRemaining=${dailyRemaining} monthlyRemaining=${monthlyRemaining} creditsNeeded=${creditsNeeded}`);
+  console.log(`[credits] daily_reset_at=${balance.daily_reset_at} monthly_reset_at=${balance.monthly_reset_at}`);
+
+  if (dailyRemaining < creditsNeeded) {
+    console.log(`[credits] REJECTED daily: ${dailyRemaining} < ${creditsNeeded}`);
     return { allowed: false, reason: `Daily limit reached. You have ${dailyRemaining} credits remaining today.` };
   }
 
-  if (settings.monthly_limit && monthlyRemaining < creditsNeeded) {
+  if (monthlyRemaining < creditsNeeded) {
+    console.log(`[credits] REJECTED monthly: ${monthlyRemaining} < ${creditsNeeded}`);
     return { allowed: false, reason: `Monthly limit reached. You have ${monthlyRemaining} credits remaining this month.` };
   }
 
+  console.log(`[credits] ALLOWED`);
   return { allowed: true };
 }
 
@@ -284,21 +304,8 @@ export async function getFeatureSettings(featureKey: string) {
 }
 
 // ============================================================
-// Original enforcement (kept for backward compatibility)
+// Credit enforcement
 // ============================================================
-
-export async function creditsUsedThisMonth(userId: string) {
-  const db = adminClient();
-  const start = new Date();
-  start.setUTCDate(1);
-  start.setUTCHours(0, 0, 0, 0);
-  const { data } = await db
-    .from("ai_credit_usage")
-    .select("credits_used")
-    .eq("user_id", userId)
-    .gte("created_at", start.toISOString());
-  return (data ?? []).reduce((s: number, r: { credits_used?: number }) => s + (r.credits_used || 0), 0);
-}
 
 /**
  * Validates the session, plan entitlement and remaining credits.
@@ -353,17 +360,10 @@ export async function enforce(
     }
   }
 
-  const limit = Number(limits.credits ?? 10);
-  const used = await creditsUsedThisMonth(user.id);
-  if (used + rule.credits > limit) {
-    throw new AccessError(
-      `You have used all ${limit} AI credits for this month. Upgrade your plan for more.`,
-      402,
-      "credits_exhausted",
-    );
-  }
-
-  // Check daily/monthly credit limits
+  // The plan's ai_limits.credits is a DAILY allowance. The authoritative
+  // affordability decision is made once, in checkCreditLimit(), against the
+  // user's ai_credit_balances row. No second, competing monthly comparison here.
+  const dailyLimit = Number(limits.credits ?? 10);
   const creditCheck = await checkCreditLimit(user.id, feature);
   if (!creditCheck.allowed) {
     throw new AccessError(creditCheck.reason ?? "Credit limit exceeded.", 402, "credits_exhausted");
@@ -372,7 +372,7 @@ export async function enforce(
   return {
     user,
     plan,
-    creditsRemaining: limit - used,
+    creditsRemaining: dailyLimit,
     async log(usageInfo?: { provider?: string; model?: string; inputTokens?: number; outputTokens?: number; estimatedCost?: number }) {
       const db = adminClient();
       await db.from("ai_credit_usage").insert({
@@ -387,11 +387,13 @@ export async function enforce(
         credits_used: rule.credits,
         status: "success",
       });
-      if (limit - (used + rule.credits) <= Math.max(2, Math.round(limit * 0.1))) {
+      const remaining = await getCreditBalance(user.id);
+      const left = Number(remaining.daily_credits ?? 0);
+      if (left <= Math.max(2, Math.round(dailyLimit * 0.1))) {
         await db.from("notifications").insert({
           user_id: user.id,
           title: "AI credits running low",
-          body: `You have ${Math.max(0, limit - used - rule.credits)} AI credits left this month.`,
+          body: `You have ${left} AI credits left today.`,
           type: "warning",
           link: "/billing",
         });
