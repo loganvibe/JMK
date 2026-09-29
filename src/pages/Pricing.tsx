@@ -2,13 +2,65 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { Check, Crown, Sparkles, Zap, Loader2, Briefcase, X } from "lucide-react";
+import { Check, Crown, Sparkles, Zap, Loader2, Briefcase, X, LogOut, User, Crown as CrownIcon } from "lucide-react";
 import { Header } from "@/components/landing/Header";
 import { Footer } from "@/components/landing/Footer";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useEntitlements, formatNaira, type Plan } from "@/hooks/useEntitlements";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
+
+const AuthenticatedHeader = () => {
+  const { userId, subscription, plan, freeMode } = useEntitlements();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    navigate("/");
+  };
+
+  if (!userId) return null;
+
+  const tier = subscription?.tier || "free";
+  const planName = plan?.name || "Free";
+
+  return (
+    <header className="sticky top-0 z-50 glass border-b border-border/50">
+      <div className="container-main">
+        <div className="flex items-center justify-between h-16 px-4 sm:px-6 lg:px-8">
+          <Link to="/dashboard" className="flex items-center gap-2">
+            <div className="w-10 h-10 rounded-xl bg-gradient-accent flex items-center justify-center shadow-glow">
+              <CrownIcon className="w-6 h-6 text-accent-foreground" />
+            </div>
+            <span className="text-2xl font-heading font-bold text-primary">jmk</span>
+          </Link>
+
+          <nav className="hidden md:flex items-center gap-6">
+            <Link to="/dashboard" className="text-muted-foreground hover:text-primary transition-colors font-medium">
+              Dashboard
+            </Link>
+            <Link to="/my-projects" className="text-muted-foreground hover:text-primary transition-colors font-medium">
+              My Projects
+            </Link>
+            <Link to="/billing" className="text-muted-foreground hover:text-primary transition-colors font-medium">
+              Billing
+            </Link>
+          </nav>
+
+          <div className="flex items-center gap-3">
+            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted text-sm">
+              <User className="w-4 h-4 text-accent" />
+              <span className="font-medium capitalize">{tier === "free" ? "Free" : tier === "beta" ? "Student" : "Premium+"}</span>
+            </div>
+            <Button variant="ghost" size="sm" onClick={handleLogout}>
+              <LogOut className="w-4 h-4 mr-1" /> Log Out
+            </Button>
+          </div>
+        </div>
+      </div>
+    </header>
+  );
+};
 
 const planMeta: Record<string, { icon: React.ReactNode; blurb: string; popular?: boolean; notIncluded?: string[] }> = {
   free: {
@@ -79,46 +131,11 @@ const Pricing = () => {
       .then(({ data }) => setPlans((data as Plan[]) ?? []));
   }, []);
 
-  const choosePlan = async (plan: Plan) => {
-    if (plan.slug === "custom") { navigate("/services"); return; }
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { navigate("/signup"); return; }
-    if (plan.slug === ent.slug) { navigate("/billing"); return; }
-
-    setBusy(plan.slug);
-
-    if (freeMode || !settings.payments_enabled) {
-      const { data, error } = await supabase.functions.invoke("payments", {
-        body: { action: "activate_plan", planSlug: plan.slug },
-      });
-      setBusy(null);
-      if (error || data?.error || !data?.success) {
-        const msg = data?.error?.message ?? error?.message ?? "Failed to activate plan";
-        toast({ title: "Could not activate plan", description: msg, variant: "destructive" });
-        return;
-      }
-      await ent.refresh();
-      navigate("/dashboard");
-      return;
-    }
-
-    if (plan.price <= 0) { navigate("/dashboard"); return; }
-
-    const { data, error } = await supabase.functions.invoke("payments", {
-      body: { action: "initialize", planSlug: plan.slug, callbackUrl: `${window.location.origin}/billing` },
-    });
-    setBusy(null);
-    if (error || data?.error) {
-      toast({ title: "Could not start payment", description: data?.error ?? error?.message, variant: "destructive" });
-      return;
-    }
-    window.location.href = data.authorization_url;
-  };
+  const isAuthenticated = !!ent.userId;
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
+      {isAuthenticated ? <AuthenticatedHeader /> : <Header />}
 
       <main>
         <section className="bg-gradient-hero section-padding text-center">
@@ -194,7 +211,7 @@ const Pricing = () => {
                         {busy === plan.slug ? (
                           <Loader2 className="w-4 h-4 animate-spin" />
                         ) : freeMode ? (
-                          "Start free"
+                          "Activate"
                         ) : isCurrent ? (
                           "Current plan"
                         ) : plan.slug === "custom" ? (
@@ -227,7 +244,7 @@ const Pricing = () => {
                         )}
                         {plan.ai_limits?.credits && (
                           <p className="text-xs text-muted-foreground pt-2">
-                            {plan.ai_limits.credits} AI credits / month · up to {plan.ai_limits.max_projects} project(s)
+                            {plan.ai_limits.credits} AI credits / day · up to {plan.ai_limits.max_projects} project(s)
                           </p>
                         )}
                       </div>

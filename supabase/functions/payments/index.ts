@@ -148,9 +148,16 @@ Deno.serve(async (req) => {
     const user = await requireUser(req);
     const db = adminClient();
 
+    console.log(`[payments] action=${action} user_id=${user.id} email=${user.email}`);
+
     if (action === "activate_plan") {
       const planSlug = String(body?.planSlug ?? "");
-      if (!planSlug) return json({ success: false, error: { code: "PLAN_SLUG_REQUIRED", message: "planSlug is required" } }, 400);
+      console.log(`[payments] activate_plan: planSlug=${planSlug}`);
+      
+      if (!planSlug) {
+        console.log(`[payments] activate_plan: missing planSlug`);
+        return json({ success: false, error: { code: "PLAN_SLUG_REQUIRED", message: "planSlug is required" } }, 400);
+      }
 
       const { data: settings } = await db
         .from("app_settings")
@@ -158,7 +165,10 @@ Deno.serve(async (req) => {
         .eq("id", "global")
         .maybeSingle();
 
+      console.log(`[payments] activate_plan: pricing_mode=${settings?.pricing_mode}`);
+
       if (settings?.pricing_mode !== "free") {
+        console.log(`[payments] activate_plan: free mode disabled`);
         return json({ success: false, error: { code: "FREE_MODE_DISABLED", message: "Plan activation is only available when free mode is enabled." } }, 400);
       }
 
@@ -169,20 +179,35 @@ Deno.serve(async (req) => {
         .eq("active", true)
         .maybeSingle();
 
-      if (!plan) return json({ success: false, error: { code: "PLAN_NOT_FOUND", message: "Unknown or inactive plan" } }, 400);
+      console.log(`[payments] activate_plan: plan found=${!!plan} slug=${plan?.slug} id=${plan?.id}`);
+
+      if (!plan) {
+        console.log(`[payments] activate_plan: plan not found`);
+        return json({ success: false, error: { code: "PLAN_NOT_FOUND", message: "Unknown or inactive plan" } }, 400);
+      }
 
       const allowedSlugs = ["free", "student", "premium_plus"];
       if (!allowedSlugs.includes(planSlug)) {
+        console.log(`[payments] activate_plan: plan not selectable`);
         return json({ success: false, error: { code: "PLAN_NOT_SELECTABLE", message: "This plan cannot be selected directly" } }, 400);
       }
 
+      const { data: existingSub } = await db
+        .from("user_subscriptions")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("status", "active")
+        .maybeSingle();
+      console.log(`[payments] activate_plan: existing active subscription=${!!existingSub}`);
+
       await db.from("user_subscriptions").update({ status: "expired" })
         .eq("user_id", user.id).eq("status", "active");
+      console.log(`[payments] activate_plan: expired previous subscriptions`);
 
       const expiry = new Date();
       expiry.setMonth(expiry.getMonth() + 1);
 
-      await db.from("user_subscriptions").insert({
+      const { error: insertError } = await db.from("user_subscriptions").insert({
         user_id: user.id,
         plan_id: plan.id,
         status: "active",
@@ -190,6 +215,11 @@ Deno.serve(async (req) => {
         expiry_date: expiry.toISOString(),
         payment_reference: `free_mode_${planSlug}_${Date.now()}`,
       });
+      console.log(`[payments] activate_plan: insert user_subscriptions error=${insertError?.message ?? "none"}`);
+
+      if (insertError) {
+        throw insertError;
+      }
 
       const tierMap: Record<string, string> = {
         free: "free",
@@ -197,7 +227,7 @@ Deno.serve(async (req) => {
         premium_plus: "premium",
       };
 
-      await db.from("subscriptions").upsert(
+      const { error: upsertError } = await db.from("subscriptions").upsert(
         {
           user_id: user.id,
           tier: tierMap[planSlug] ?? "free",
@@ -207,6 +237,11 @@ Deno.serve(async (req) => {
         },
         { onConflict: "user_id" }
       );
+      console.log(`[payments] activate_plan: upsert subscriptions error=${upsertError?.message ?? "none"}`);
+
+      if (upsertError) {
+        throw upsertError;
+      }
 
       await db.from("notifications").insert({
         user_id: user.id,
@@ -215,7 +250,9 @@ Deno.serve(async (req) => {
         type: "success",
         link: "/billing",
       });
+      console.log(`[payments] activate_plan: notification inserted`);
 
+      console.log(`[payments] activate_plan: success`);
       return json({
         success: true,
         data: {
@@ -412,8 +449,9 @@ Deno.serve(async (req) => {
 
     return json({ error: "Unknown action" }, 400);
   } catch (e: unknown) {
-    console.error("payments error", e);
+    console.error("[payments] error", e);
     const status = e instanceof AccessError ? e.status : 500;
-    return json({ error: (e instanceof Error ? e.message : String(e)) ?? "Unexpected server error" }, status);
+    const message = (e instanceof Error ? e.message : String(e)) ?? "Unexpected server error";
+    return json({ error: message }, status);
   }
 });
