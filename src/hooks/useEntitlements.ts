@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchDailyCreditBalance } from "@/lib/credits";
 
 export type Plan = {
   id: string;
@@ -71,7 +72,7 @@ export function useEntitlements() {
   const [loading, setLoading] = useState(true);
   const [plan, setPlan] = useState<Plan | null>(null);
   const [subscription, setSubscription] = useState<unknown>(null);
-  const [creditsUsed, setCreditsUsed] = useState(0);
+  const [creditsRemaining, setCreditsRemaining] = useState(0);
   const [userId, setUserId] = useState<string | null>(null);
   const [freeMode, setFreeMode] = useState(false);
   const [featureSettings, setFeatureSettings] = useState<Record<string, boolean>>({});
@@ -82,11 +83,10 @@ export function useEntitlements() {
     if (!user) { setLoading(false); return; }
     setUserId(user.id);
 
-    const monthStart = new Date();
-    monthStart.setUTCDate(1);
-    monthStart.setUTCHours(0, 0, 0, 0);
-
-    const [subRes, freeRes, usageRes, settingsRes, featuresRes] = await Promise.all([
+    // ai_credit_balances.daily_credits is the single source of truth: the same
+    // row the edge functions check and deduct from. ai_usage / ai_usage_logs are
+    // legacy tables with no writers, so they always read 0.
+    const [subRes, freeRes, balanceRes, settingsRes, featuresRes] = await Promise.all([
       supabase
         .from("user_subscriptions")
         .select("*, subscription_plans(*)")
@@ -96,11 +96,7 @@ export function useEntitlements() {
         .limit(1)
         .maybeSingle(),
       supabase.from("subscription_plans").select("*").eq("slug", "free").maybeSingle(),
-      supabase
-        .from("ai_usage_logs")
-        .select("credits_used")
-        .eq("user_id", user.id)
-        .gte("created_at", monthStart.toISOString()),
+      fetchDailyCreditBalance(user.id),
       supabase.from("app_settings").select("pricing_mode").eq("id", "global").maybeSingle(),
       supabase.from("ai_feature_settings").select("feature_key, enabled"),
     ]);
@@ -109,11 +105,13 @@ export function useEntitlements() {
 
     const active = subRes.data;
     const expired = active?.expiry_date ? new Date(active.expiry_date).getTime() < Date.now() : false;
-    const resolved = !expired && active?.subscription_plans ? active.subscription_plans : freeRes.data;
+    const resolved = (!expired && active?.subscription_plans ? active.subscription_plans : freeRes.data) as Plan | null;
 
     setSubscription(expired ? null : active);
-    setPlan((resolved as Plan) ?? null);
-    setCreditsUsed((usageRes.data ?? []).reduce((s, r: { credits_used?: number }) => s + (r.credits_used || 0), 0));
+    setPlan(resolved ?? null);
+    setCreditsRemaining(
+      balanceRes ?? Number((resolved?.ai_limits as Record<string, unknown> | undefined)?.credits ?? 10),
+    );
     setFeatureSettings((featuresRes.data ?? []).reduce((acc, f) => ({ ...acc, [f.feature_key]: f.enabled }), {} as Record<string, boolean>));
     setLoading(false);
   }, []);
@@ -125,7 +123,8 @@ export function useEntitlements() {
   // The selected plan's ai_limits.credits determines the daily credit limit.
   const rank = PLAN_RANK[slug] ?? 0;
   const creditsLimit = Number(plan?.ai_limits?.credits ?? 10);
-  const creditsRemaining = Math.max(0, creditsLimit - creditsUsed);
+  const creditsUsed = Math.max(0, creditsLimit - creditsRemaining);
+  const remaining = Math.max(0, Math.min(creditsLimit, creditsRemaining));
 
   const can = (feature: FeatureKey) => rank >= FEATURE_MIN_RANK[feature];
   const isFeatureEnabled = (feature: FeatureKey) => featureSettings[feature] !== false;
@@ -146,7 +145,7 @@ export function useEntitlements() {
 
   return {
     loading, plan, slug, rank, subscription, userId, freeMode,
-    creditsUsed, creditsLimit, creditsRemaining,
+    creditsUsed, creditsLimit, creditsRemaining: remaining,
     maxProjects: Number(plan?.ai_limits?.max_projects ?? 1),
     can, canUseChapter, isFeatureEnabled, refresh: load,
   };

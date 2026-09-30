@@ -35,6 +35,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { signOutAndRedirect } from "@/lib/auth";
+import { fetchDailyCreditBalance, fetchDailyPlanLimit } from "@/lib/credits";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
 import OnboardingGuide from "@/components/onboarding/OnboardingGuide";
@@ -72,7 +73,8 @@ const Dashboard = () => {
   const [user, setUser] = useState<unknown>(null);
   const [profile, setProfile] = useState<unknown>(null);
   const [subscription, setSubscription] = useState<unknown>(null);
-  const [aiUsage, setAiUsage] = useState<unknown>(null);
+  const [creditBalance, setCreditBalance] = useState<number | null>(null);
+  const [freePlanLimit, setFreePlanLimit] = useState(10);
   const [projects, setProjects] = useState<ProjectRow[]>([]);
   const [activity, setActivity] = useState<unknown[]>([]);
   const [selectedDepartment, setSelectedDepartment] = useState("");
@@ -86,16 +88,19 @@ const Dashboard = () => {
   const { toast } = useToast();
 
   const loadData = async (uid: string) => {
-    const [p, s, a, pr, act] = await Promise.all([
+    const [p, s, bal, limit, pr, act] = await Promise.all([
       supabase.from("profiles").select("*").eq("id", uid).maybeSingle(),
       supabase.from("subscriptions").select("*").eq("user_id", uid).maybeSingle(),
-      supabase.from("ai_usage").select("*").eq("user_id", uid).order("month", { ascending: false }).limit(1).maybeSingle(),
+      // Same row the edge functions check and deduct from.
+      fetchDailyCreditBalance(uid),
+      fetchDailyPlanLimit(),
       supabase.from("projects").select("id,title,status,progress_percent").eq("user_id", uid).order("updated_at", { ascending: false }),
       supabase.from("activity_log").select("*").eq("user_id", uid).order("created_at", { ascending: false }).limit(6),
     ]);
     setProfile(p.data);
     setSubscription(s.data);
-    setAiUsage(a.data);
+    setCreditBalance(bal);
+    setFreePlanLimit(limit);
     setProjects(pr.data || []);
     setActivity(act.data || []);
     if (p.data?.department) setSelectedDepartment(p.data.department);
@@ -162,8 +167,12 @@ const Dashboard = () => {
   const tier = subscription?.tier || "free";
   const tierInfo = tierMeta[tier] || tierMeta.free;
   const TierIcon = tierInfo.icon;
-  const creditsUsed = aiUsage?.credits_used ?? 0;
-  const creditsLimit = aiUsage?.credits_limit ?? 10;
+  // Credits are a DAILY allowance. "used" is derived from the same
+  // ai_credit_balances row the edge functions enforce, never from a separate
+  // counter that nothing writes to.
+  const creditsLimit = freePlanLimit;
+  const creditsRemaining = creditBalance ?? creditsLimit;
+  const creditsUsed = Math.max(0, creditsLimit - creditsRemaining);
   const creditsPct = Math.min(100, Math.round((creditsUsed / Math.max(1, creditsLimit)) * 100));
   const activeProjects = projects.filter((p) => p.status !== "completed").length;
   const avgProgress = projects.length
@@ -286,7 +295,7 @@ const Dashboard = () => {
                 hasSchool: !!(profile?.university && profile?.department),
                 hasProject: projects.length > 0,
                 hasTopicContent: projects.some((p) => (p.progress_percent ?? 0) > 0),
-                usedAI: Number(aiUsage?.credits_used ?? 0) > 0,
+                usedAI: creditsUsed > 0,
               }}
               onDismiss={() => {
                 localStorage.setItem("jmk_hide_onboarding", "1");
@@ -348,7 +357,7 @@ const Dashboard = () => {
                 icon={<Zap className="w-5 h-5 text-accent" />}
                 label="AI Credits"
                 value={`${creditsUsed} / ${creditsLimit}`}
-                sub={`${creditsLimit - creditsUsed} remaining this month`}
+                sub={`${creditsRemaining} remaining today`}
                 bar={creditsPct}
               />
             </div>

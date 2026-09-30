@@ -1,5 +1,6 @@
 // Centralised, server-side feature access + AI credit enforcement.
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { isPast, nextDailyResetUtc, nextMonthlyResetUtc, resolveCreditDecision } from "./credit-rules.ts";
 
 export const PLAN_RANK: Record<string, number> = {
   free: 0,
@@ -121,14 +122,8 @@ export async function getCreditBalance(userId: string) {
   const dailyLimit = Number(limits.credits ?? 10);
   const monthlyLimit = dailyLimit * 30;
   const now = new Date();
-  const dailyReset = new Date(now);
-  dailyReset.setDate(dailyReset.getDate() + 1);
-  dailyReset.setHours(0, 0, 0, 0);
-  const monthlyReset = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-
-  console.log(`[credits] getCreditBalance user_id=${userId}`);
-  console.log(`[credits] plan.slug=${plan.slug} plan.name=${plan.name} dailyLimit=${dailyLimit} monthlyLimit=${monthlyLimit}`);
-  console.log(`[credits] existing balance:`, data ? { daily_credits: data.daily_credits, monthly_credits: data.monthly_credits, daily_reset_at: data.daily_reset_at, monthly_reset_at: data.monthly_reset_at } : 'null');
+  const dailyReset = nextDailyResetUtc(now);
+  const monthlyReset = nextMonthlyResetUtc(now);
 
   if (!data) {
     const { data: balance } = await db
@@ -142,22 +137,48 @@ export async function getCreditBalance(userId: string) {
       })
       .select("*")
       .single();
-    console.log(`[credits] created new balance:`, balance);
+    console.log("[CREDITS_DEBUG]", {
+      userId,
+      planSlug: plan.slug,
+      dailyLimit,
+      usedToday: 0,
+      remainingCredits: dailyLimit,
+      monthlyRemaining: monthlyLimit,
+      requestedCredits: 0,
+      creditBalance: "created",
+      feature: "balance_init",
+    });
     return balance;
   }
 
-  // Check if plan limits have changed (plan upgrade/downgrade)
-  // If the stored daily_credits exceeds the new daily limit, or if the
-  // daily_reset_at has passed, reset to new plan limits.
-  const needsReset = data.daily_credits > dailyLimit
-    || data.daily_reset_at < now.toISOString()
-    || data.monthly_credits > monthlyLimit
-    || data.monthly_reset_at < now.toISOString();
+  // Rollover happens only when a reset boundary has actually passed, or when
+  // the plan limit shrank below the stored balance. Both comparisons are made
+  // on parsed instants: PostgREST renders timestamptz as "+00:00" while
+  // Date.toISOString() renders "Z", so a string comparison there is wrong.
+  const dailyResetPassed = isPast(data.daily_reset_at, now);
+  const monthlyResetPassed = isPast(data.monthly_reset_at, now);
+  const planLimitChanged = Number(data.daily_credits) > dailyLimit;
+  const monthlyPlanLimitChanged = Number(data.monthly_credits) > monthlyLimit;
 
-  console.log(`[credits] needsReset=${needsReset} (daily_credits > dailyLimit: ${data.daily_credits} > ${dailyLimit} = ${data.daily_credits > dailyLimit}, daily_reset_passed: ${data.daily_reset_at < now.toISOString()}, monthly_credits > monthlyLimit: ${data.monthly_credits} > ${monthlyLimit} = ${data.monthly_credits > monthlyLimit}, monthly_reset_passed: ${data.monthly_reset_at < now.toISOString()})`);
+  const needsReset = dailyResetPassed || monthlyResetPassed || planLimitChanged || monthlyPlanLimitChanged;
+
+  console.log("[CREDITS_DEBUG]", {
+    userId,
+    planSlug: plan.slug,
+    dailyLimit,
+    usedToday: dailyResetPassed ? 0 : Math.max(0, dailyLimit - Number(data.daily_credits ?? 0)),
+    remainingCredits: Number(data.daily_credits ?? 0),
+    monthlyRemaining: Number(data.monthly_credits ?? 0),
+    requestedCredits: 0,
+    creditBalance: "existing",
+    feature: "balance_load",
+    dailyResetPassed,
+    monthlyResetPassed,
+    planLimitChanged,
+  });
 
   if (needsReset) {
-    const { data: balance } = await db
+    const { data: balance, error } = await db
       .from("ai_credit_balances")
       .update({
         daily_credits: dailyLimit,
@@ -169,11 +190,10 @@ export async function getCreditBalance(userId: string) {
       .eq("user_id", userId)
       .select("*")
       .single();
-    console.log(`[credits] reset balance:`, balance);
-    return balance;
+    if (error) console.error("[credits] balance reset failed", error.message);
+    return balance ?? data;
   }
 
-  console.log(`[credits] returning existing balance`);
   return data;
 }
 
@@ -229,6 +249,15 @@ export async function deductCredits(
     status: "success",
   });
 
+  console.log("[CREDITS_DEBUG]", {
+    userId,
+    feature: featureKey,
+    requestedCredits: credits,
+    remainingCredits: Number(updated.daily_credits ?? 0),
+    monthlyRemaining: Number(updated.monthly_credits ?? 0),
+    creditBalance: "deducted",
+  });
+
   // Notify when monthly credits are running low (threshold was previously in enforce().log)
   const monthlyRemaining = Number(updated.monthly_credits ?? 0);
   const plan = await getPlan(userId);
@@ -247,7 +276,7 @@ export async function deductCredits(
   return updated;
 }
 
-export async function checkCreditLimit(userId: string, featureKey: string): Promise<{ allowed: boolean; reason?: string }> {
+export async function checkCreditLimit(userId: string, featureKey: string): Promise<{ allowed: boolean; reason?: string; dailyRemaining?: number; monthlyRemaining?: number; requestedCredits?: number }> {
   const balance = await getCreditBalance(userId);
   const settings = await getFeatureSettings(featureKey);
 
@@ -255,30 +284,54 @@ export async function checkCreditLimit(userId: string, featureKey: string): Prom
     return { allowed: true };
   }
 
-  const dailyRemaining = Number(balance.daily_credits ?? 0);
-  const monthlyRemaining = Number(balance.monthly_credits ?? 0);
-
   // FEATURE_RULES is the authoritative per-operation cost. The ai_feature_settings
   // .credits column is an admin-editable duplicate that can drift out of sync, so it
   // must never be used to decide whether a request is affordable.
-  const creditsNeeded = FEATURE_RULES[featureKey as FeatureKey]?.credits ?? settings.credits;
+  const requestedCredits = FEATURE_RULES[featureKey as FeatureKey]?.credits ?? settings.credits;
 
-  console.log(`[credits] user_id=${userId} feature=${featureKey}`);
-  console.log(`[credits] dailyRemaining=${dailyRemaining} monthlyRemaining=${monthlyRemaining} creditsNeeded=${creditsNeeded}`);
-  console.log(`[credits] daily_reset_at=${balance.daily_reset_at} monthly_reset_at=${balance.monthly_reset_at}`);
+  const decision = resolveCreditDecision({
+    dailyRemaining: Number(balance.daily_credits ?? 0),
+    monthlyRemaining: Number(balance.monthly_credits ?? 0),
+    requestedCredits,
+  });
 
-  if (dailyRemaining < creditsNeeded) {
-    console.log(`[credits] REJECTED daily: ${dailyRemaining} < ${creditsNeeded}`);
-    return { allowed: false, reason: `Daily limit reached. You have ${dailyRemaining} credits remaining today.` };
+  const plan = await getPlan(userId);
+  const dailyLimit = Number(plan.ai_limits?.credits ?? 10);
+
+  console.log("[CREDITS_DEBUG]", {
+    userId,
+    planSlug: plan.slug,
+    dailyLimit,
+    usedToday: Math.max(0, dailyLimit - decision.dailyRemaining),
+    remainingCredits: decision.dailyRemaining,
+    monthlyRemaining: decision.monthlyRemaining,
+    requestedCredits,
+    creditBalance: Number(balance.daily_credits ?? 0),
+    feature: featureKey,
+    shouldAllow: decision.allowed,
+  });
+
+  if (!decision.allowed) {
+    console.log("[CREDITS_REJECT]", {
+      userId,
+      planSlug: plan.slug,
+      feature: featureKey,
+      dailyLimit,
+      usedToday: Math.max(0, dailyLimit - decision.dailyRemaining),
+      remainingCredits: decision.dailyRemaining,
+      monthlyRemaining: decision.monthlyRemaining,
+      requestedCredits,
+      scope: decision.scope,
+    });
+    return { allowed: false, reason: decision.reason };
   }
 
-  if (monthlyRemaining < creditsNeeded) {
-    console.log(`[credits] REJECTED monthly: ${monthlyRemaining} < ${creditsNeeded}`);
-    return { allowed: false, reason: `Monthly limit reached. You have ${monthlyRemaining} credits remaining this month.` };
-  }
-
-  console.log(`[credits] ALLOWED`);
-  return { allowed: true };
+  return {
+    allowed: true,
+    dailyRemaining: decision.dailyRemaining,
+    monthlyRemaining: decision.monthlyRemaining,
+    requestedCredits,
+  };
 }
 
 export async function getFeatureSettings(featureKey: string) {
@@ -363,42 +416,19 @@ export async function enforce(
   // The plan's ai_limits.credits is a DAILY allowance. The authoritative
   // affordability decision is made once, in checkCreditLimit(), against the
   // user's ai_credit_balances row. No second, competing monthly comparison here.
-  const dailyLimit = Number(limits.credits ?? 10);
   const creditCheck = await checkCreditLimit(user.id, feature);
   if (!creditCheck.allowed) {
     throw new AccessError(creditCheck.reason ?? "Credit limit exceeded.", 402, "credits_exhausted");
   }
 
+  // Credits are spent exclusively through deductCredits(), which every edge
+  // function calls only after the AI request has succeeded. A failed AI call
+  // therefore costs nothing and logs nothing.
   return {
     user,
     plan,
-    creditsRemaining: dailyLimit,
-    async log(usageInfo?: { provider?: string; model?: string; inputTokens?: number; outputTokens?: number; estimatedCost?: number }) {
-      const db = adminClient();
-      await db.from("ai_credit_usage").insert({
-        user_id: user.id,
-        project_id: opts.projectId ?? null,
-        feature_key: feature,
-        provider: usageInfo?.provider ?? "openrouter",
-        model: usageInfo?.model ?? "unknown",
-        input_tokens: usageInfo?.inputTokens ?? 0,
-        output_tokens: usageInfo?.outputTokens ?? 0,
-        estimated_cost: usageInfo?.estimatedCost ?? 0,
-        credits_used: rule.credits,
-        status: "success",
-      });
-      const remaining = await getCreditBalance(user.id);
-      const left = Number(remaining.daily_credits ?? 0);
-      if (left <= Math.max(2, Math.round(dailyLimit * 0.1))) {
-        await db.from("notifications").insert({
-          user_id: user.id,
-          title: "AI credits running low",
-          body: `You have ${left} AI credits left today.`,
-          type: "warning",
-          link: "/billing",
-        });
-      }
-    },
+    creditsRemaining: creditCheck.dailyRemaining ?? 0,
+    creditsCost: creditCheck.requestedCredits ?? rule.credits,
   };
 }
 
@@ -430,7 +460,8 @@ export function accessErrorResponse(e: unknown, corsHeaders: Record<string, stri
 
 /**
  * One-call guard: validates session, plan, chapter access, credits and project
- * ownership. Returns the enforcement context (call `.log()` after success).
+ * ownership. Returns the enforcement context; the caller spends credits with
+ * deductCredits() only once the AI request has succeeded.
  */
 export async function guard(
   req: Request,

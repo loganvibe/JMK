@@ -137,7 +137,7 @@ const Billing = () => {
           <div className="lg:col-span-2 bg-card rounded-2xl border border-border p-6">
             <div className="flex items-center gap-2 mb-4">
               <Gauge className="w-5 h-5 text-accent" />
-              <h3 className="font-heading font-semibold text-foreground">AI credit usage this month</h3>
+              <h3 className="font-heading font-semibold text-foreground">AI credit usage today</h3>
             </div>
             <div className="flex items-end justify-between mb-2">
               <p className="text-3xl font-heading font-bold text-foreground">
@@ -149,7 +149,7 @@ const Billing = () => {
             </div>
             <Progress value={creditPct} className="h-2" />
             <p className="text-xs text-muted-foreground mt-3">
-              Credits reset on the 1st of every month. Chapter generation costs 2 credits, refinement 3, most other AI actions 1.
+              Credits reset every day at midnight UTC. Topic generation costs 2 credits, chapter generation 20, most other AI actions 2.
             </p>
           </div>
         </div>
