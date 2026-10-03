@@ -203,7 +203,11 @@ export async function invokeFunction<T = unknown>(
   }
 
   await logError(scope, (lastErr instanceof Error ? lastErr.message : String(lastErr)) ?? "unknown", { function: name });
-  throw new Error(friendlyError(lastErr, scope));
+  const friendly = friendlyError(lastErr, scope);
+  const err = new Error(friendly);
+  (err as Error & { originalMessage?: string }).originalMessage =
+    lastErr instanceof Error ? lastErr.message : String(lastErr ?? "unknown");
+  throw err;
 }
 
 
