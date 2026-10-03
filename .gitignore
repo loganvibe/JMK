@@ -25,3 +25,7 @@ supabase/.temp/
 *.njsproj
 *.sln
 *.sw?
+
+# Environment files — never commit secrets
+.env
+.env.*
