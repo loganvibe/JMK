@@ -103,7 +103,7 @@ const CreateProject = () => {
     setSelectedIdx(null);
     try {
        const data = await invokeFunction<unknown>("project-ai", { action: "generate_topics", profile, inputs: form });
-      const list: Topic[] = data?.topics ?? [];
+       const list: Topic[] = data?.data?.topics ?? [];
       if (!list.length) throw new Error("No topics returned. Try again.");
       setTopics(list);
       setStep(2);

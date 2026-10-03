@@ -72,7 +72,7 @@ const DefensePreparation = ({ user, profile, project, sections }: Props) => {
 
   const callAI = async (action: string, payload?: Record<string, unknown>) => {
     const data = await invokeFunction<unknown>("defense-ai", { action, project, profile, sections, payload });
-    return data?.content;
+    return data?.data ?? data?.content;
   };
 
   const saveSummary = async (summary_type: string, content: unknown) => {

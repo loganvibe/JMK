@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ShieldCheck,
   Library,
@@ -50,7 +50,7 @@ const ProModules = ({ user, profile, project, sections }: Props) => {
         profile,
         text: target.content,
       });
-      setReport(data);
+      setReport(data?.data ?? null);
       await supabase.from("originality_reports").insert({
         project_id: project.id,
         user_id: user.id,
@@ -97,7 +97,7 @@ const ProModules = ({ user, profile, project, sections }: Props) => {
         profile,
         query: query || project.topic || project.title,
       });
-      setLit(data);
+      setLit(data?.data ?? null);
     } catch (e: unknown) {
       const err = e instanceof Error ? e : new Error(String(e));
       toast({ title: "Literature search failed", description: err.message, variant: "destructive" });
@@ -151,14 +151,14 @@ const ProModules = ({ user, profile, project, sections }: Props) => {
   const runAnalysis = async () => {
     setDataBusy(true);
     try {
-      const data = await invokeFunction<unknown>("pro-modules", {
+       const data = await invokeFunction<unknown>("pro-modules", {
         action: "data_analysis",
         project,
         profile,
         dataset,
         question,
       });
-      setAnalysis(data);
+      setAnalysis(data?.data ?? null);
       await supabase.from("data_analyses").insert({
         project_id: project.id,
         user_id: user.id,

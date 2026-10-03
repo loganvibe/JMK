@@ -86,7 +86,7 @@ Use British English. Reply in clean Markdown.`;
       const resp = await callAI(system, user);
       const creditsUsed = FEATURE_RULES.academic_assist.credits;
       await deductCredits(access.user.id, creditsUsed, feature, body.project?.id ?? null, { provider: resp.provider, model: resp.model, inputTokens: resp.input_tokens, outputTokens: resp.output_tokens });
-      return new Response(JSON.stringify(createAIResponse(resp, { research_points: [], sources: [], recommendations: [] }, creditsUsed)), {
+      return new Response(JSON.stringify(createAIResponse(resp, null, creditsUsed)), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -115,6 +115,7 @@ No markdown, no commentary.`;
       const raw = await callAI(system, `INPUT (${from}):\n"""\n${text}\n"""`, true);
       const creditsUsed = FEATURE_RULES.citation.credits;
       const parsed = safeParseJson<{ converted: string; warnings?: string[] }>(raw.content);
+      await deductCredits(access.user.id, creditsUsed, feature, body.project?.id ?? null, { provider: raw.provider, model: raw.model, inputTokens: raw.input_tokens, outputTokens: raw.output_tokens });
       return new Response(JSON.stringify(createAIResponse(raw, parsed ?? { converted: "", warnings: [] }, creditsUsed)), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

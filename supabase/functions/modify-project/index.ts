@@ -51,7 +51,7 @@ Produce the full refreshed project now.`;
       const creditsUsed = FEATURE_RULES.refinement.credits;
       await deductCredits(access.user.id, creditsUsed, "refinement", body?.projectId ?? null, { provider: response.provider, model: response.model, inputTokens: response.input_tokens, outputTokens: response.output_tokens });
 
-      return new Response(JSON.stringify(createAIResponse(response, { project_id: body?.projectId ?? null, section: "full_project", changes: [] }, creditsUsed)), {
+      return new Response(JSON.stringify(createAIResponse(response, null, creditsUsed)), {
        status: 200,
        headers: { ...corsHeaders, "Content-Type": "application/json" },
      });

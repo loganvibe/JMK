@@ -129,11 +129,12 @@ async function unwrapFunctionError(err: unknown): Promise<Error> {
     if (ctx && typeof ctx.json === "function") {
       const cloned = typeof ctx.clone === "function" ? ctx.clone() : ctx;
       const body = await cloned.json();
-      if (body?.error) return Object.assign(new Error(String(body.error)), { code: body.code });
-      // Handle new standardized error format
+      // Handle new standardized error format first
       if (body?.success === false && body?.error?.message) {
         return Object.assign(new Error(body.error.message), { code: body.error.code });
       }
+      // Legacy format: { error: "message", code: "..." }
+      if (body?.error) return Object.assign(new Error(String(body.error)), { code: body.code });
     } else if (ctx && typeof ctx.text === "function") {
       const text = await ctx.text();
       if (text) return new Error(text);
@@ -173,8 +174,9 @@ export async function invokeFunction<T = unknown>(
           (err as Error & { code?: string }).code = response.error.code;
           throw err;
         }
-        // Return the data field (structured data) if available, otherwise content
-        return (response.data ?? response.content) as T;
+        // Return the full standardized AI response so callers can access both
+        // .content (raw text) and .data (structured payload) as needed.
+        return response as unknown as T;
       }
 
       // Legacy format: { error: "..." } or direct data

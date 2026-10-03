@@ -124,11 +124,12 @@ const AcademicAssistant = ({ user, profile, project, sections }: Props) => {
 
   const generateCitation = async () => {
     const d = await call("citation_generate", { source: { ...src, type: srcType } });
-    if (!d?.formatted) return;
+    const parsed = d?.data as { formatted?: string; in_text?: string } | null;
+    if (!parsed?.formatted) return;
     const { data: inserted } = await supabase.from("project_citations").insert({
       user_id: user.id, project_id: project.id,
       style: memory.citation_style, source_type: srcType,
-      formatted: d.formatted, metadata: { in_text: d.in_text, ...src },
+      formatted: parsed.formatted, metadata: { in_text: parsed.in_text, ...src },
     }).select().single();
     if (inserted) setCitations((c) => [inserted, ...c]);
     toast({ title: "Citation generated" });
@@ -141,21 +142,21 @@ const AcademicAssistant = ({ user, profile, project, sections }: Props) => {
 
   const convert = async () => {
     const d = await call("citation_convert", { from: convertFrom, to: convertTo, text: convertText });
-    setConverted(d?.converted ?? "");
+    setConverted(d?.data?.converted ?? "");
   };
 
   const runQuality = async () => {
     const d = await call("quality_check");
-    setQuality(d);
+    setQuality(d?.data ?? null);
   };
 
   const analyzeFeedback = async () => {
     if (!feedback.trim()) return;
     const d = await call("feedback_analyze", { feedback });
-    setAnalysis(d);
+    setAnalysis(d?.data ?? null);
     const { data: inserted } = await supabase.from("supervisor_feedback").insert({
       user_id: user.id, project_id: project.id,
-      source: "paste", raw_feedback: feedback, analysis: d,
+      source: "paste", raw_feedback: feedback, analysis: d?.data ?? null,
     }).select().single();
     if (inserted) setHistory((h) => [inserted, ...h]);
   };

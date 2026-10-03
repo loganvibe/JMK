@@ -151,7 +151,7 @@ ${ctxBlock}`;
     const response = await callAI(baseSystem, user);
     const creditsUsed = FEATURE_RULES.chapter_generation.credits;
     await deductCredits(ctx.user.id, creditsUsed, feature, body.project?.id ?? null, { provider: response.provider, model: response.model, inputTokens: response.input_tokens, outputTokens: response.output_tokens });
-    return new Response(JSON.stringify(createAIResponse(response, { chapter_number: 1, title: section, sections: [] }, creditsUsed)), {
+    return new Response(JSON.stringify(createAIResponse(response, null, creditsUsed)), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: unknown) {

@@ -153,7 +153,7 @@ const RefineProject = () => {
     setAnalyzing(true);
     try {
        const data = await invokeFunction<Analysis>("refine-project", { action: "analyze", text: extracted, profile });
-      setAnalysis(data);
+      setAnalysis(data?.data ?? null);
       if (documentId) {
         await supabase.from("project_documents").update({ analysis: data as unknown as Json, upload_status: "analyzed" }).eq("id", documentId);
       }
@@ -196,8 +196,8 @@ const RefineProject = () => {
   const splitSections = async () => {
     setSplitting(true);
     try {
-       const data = await invokeFunction<{ sections: { chapter: string; section: string; content: string }[] }>("refine-project", { action: "split_sections", text: extracted });
-       const list: Section[] = (data?.sections ?? []).filter((s) => s.content?.trim());
+        const data = await invokeFunction<{ sections: { chapter: string; section: string; content: string }[] }>("refine-project", { action: "split_sections", text: extracted });
+        const list: Section[] = (data?.data?.sections ?? []).filter((s) => s.content?.trim());
       setSections(list.length ? list : [{ chapter: "Full Document", section: "Content", content: extracted.slice(0, 8000) }]);
     } catch (e: unknown) {
       const err = e instanceof Error ? e : new Error(String(e));
@@ -220,18 +220,19 @@ const RefineProject = () => {
         instruction,
         profile,
         answers,
-      });
-      const updated = [...sections];
-      updated[idx] = { ...s, refined: data.new_content, changeSummary: data.change_summary, changes: data.changes ?? [] };
-      setSections(updated);
+       });
+       const result = data?.data ?? {};
+       const updated = [...sections];
+       updated[idx] = { ...s, refined: result.new_content, changeSummary: result.change_summary, changes: result.changes ?? [] };
+       setSections(updated);
 
-      await supabase.from("project_section_versions").insert({
-        user_id: user.id,
-        old_content: s.content,
-        new_content: data.new_content,
-        change_summary: data.change_summary,
-        source: "refinement",
-      });
+       await supabase.from("project_section_versions").insert({
+         user_id: user.id,
+         old_content: s.content,
+         new_content: result.new_content,
+         change_summary: result.change_summary,
+         source: "refinement",
+       });
     } catch (e: unknown) {
       const err = e instanceof Error ? e : new Error(String(e));
       toast({ title: "Refinement failed", description: err.message, variant: "destructive" });
