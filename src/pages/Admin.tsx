@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Loader2, Plus, Trash2, ShieldCheck,
   TrendingUp, Users, Wallet, Briefcase, Sparkles, Settings,
-  FileText, CreditCard, Save, Palette,
+  FileText, CreditCard, Save, Palette, Wifi, CheckCircle, XCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,7 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { invokeFunction } from "@/lib/errors";
 import { formatNaira } from "@/hooks/useEntitlements";
 import AdminAnalytics from "@/components/admin/AdminAnalytics";
 import AdminShell from "@/components/admin/AdminShell";
@@ -182,6 +183,7 @@ const Admin = () => {
             <TabsTrigger value="universities">Universities</TabsTrigger>
             <TabsTrigger value="departments">Departments</TabsTrigger>
             <TabsTrigger value="fields">Research fields</TabsTrigger>
+            <TabsTrigger value="diagnostics">Diagnostics</TabsTrigger>
           </TabsList>
 
           <TabsContent value="analytics" className="mt-4">
@@ -335,9 +337,120 @@ const Admin = () => {
               ))}
             </div>
           </TabsContent>
+
+          <TabsContent value="diagnostics" className="mt-4">
+            <AdminDiagnostics />
+          </TabsContent>
         </Tabs>
       </div>
     </AdminShell>
+  );
+};
+
+const EDGE_FUNCTIONS = [
+  "jmk-health",
+  "project-ai",
+  "academic-ai",
+  "defense-ai",
+  "pro-modules",
+  "modify-project",
+  "refine-project",
+  "payments",
+];
+
+type DiagResult = {
+  name: string;
+  pass: boolean;
+  status?: number;
+  body?: string;
+  error?: string;
+};
+
+const AdminDiagnostics = () => {
+  const { toast } = useToast();
+  const [results, setResults] = useState<Record<string, DiagResult>>({});
+  const [testing, setTesting] = useState(false);
+
+  const testFunction = async (fnName: string) => {
+    const result: DiagResult = { name: fnName, pass: false };
+    try {
+      const { data, error } = await supabase.functions.invoke(fnName, {
+        body: { action: "test" },
+      });
+      result.status = 200;
+      result.body = JSON.stringify(data ?? null);
+      result.pass = !error;
+      if (error) {
+        result.error = error.message;
+      }
+    } catch (e: unknown) {
+      const err = e instanceof Error ? e : new Error(String(e));
+      result.error = err.message;
+      result.status = 0;
+    }
+    setResults((prev) => ({ ...prev, [fnName]: result }));
+    if (!result.pass) {
+      toast({ title: `${fnName} failed`, description: result.error ?? "Unknown error", variant: "destructive" });
+    }
+  };
+
+  const runAll = async () => {
+    setTesting(true);
+    for (const fn of EDGE_FUNCTIONS) {
+      await testFunction(fn);
+    }
+    setTesting(false);
+  };
+
+  const clear = () => setResults({});
+
+  return (
+    <div className="space-y-4">
+      <div className="border border-border rounded-xl p-5 bg-card space-y-4">
+        <h2 className="font-heading font-bold text-foreground flex items-center gap-2">
+          <Wifi className="w-4 h-4 text-accent" /> Edge Function Diagnostics
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          Tests connectivity to each Supabase Edge Function deployed on project <code className="bg-muted px-1 rounded">vkwpcxbizxwlcgjtxwxo</code>.
+          This does not call OpenRouter or touch credits.
+        </p>
+        <div className="flex gap-2">
+          <Button variant="accent" onClick={runAll} disabled={testing}>
+            {testing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle className="w-4 h-4 mr-2" />}
+            Run all diagnostics
+          </Button>
+          <Button variant="outline" onClick={clear} disabled={testing}>Clear</Button>
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        {EDGE_FUNCTIONS.map((fn) => {
+          const r = results[fn];
+          return (
+            <div key={fn} className="border border-border rounded-xl p-4 bg-card">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  {r ? (r.pass ? <CheckCircle className="w-5 h-5 text-success" /> : <XCircle className="w-5 h-5 text-destructive" />) : <Loader2 className="w-5 h-5 text-muted-foreground" />}
+                  <span className="font-medium">{fn}</span>
+                </div>
+                <Button size="sm" variant="outline" onClick={() => testFunction(fn)} disabled={testing}>
+                  Test
+                </Button>
+              </div>
+              {r && (
+                <div className="mt-2 space-y-1">
+                  <p className={`text-sm font-medium ${r.pass ? "text-success" : "text-destructive"}`}>
+                    {r.pass ? "PASS" : "FAIL"} {r.status ? `· HTTP ${r.status}` : "· (no response)"}
+                  </p>
+                  {r.body && <pre className="text-xs bg-muted p-2 rounded border border-border overflow-x-auto">{r.body.slice(0, 500)}</pre>}
+                  {r.error && <p className="text-xs text-destructive">{r.error}</p>}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 };
 
