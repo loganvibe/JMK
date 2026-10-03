@@ -37,7 +37,10 @@ export function resolveCreditDecision(input: CreditDecisionInput): CreditDecisio
       dailyRemaining,
       monthlyRemaining,
       requestedCredits,
-      reason: `Daily limit reached. You have ${dailyRemaining} credits remaining today.`,
+      reason:
+        dailyRemaining === 0
+          ? "Daily AI credit limit reached. You have 0 credits remaining today."
+          : `You don't have enough AI credits for this request. You have ${dailyRemaining} credit(s) remaining today (this action costs ${requestedCredits}).`,
     };
   }
 
@@ -48,7 +51,10 @@ export function resolveCreditDecision(input: CreditDecisionInput): CreditDecisio
       dailyRemaining,
       monthlyRemaining,
       requestedCredits,
-      reason: `Monthly limit reached. You have ${monthlyRemaining} credits remaining this month.`,
+      reason:
+        monthlyRemaining === 0
+          ? "Monthly AI credit limit reached. You have 0 credits remaining this month."
+          : `You don't have enough AI credits for this request. You have ${monthlyRemaining} credit(s) remaining this month (this action costs ${requestedCredits}).`,
     };
   }
 

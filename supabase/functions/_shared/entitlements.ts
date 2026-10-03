@@ -22,16 +22,20 @@ export type FeatureKey =
   | "literature"
   | "data_analysis";
 
-// minimum plan rank required + default credit cost
+// Minimum plan rank required + default credit cost.
+// This table is the single source of truth for per-action cost; the
+// admin-editable ai_feature_settings.credits column is only a duplicate that
+// drifts and is never used to make an affordability decision.
+// Costs match the documented feature table (docs/03-subscriptions.md).
 export const FEATURE_RULES: Record<FeatureKey, { minRank: number; credits: number; label: string }> = {
-  topic_generation: { minRank: 0, credits: 2, label: "Topic generation" },
-  chapter_generation: { minRank: 0, credits: 20, label: "Chapter generation" },
-  academic_assist: { minRank: 0, credits: 2, label: "Academic assistant" },
-  citation: { minRank: 0, credits: 2, label: "Citation tools" },
-  quality_check: { minRank: 1, credits: 8, label: "Quality check" },
-  refinement: { minRank: 1, credits: 20, label: "AI refinement" },
-  defense_basic: { minRank: 1, credits: 10, label: "Defense preparation" },
-  defense_simulation: { minRank: 2, credits: 10, label: "Mock defense simulation" },
+  topic_generation: { minRank: 0, credits: 1, label: "Topic generation" },
+  chapter_generation: { minRank: 0, credits: 2, label: "Chapter generation" },
+  academic_assist: { minRank: 0, credits: 1, label: "Academic assistant" },
+  citation: { minRank: 0, credits: 1, label: "Citation tools" },
+  quality_check: { minRank: 1, credits: 1, label: "Quality check" },
+  refinement: { minRank: 1, credits: 3, label: "AI refinement" },
+  defense_basic: { minRank: 1, credits: 1, label: "Defense preparation" },
+  defense_simulation: { minRank: 2, credits: 3, label: "Mock defense simulation" },
   originality: { minRank: 1, credits: 10, label: "Originality checker" },
   literature: { minRank: 1, credits: 5, label: "Literature finder" },
   data_analysis: { minRank: 2, credits: 8, label: "Data analysis assistant" },
@@ -207,73 +211,146 @@ export async function deductCredits(
   const db = adminClient();
   const now = new Date().toISOString();
 
-  // Atomic deduction with RETURNING
-  const { data, error } = await db
+  // The balance is read first and the write is a compare-and-set on that row.
+  // The previous shape - update().eq().gte()x4.returning() - cannot work:
+  // .returning() is not exposed on an update builder in supabase-js 2.x, and
+  // the column value "daily_credits - n" is a JavaScript string, not a SQL
+  // expression. .select() and .eq() are used because both are available.
+  const { data: current, error: readError } = await db
     .from("ai_credit_balances")
-    .update({
-      daily_credits: `daily_credits - ${credits}`,
-      monthly_credits: `monthly_credits - ${credits}`,
-      updated_at: now,
-    })
+    .select("daily_credits, monthly_credits, daily_reset_at, monthly_reset_at, updated_at")
     .eq("user_id", userId)
-    .gte("daily_credits", credits)
-    .gte("monthly_credits", credits)
-    .gte("daily_reset_at", now)
-    .gte("monthly_reset_at", now)
-    .returning("*");
+    .maybeSingle();
 
-  if (error || !data || data.length === 0) {
-    const balance = await getCreditBalance(userId);
-    const dailyRemaining = Number(balance.daily_credits ?? 0);
-    const monthlyRemaining = Number(balance.monthly_credits ?? 0);
-    throw new AccessError(
-      `Insufficient credits. Daily: ${dailyRemaining}, Monthly: ${monthlyRemaining}. Upgrade your plan for more.`,
-      402,
-      "credits_exhausted",
-    );
+  if (readError) {
+    throw new AccessError(`Could not read your AI credit balance. ${readError.message}`, 500, "credits_unavailable");
+  }
+  if (!current) {
+    throw new AccessError("No AI credit balance is set up for this account.", 402, "credits_exhausted");
   }
 
-  const updated = data[0];
-
-  // Log usage with actual provider and model
-  await db.from("ai_credit_usage").insert({
-    user_id: userId,
-    project_id: projectId ?? null,
-    feature_key: featureKey,
-    provider: usageInfo?.provider ?? "openrouter",
-    model: usageInfo?.model ?? "unknown",
-    input_tokens: usageInfo?.inputTokens ?? 0,
-    output_tokens: usageInfo?.outputTokens ?? 0,
-    estimated_cost: usageInfo?.estimatedCost ?? 0,
-    credits_used: credits,
-    status: "success",
-  });
-
-  console.log("[CREDITS_DEBUG]", {
-    userId,
-    feature: featureKey,
-    requestedCredits: credits,
-    remainingCredits: Number(updated.daily_credits ?? 0),
-    monthlyRemaining: Number(updated.monthly_credits ?? 0),
-    creditBalance: "deducted",
-  });
-
-  // Notify when monthly credits are running low (threshold was previously in enforce().log)
-  const monthlyRemaining = Number(updated.monthly_credits ?? 0);
-  const plan = await getPlan(userId);
-  const limits = plan.ai_limits ?? {};
-  const monthlyLimit = Number(limits.credits ?? 10) * 30;
-  if (monthlyRemaining <= Math.max(2, Math.round(monthlyLimit * 0.1))) {
-    await db.from("notifications").insert({
-      user_id: userId,
-      title: "AI credits running low",
-      body: `You have ${monthlyRemaining} AI credits left this month.`,
-      type: "warning",
-      link: "/billing",
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const dailyRemaining = Number(current.daily_credits ?? 0);
+    const monthlyRemaining = Number(current.monthly_credits ?? 0);
+    const plan = await getPlan(userId);
+    const dailyLimit = Number(plan.ai_limits?.credits ?? 10);
+    const decision = resolveCreditDecision({
+      dailyRemaining,
+      monthlyRemaining,
+      requestedCredits: credits,
     });
+    const windowOpen = !isPast(current.daily_reset_at) && !isPast(current.monthly_reset_at);
+
+    console.log("[CREDITS_DEBUG]", {
+      userId,
+      planSlug: plan.slug,
+      dailyLimit,
+      usedToday: Math.max(0, dailyLimit - dailyRemaining),
+      remainingCredits: dailyRemaining,
+      monthlyRemaining,
+      requestedCredits: credits,
+      feature: featureKey,
+    });
+
+    if (!windowOpen || !decision.allowed) {
+      console.log("[CREDITS_REJECT]", {
+        userId,
+        planSlug: plan.slug,
+        dailyLimit,
+        usedToday: Math.max(0, dailyLimit - dailyRemaining),
+        remainingCredits: dailyRemaining,
+        monthlyRemaining,
+        requestedCredits: credits,
+        feature: featureKey,
+        reason: windowOpen ? decision.allowed ? "reset window closed" : decision.reason : "credit window expired",
+      });
+      throw new AccessError(
+        windowOpen ? decision.reason ?? "Not enough AI credits." : "Your credit window has expired. Please try again.",
+        402,
+        "credits_exhausted",
+      );
+    }
+
+    // Compare-and-set: the update only applies if the row is still the one we
+    // priced, so two concurrent requests cannot both spend the same credit.
+    const { data: rows, error: updateError } = await db
+      .from("ai_credit_balances")
+      .update({
+        daily_credits: dailyRemaining - credits,
+        monthly_credits: monthlyRemaining - credits,
+        updated_at: now,
+      })
+      .eq("user_id", userId)
+      .eq("updated_at", current.updated_at)
+      .eq("daily_credits", dailyRemaining)
+      .select("daily_credits, monthly_credits");
+
+    if (updateError) {
+      throw new AccessError(`Could not spend AI credits. ${updateError.message}`, 500, "credits_unavailable");
+    }
+
+    // update().select() returns the matched rows as an array; unwrap the first
+    // row ourselves. A bare `.maybeSingle()` on a non-GET builder is not
+    // unwrapped by supabase-js v2 (its unwrap is gated on method === "GET"), so
+    // using it would leave `[row]` here and silently hide a lost update.
+    const updated = Array.isArray(rows) ? rows[0] ?? null : rows ?? null;
+    if (!updated) {
+      // The row moved between the read and the write: re-price once.
+      const { data: fresh } = await db
+        .from("ai_credit_balances")
+        .select("daily_credits, monthly_credits, daily_reset_at, monthly_reset_at, updated_at")
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (!fresh) {
+        throw new AccessError("No AI credit balance is set up for this account.", 402, "credits_exhausted");
+      }
+      current = fresh;
+      continue;
+    }
+
+    // Log usage with actual provider and model
+    await db.from("ai_credit_usage").insert({
+      user_id: userId,
+      project_id: projectId ?? null,
+      feature_key: featureKey,
+      provider: usageInfo?.provider ?? "openrouter",
+      model: usageInfo?.model ?? "unknown",
+      input_tokens: usageInfo?.inputTokens ?? 0,
+      output_tokens: usageInfo?.outputTokens ?? 0,
+      estimated_cost: usageInfo?.estimatedCost ?? 0,
+      credits_used: credits,
+      status: "success",
+    });
+
+    console.log("[CREDITS_DEBUG]", {
+      userId,
+      planSlug: plan.slug,
+      dailyLimit,
+      usedToday: Math.max(0, dailyLimit - Number(updated.daily_credits ?? 0)),
+      remainingCredits: Number(updated.daily_credits ?? 0),
+      monthlyRemaining: Number(updated.monthly_credits ?? 0),
+      requestedCredits: credits,
+      feature: featureKey,
+      creditBalance: "deducted",
+    });
+
+    // Notify when monthly credits are running low
+    const monthlyLeft = Number(updated.monthly_credits ?? 0);
+    const monthlyLimit = dailyLimit * 30;
+    if (monthlyLeft <= Math.max(2, Math.round(monthlyLimit * 0.1))) {
+      await db.from("notifications").insert({
+        user_id: userId,
+        title: "AI credits running low",
+        body: `You have ${monthlyLeft} AI credits left this month.`,
+        type: "warning",
+        link: "/billing",
+      });
+    }
+
+    return updated;
   }
 
-  return updated;
+  throw new AccessError("Could not spend AI credits. Please try again.", 409, "credits_unavailable");
 }
 
 export async function checkCreditLimit(userId: string, featureKey: string): Promise<{ allowed: boolean; reason?: string; dailyRemaining?: number; monthlyRemaining?: number; requestedCredits?: number }> {
@@ -297,6 +374,17 @@ export async function checkCreditLimit(userId: string, featureKey: string): Prom
 
   const plan = await getPlan(userId);
   const dailyLimit = Number(plan.ai_limits?.credits ?? 10);
+
+  console.log("[JMK_CREDIT_CHECK]", {
+    userId,
+    planSlug: plan.slug,
+    dailyLimit,
+    usedToday: Math.max(0, dailyLimit - decision.dailyRemaining),
+    remainingCredits: decision.dailyRemaining,
+    requestedCredits,
+    feature: featureKey,
+    shouldAllow: decision.allowed,
+  });
 
   console.log("[CREDITS_DEBUG]", {
     userId,

@@ -65,9 +65,15 @@ type ProjectRow = {
 
 const tierMeta: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   free: { label: "Free Plan", color: "bg-muted text-muted-foreground", icon: Sparkles },
-  beta: { label: "Beta Plan", color: "bg-accent/10 text-accent", icon: Zap },
+  beta: { label: "Student Plan", color: "bg-accent/10 text-accent", icon: Zap },
   premium: { label: "Premium+ Plan", color: "bg-primary/10 text-primary", icon: Crown },
 };
+
+// The legacy subscriptions.tier column maps 1:1 to a subscription_plans slug.
+// The plan limit is read from the SAME subscription_plans.ai_limits column the
+// edge functions enforce, so the dashboard denominator can never disagree with
+// the server's daily limit.
+const tierToSlug: Record<string, string> = { free: "free", beta: "student", premium: "premium_plus" };
 
 const Dashboard = () => {
   const [user, setUser] = useState<unknown>(null);
@@ -88,15 +94,19 @@ const Dashboard = () => {
   const { toast } = useToast();
 
   const loadData = async (uid: string) => {
-    const [p, s, bal, limit, pr, act] = await Promise.all([
+    const [p, s, bal, pr, act] = await Promise.all([
       supabase.from("profiles").select("*").eq("id", uid).maybeSingle(),
       supabase.from("subscriptions").select("*").eq("user_id", uid).maybeSingle(),
       // Same row the edge functions check and deduct from.
       fetchDailyCreditBalance(uid),
-      fetchDailyPlanLimit(),
       supabase.from("projects").select("id,title,status,progress_percent").eq("user_id", uid).order("updated_at", { ascending: false }),
       supabase.from("activity_log").select("*").eq("user_id", uid).order("created_at", { ascending: false }).limit(6),
     ]);
+
+    // The daily allowance comes from the user's actual plan, not a Free default.
+    const planSlug = tierToSlug[(s.data?.tier as string | undefined) ?? "free"] ?? "free";
+    const limit = await fetchDailyPlanLimit(planSlug);
+
     setProfile(p.data);
     setSubscription(s.data);
     setCreditBalance(bal);

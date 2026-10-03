@@ -1,5 +1,7 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { adminClient, requireUser, AccessError } from "../_shared/entitlements.ts";
+import { nextDailyResetUtc, nextMonthlyResetUtc } from "../_shared/credit-rules.ts";
+import { resolvePlanActivation } from "../_shared/plan-activation.ts";
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -161,16 +163,11 @@ Deno.serve(async (req) => {
 
       const { data: settings } = await db
         .from("app_settings")
-        .select("pricing_mode")
+        .select("pricing_mode, payments_enabled")
         .eq("id", "global")
         .maybeSingle();
 
       console.log(`[payments] activate_plan: pricing_mode=${settings?.pricing_mode}`);
-
-      if (settings?.pricing_mode !== "free") {
-        console.log(`[payments] activate_plan: free mode disabled`);
-        return json({ success: false, error: { code: "FREE_MODE_DISABLED", message: "Plan activation is only available when free mode is enabled." } }, 400);
-      }
 
       const { data: plan } = await db
         .from("subscription_plans")
@@ -181,15 +178,26 @@ Deno.serve(async (req) => {
 
       console.log(`[payments] activate_plan: plan found=${!!plan} slug=${plan?.slug} id=${plan?.id}`);
 
-      if (!plan) {
-        console.log(`[payments] activate_plan: plan not found`);
-        return json({ success: false, error: { code: "PLAN_NOT_FOUND", message: "Unknown or inactive plan" } }, 400);
-      }
+      // One decision, shared with the pricing UI and the unit tests: Free Mode
+      // waives payment only, and never the entitlements of the selected plan.
+      const resolution = resolvePlanActivation({
+        pricingMode: settings?.pricing_mode,
+        planSlug,
+        plan,
+      });
 
-      const allowedSlugs = ["free", "student", "premium_plus"];
-      if (!allowedSlugs.includes(planSlug)) {
-        console.log(`[payments] activate_plan: plan not selectable`);
-        return json({ success: false, error: { code: "PLAN_NOT_SELECTABLE", message: "This plan cannot be selected directly" } }, 400);
+      if (resolution.action === "quote") {
+        return json({ success: false, error: { code: "PLAN_NOT_SELECTABLE", message: "This plan is activated by a team member after a quote." } }, 400);
+      }
+      if (resolution.action === "rejected") {
+        console.log(`[payments] activate_plan: rejected code=${resolution.code}`);
+        return json({ success: false, error: { code: resolution.code, message: resolution.message } }, 400);
+      }
+      if (resolution.action === "payment_required") {
+        // Paid mode: this endpoint must never grant a paid plan. The caller has
+        // to go through initialize -> verify first.
+        console.log(`[payments] activate_plan: free mode disabled`);
+        return json({ success: false, error: { code: "FREE_MODE_DISABLED", message: "Plan activation without payment is only available when free mode is enabled." } }, 400);
       }
 
       const { data: existingSub } = await db
@@ -199,6 +207,15 @@ Deno.serve(async (req) => {
         .eq("status", "active")
         .maybeSingle();
       console.log(`[payments] activate_plan: existing active subscription=${!!existingSub}`);
+
+      console.log("[PLAN_ACTIVATION]", {
+        userId: user.id,
+        requestedPlanSlug: planSlug,
+        pricingMode: settings?.pricing_mode ?? "paid",
+        paymentsEnabled: settings?.payments_enabled ?? null,
+        selectedPlanId: plan.id,
+        existingSubscription: existingSub ? { id: existingSub.id, plan_id: existingSub.plan_id, expiry_date: existingSub.expiry_date } : null,
+      });
 
       await db.from("user_subscriptions").update({ status: "expired" })
         .eq("user_id", user.id).eq("status", "active");
@@ -252,15 +269,15 @@ Deno.serve(async (req) => {
       });
       console.log(`[payments] activate_plan: notification inserted`);
 
-      // Reset ai_credit_balances to match new plan limits
-      const planLimits = plan.ai_limits ?? {};
-      const dailyLimit = Number(planLimits.credits ?? 10);
+      // Reset ai_credit_balances to match the newly activated plan. The daily
+      // allowance comes from the same resolution that approved the activation,
+      // and the reset boundaries come from credit-rules.ts, so this edge
+      // function and getCreditBalance() can never disagree.
+      const dailyLimit = resolution.dailyCredits;
       const monthlyLimit = dailyLimit * 30;
       const now = new Date();
-      const dailyReset = new Date(now);
-      dailyReset.setDate(dailyReset.getDate() + 1);
-      dailyReset.setHours(0, 0, 0, 0);
-      const monthlyReset = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+      const dailyReset = nextDailyResetUtc(now);
+      const monthlyReset = nextMonthlyResetUtc(now);
 
       const { error: balanceError } = await db.from("ai_credit_balances").upsert({
         user_id: user.id,
@@ -269,15 +286,18 @@ Deno.serve(async (req) => {
         monthly_credits: monthlyLimit,
         monthly_reset_at: monthlyReset.toISOString(),
       }, { onConflict: "user_id" });
-      console.log(`[payments] activate_plan: upsert ai_credit_balances error=${balanceError?.message ?? "none"} dailyLimit=${dailyLimit} monthlyLimit=${monthlyLimit}`);
+      console.log(`[payments] activate_plan: upsert ai_credit_balances error=${balanceError?.message ?? "none"} dailyLimit=${dailyLimit}`);
 
       if (balanceError) {
         throw balanceError;
       }
 
+      console.log("[PLAN_ACTIVATION_SUCCESS]", { userId: user.id, planSlug: plan.slug, pricingMode: "free", dailyCredits: dailyLimit });
       console.log(`[payments] activate_plan: success`);
       return json({
         success: true,
+        plan: { slug: plan.slug, name: plan.name, dailyCredits: dailyLimit },
+        pricing_mode: "free",
         data: {
           plan: { slug: plan.slug, name: plan.name },
           status: "active",

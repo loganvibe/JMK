@@ -11,7 +11,7 @@ import { useEntitlements, formatNaira, type Plan } from "@/hooks/useEntitlements
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 
 const AuthenticatedHeader = () => {
-  const { userId, subscription, plan, freeMode } = useEntitlements();
+  const { userId, plan, slug } = useEntitlements();
   const navigate = useNavigate();
 
   const handleLogout = async () => {
@@ -21,8 +21,14 @@ const AuthenticatedHeader = () => {
 
   if (!userId) return null;
 
-  const tier = subscription?.tier || "free";
-  const planName = plan?.name || "Free";
+  const planLabel =
+    slug === "premium_plus"
+      ? "Premium+"
+      : slug === "student"
+        ? "Student"
+        : slug === "custom"
+          ? "Custom"
+          : plan?.name ?? "Free";
 
   return (
     <header className="sticky top-0 z-50 glass border-b border-border/50">
@@ -50,7 +56,7 @@ const AuthenticatedHeader = () => {
           <div className="flex items-center gap-3">
             <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted text-sm">
               <User className="w-4 h-4 text-accent" />
-              <span className="font-medium capitalize">{tier === "free" ? "Free" : tier === "beta" ? "Student" : "Premium+"}</span>
+              <span className="font-medium">{planLabel}</span>
             </div>
             <Button variant="ghost" size="sm" onClick={handleLogout}>
               <LogOut className="w-4 h-4 mr-1" /> Log Out
@@ -132,6 +138,63 @@ const Pricing = () => {
   }, []);
 
   const isAuthenticated = !!ent.userId;
+
+  /**
+   * Free Mode waives payment only. The plan the user selected is the plan that
+   * gets activated, so their credits come from that plan's ai_limits - not from
+   * the pricing mode. In paid mode nothing is activated here: the user is sent
+   * through the payment flow and the subscription is only written once the
+   * payment has been verified.
+   */
+  const choosePlan = async (plan: Plan) => {
+    if (!isAuthenticated) {
+      navigate("/login");
+      return;
+    }
+    if (plan.slug === "custom") {
+      navigate("/services");
+      return;
+    }
+
+    setBusy(plan.slug);
+    try {
+      if (freeMode) {
+        const { data, error } = await supabase.functions.invoke("payments", {
+          body: { action: "activate_plan", planSlug: plan.slug },
+        });
+        if (error || data?.error) {
+          throw new Error(String(data?.error?.message ?? data?.error ?? error?.message ?? "Activation failed"));
+        }
+        await ent.refresh();
+        const dailyCredits = Number(data?.plan?.dailyCredits ?? plan.ai_limits?.credits ?? 10);
+        toast({
+          title: `${data?.plan?.name ?? plan.name} activated`,
+          description: `Free mode is on — no payment was taken. You now have ${dailyCredits} AI credits per day.`,
+        });
+        navigate("/dashboard");
+        return;
+      }
+
+      const { data, error } = await supabase.functions.invoke("payments", {
+        body: { action: "initialize", planSlug: plan.slug, callbackUrl: `${window.location.origin}/billing` },
+      });
+      if (error || data?.error) {
+        throw new Error(String(data?.error?.message ?? data?.error ?? error?.message ?? "Could not start payment"));
+      }
+      if (!data?.authorization_url) {
+        throw new Error("The payment provider did not return a checkout link.");
+      }
+      window.location.href = data.authorization_url;
+    } catch (e) {
+      toast({
+        title: "Could not continue",
+        description: e instanceof Error ? e.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setBusy(null);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background">

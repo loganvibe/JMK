@@ -149,7 +149,7 @@ const Billing = () => {
             </div>
             <Progress value={creditPct} className="h-2" />
             <p className="text-xs text-muted-foreground mt-3">
-              Credits reset every day at midnight UTC. Topic generation costs 2 credits, chapter generation 20, most other AI actions 2.
+              Credits reset every day at midnight UTC. Topic generation costs 1 credit, chapter generation 2, most other AI actions 1.
             </p>
           </div>
         </div>
