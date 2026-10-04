@@ -29,3 +29,4 @@ supabase/.temp/
 # Environment files — never commit secrets
 .env
 .env.*
+!.env.production
