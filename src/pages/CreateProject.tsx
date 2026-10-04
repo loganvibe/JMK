@@ -102,6 +102,9 @@ const CreateProject = () => {
     setTopics([]);
     setSelectedIdx(null);
     try {
+       console.log("[JMK UI] handleGenerate called");
+       console.log("[JMK UI] profile:", profile ? "exists" : "null/undefined");
+       console.log("[JMK UI] inputs:", JSON.stringify(form).slice(0, 200));
        const data = await invokeFunction<unknown>("project-ai", { action: "generate_topics", profile, inputs: form });
        const list: Topic[] = data?.data?.topics ?? [];
       if (!list.length) throw new Error("No topics returned. Try again.");

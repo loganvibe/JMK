@@ -161,9 +161,25 @@ export async function invokeFunction<T = unknown>(
   // Every AI call uses the OpenRouter default unless a specific model is passed.
   const payload = { model: "openrouter/meta-llama/llama-3.1-70b-instruct", ...body };
 
+  console.log("[JMK AI] invoking:", name);
+  try {
+    const session = await supabase.auth.getSession();
+    console.log("[JMK AI] session exists:", !!session.data?.session);
+    console.log("[JMK AI] user exists:", !!session.data?.session?.user);
+    console.log("[JMK AI] access_token exists:", !!session.data?.session?.access_token);
+    console.log("[JMK AI] access_token expires_at:", session.data?.session?.expires_at ?? "N/A");
+  } catch (e) {
+    console.log("[JMK AI] getSession error:", e instanceof Error ? e.message : String(e));
+  }
+  console.log("[JMK AI] request started");
+
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       const { data, error } = await supabase.functions.invoke(name, { body: payload });
+      console.log("[JMK AI] request completed");
+      console.log("[JMK AI] data type:", typeof data);
+      console.log("[JMK AI] data shape keys:", data && typeof data === "object" ? Object.keys(data) : "N/A");
+      console.log("[JMK AI] error:", error ? { name: error.name, message: error.message, code: error.code } : "N/A");
       if (error) throw await unwrapFunctionError(error);
 
       // Handle new standardized AI response format
@@ -184,6 +200,12 @@ export async function invokeFunction<T = unknown>(
       return data as T;
     } catch (err: unknown) {
       lastErr = err;
+      console.log("[JMK AI] caught error:", {
+        name: err instanceof Error ? err.name : typeof err,
+        message: err instanceof Error ? err.message : String(err),
+        code: (err as { code?: string })?.code,
+        has_context: !!(err as { context?: unknown })?.context,
+      });
       const text = String((err as Record<string, unknown>)?.message ?? "").toLowerCase();
       const code = String(err?.code ?? "");
       // Plan / credit / auth problems are final — never retry or hide them.
@@ -207,6 +229,7 @@ export async function invokeFunction<T = unknown>(
   const err = new Error(friendly);
   (err as Error & { originalMessage?: string }).originalMessage =
     lastErr instanceof Error ? lastErr.message : String(lastErr ?? "unknown");
+  console.log("[JMK AI] final error:", { friendly, originalMessage: (err as Error & { originalMessage?: string }).originalMessage });
   throw err;
 }
 
