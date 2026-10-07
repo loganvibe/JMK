@@ -206,6 +206,9 @@ export async function invokeFunction<T = unknown>(
         code: (err as { code?: string })?.code,
         has_context: !!(err as { context?: unknown })?.context,
       });
+      if (err instanceof Error && err.context instanceof Error) {
+        console.log("[JMK AI] fetch context:", err.context.name, "-", err.context.message);
+      }
       const text = String((err as Record<string, unknown>)?.message ?? "").toLowerCase();
       const code = String(err?.code ?? "");
       // Plan / credit / auth problems are final — never retry or hide them.
