@@ -173,9 +173,19 @@ export async function invokeFunction<T = unknown>(
   }
   console.log("[JMK AI] request started");
 
+  const invokeOptions: Record<string, unknown> = { body: payload };
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.access_token) {
+      invokeOptions.headers = { Authorization: `Bearer ${session.access_token}` };
+    }
+  } catch (e) {
+    console.log("[JMK AI] auth header setup error:", e instanceof Error ? e.message : String(e));
+  }
+
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      const { data, error } = await supabase.functions.invoke(name, { body: payload });
+      const { data, error } = await supabase.functions.invoke(name, invokeOptions);
       console.log("[JMK AI] request completed");
       console.log("[JMK AI] data type:", typeof data);
       console.log("[JMK AI] data shape keys:", data && typeof data === "object" ? Object.keys(data) : "N/A");
