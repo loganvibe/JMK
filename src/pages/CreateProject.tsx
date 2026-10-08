@@ -166,10 +166,24 @@ const CreateProject = () => {
       toast({ title: "Project created", description: "Opening your workspace…" });
       navigate(`/projects/${data.id}`);
     } catch (e: unknown) {
-      const err = e instanceof Error ? e : new Error(String(e));
+      let message = "Please try again.";
+      if (e instanceof Error) {
+        message = e.message;
+      } else if (typeof e === "object" && e !== null) {
+        const errObj = e as Record<string, unknown>;
+        if (typeof errObj.message === "string") message = errObj.message;
+        else if (typeof errObj.error === "string") message = errObj.error;
+        else if (errObj.error && typeof errObj.error === "object" && errObj.error !== null) {
+          const nested = errObj.error as Record<string, unknown>;
+          if (typeof nested.message === "string") message = nested.message;
+        }
+        else message = JSON.stringify(e);
+      } else {
+        message = String(e);
+      }
       toast({
         title: "Could not save project",
-        description: err?.message ?? "Please try again.",
+        description: message,
         variant: "destructive",
       });
     } finally {
