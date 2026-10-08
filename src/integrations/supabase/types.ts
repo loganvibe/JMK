@@ -1287,9 +1287,7 @@ export type Database = {
           project_id: string
           section_type: string
           status: string
-          title: string | null
           updated_at: string
-          user_id: string
         }
         Insert: {
           chapter: string
@@ -1300,9 +1298,7 @@ export type Database = {
           project_id: string
           section_type: string
           status?: string
-          title?: string | null
           updated_at?: string
-          user_id: string
         }
         Update: {
           chapter?: string
@@ -1313,9 +1309,7 @@ export type Database = {
           project_id?: string
           section_type?: string
           status?: string
-          title?: string | null
           updated_at?: string
-          user_id?: string
         }
         Relationships: [
           {

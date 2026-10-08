@@ -154,7 +154,6 @@ const ProjectWorkspace = () => {
     );
     const payload = {
       project_id: project.id,
-      user_id: user.id,
       chapter: activeChapter,
       section_type: activeSection,
       content,
