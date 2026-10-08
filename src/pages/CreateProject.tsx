@@ -127,29 +127,32 @@ const CreateProject = () => {
     const t = topics[selectedIdx];
     setSaving(true);
     try {
+      const extraData = {
+        course: form.course,
+        project_area: form.project_area,
+        project_type: form.project_type,
+        research_field: form.research_field,
+        difficulty_level: form.difficulty_level,
+        problem_statement: t.problem_statement ?? null,
+        objectives: Array.isArray(t.objectives) ? t.objectives.join("\n") : null,
+        research_questions: Array.isArray(t.research_questions)
+          ? t.research_questions.join("\n")
+          : null,
+        scope: t.scope ?? null,
+        expected_outcome: t.expected_outcome ?? null,
+        methodology: t.methodology ?? null,
+      };
       const { data, error } = await supabase
         .from("projects")
         .insert({
           user_id: user.id,
           title: t.title,
-          topic: t.title,
           department: form.department,
-          course: form.course,
-          project_area: form.project_area,
-          project_type: form.project_type,
-          research_field: form.research_field,
-          difficulty_level: form.difficulty_level,
-          problem_statement: t.problem_statement ?? null,
-          objectives: Array.isArray(t.objectives) ? t.objectives.join("\n") : null,
-          research_questions: Array.isArray(t.research_questions)
-            ? t.research_questions.join("\n")
-            : null,
-          scope: t.scope ?? null,
-          expected_outcome: t.expected_outcome ?? null,
-          methodology: t.methodology ?? null,
-          description: t.introduction ?? null,
+          topic_type: "new",
           status: "planning",
           progress_percent: 5,
+          description: t.introduction ?? null,
+          notes: JSON.stringify(extraData),
         })
         .select("id")
         .single();
