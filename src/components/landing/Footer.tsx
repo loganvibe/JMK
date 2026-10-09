@@ -41,18 +41,18 @@ export function Footer() {
             </p>
             <div className="flex items-center gap-4">
               <a 
-                href="mailto:support@jmk.ng" 
+                href="mailto:jamiketribe@gmail.com" 
                 className="flex items-center gap-2 text-sm text-primary-foreground/70 hover:text-accent transition-colors"
               >
                 <Mail className="w-4 h-4" />
-                support@jmk.ng
+                jamiketribe@gmail.com
               </a>
               <a 
-                href="#" 
+                href="https://wa.me/2347017067943" 
                 className="flex items-center gap-2 text-sm text-primary-foreground/70 hover:text-accent transition-colors"
               >
                 <MessageCircle className="w-4 h-4" />
-                WhatsApp
+                WhatsApp (+2347017067943) / @JMK_SERVICE1
               </a>
             </div>
           </div>
