@@ -21,7 +21,7 @@ import {
   Filter,
   LayoutDashboard,
   FileText,
-  CreditCard,
+   CreditCard,
   Menu,
   X,
   User as UserIcon,
@@ -31,6 +31,7 @@ import {
   Activity,
   BookOpen,
   ChevronRight,
+  MessageSquare,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
@@ -236,11 +237,14 @@ const Dashboard = () => {
               <Link to="/services" className="flex items-center gap-3 px-4 py-3 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
                 <BookOpen className="w-5 h-5" /> Custom Services
               </Link>
-              <Link to="/pricing" className="flex items-center gap-3 px-4 py-3 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
+               <Link to="/pricing" className="flex items-center gap-3 px-4 py-3 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
                 <Crown className="w-5 h-5" /> Plans
               </Link>
+              <Link to="/support" className="flex items-center gap-3 px-4 py-3 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
+                <MessageSquare className="w-5 h-5" /> Contact JMK Support
+              </Link>
 
-            </nav>
+             </nav>
 
             <div className="p-4 border-t border-border">
               <div className="p-4 rounded-xl bg-muted/50">

@@ -34,7 +34,7 @@ const RefundPolicy = () => {
 
           <section className="space-y-3">
             <h2 className="text-xl font-semibold text-foreground">3. How to Request a Refund</h2>
-            <p>To request a refund, email us at <a href="mailto:support@jmk.ng" className="text-accent hover:underline">support@jmk.ng</a> with your account email, transaction reference, and reason for the refund request. We aim to respond within 5 business days.</p>
+            <p>To request a refund, email us at <a href="mailto:support@jmk.life" className="text-accent hover:underline">support@jmk.life</a> with your account email, transaction reference, and reason for the refund request. We aim to respond within 5 business days.</p>
           </section>
 
           <section className="space-y-3">

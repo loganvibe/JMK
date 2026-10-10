@@ -19,6 +19,16 @@ CREATE TABLE IF NOT EXISTS public.support_messages (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
+-- Grants
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.support_conversations TO authenticated;
+GRANT ALL ON public.support_conversations TO service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.support_messages TO authenticated;
+GRANT ALL ON public.support_messages TO service_role;
+
+-- updated_at trigger
+CREATE TRIGGER trg_support_conversations_updated BEFORE UPDATE ON public.support_conversations
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_support_conversations_user ON public.support_conversations(user_id);
 CREATE INDEX IF NOT EXISTS idx_support_conversations_status ON public.support_conversations(status);
@@ -41,7 +51,8 @@ CREATE POLICY "Users update own conversation except status/resolved" ON public.s
   FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id AND status != 'Resolved');
 
 CREATE POLICY "Admins view all conversations" ON public.support_conversations
-  FOR ALL USING ((SELECT is_admin FROM public.profiles WHERE id = auth.uid()) = true);
+  FOR ALL USING (private.has_role(auth.uid(), 'admin'::app_role))
+  WITH CHECK (private.has_role(auth.uid(), 'admin'::app_role));
 
 -- Policies for support_messages
 CREATE POLICY "Users view own conversation messages" ON public.support_messages
@@ -58,7 +69,9 @@ CREATE POLICY "Users create messages in own conversations" ON public.support_mes
       SELECT 1 FROM public.support_conversations c
       WHERE c.id = conversation_id AND c.user_id = auth.uid() AND sender_id = auth.uid()
     )
+    AND is_admin = false
   );
 
 CREATE POLICY "Admins manage all messages" ON public.support_messages
-  FOR ALL USING ((SELECT is_admin FROM public.profiles WHERE id = auth.uid()) = true);
+  FOR ALL USING (private.has_role(auth.uid(), 'admin'::app_role))
+  WITH CHECK (private.has_role(auth.uid(), 'admin'::app_role));

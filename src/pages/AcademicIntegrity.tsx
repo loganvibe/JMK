@@ -62,7 +62,7 @@ const AcademicIntegrity = () => {
 
           <section className="space-y-3">
             <h2 className="text-xl font-semibold text-foreground">Contact</h2>
-            <p>Questions about academic integrity? Contact us at <a href="mailto:support@jmk.ng" className="text-accent hover:underline">support@jmk.ng</a>.</p>
+            <p>Questions about academic integrity? Contact us at <a href="mailto:support@jmk.life" className="text-accent hover:underline">support@jmk.life</a>.</p>
           </section>
         </div>
       </div>

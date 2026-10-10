@@ -54,7 +54,7 @@ const Terms = () => {
 
           <section className="space-y-3">
             <h2 className="text-xl font-semibold text-foreground">7. Contact</h2>
-            <p>For questions about these Terms, contact us at <a href="mailto:support@jmk.ng" className="text-accent hover:underline">support@jmk.ng</a>.</p>
+            <p>For questions about these Terms, contact us at <a href="mailto:support@jmk.life" className="text-accent hover:underline">support@jmk.life</a>.</p>
           </section>
         </div>
       </div>

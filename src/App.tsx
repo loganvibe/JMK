@@ -17,6 +17,7 @@ import Privacy from "./pages/Privacy";
 import RefundPolicy from "./pages/RefundPolicy";
 import AcademicIntegrity from "./pages/AcademicIntegrity";
 import Features from "./pages/Features";
+import Future from "./pages/Future";
 import AuthCallback from "./pages/AuthCallback";
 
 
@@ -64,7 +65,8 @@ const App = () => (
               <Route path="/terms" element={<Terms />} />
               <Route path="/privacy" element={<Privacy />} />
               <Route path="/refund-policy" element={<RefundPolicy />} />
-              <Route path="/academic-integrity" element={<AcademicIntegrity />} />
+               <Route path="/academic-integrity" element={<AcademicIntegrity />} />
+               <Route path="/future" element={<Future />} />
 
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/my-projects" element={<MyProjects />} />

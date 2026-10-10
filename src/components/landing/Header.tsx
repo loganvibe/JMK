@@ -20,17 +20,20 @@ export function Header() {
           </Link>
 
           {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center gap-8">
-            <Link to="/#features" className="text-muted-foreground hover:text-primary transition-colors font-medium">
-              Features
-            </Link>
-            <Link to="/pricing" className="text-muted-foreground hover:text-primary transition-colors font-medium">
-              Pricing
-            </Link>
-            <Link to="/#testimonials" className="text-muted-foreground hover:text-primary transition-colors font-medium">
-              Testimonials
-            </Link>
-          </nav>
+           <nav className="hidden md:flex items-center gap-8">
+              <Link to="/#features" className="text-muted-foreground hover:text-primary transition-colors font-medium">
+                Features
+              </Link>
+              <Link to="/future" className="text-muted-foreground hover:text-primary transition-colors font-medium">
+                Future
+              </Link>
+              <Link to="/pricing" className="text-muted-foreground hover:text-primary transition-colors font-medium">
+                Pricing
+              </Link>
+              <Link to="/#testimonials" className="text-muted-foreground hover:text-primary transition-colors font-medium">
+                Testimonials
+              </Link>
+            </nav>
 
           {/* Desktop CTA */}
           <div className="hidden md:flex items-center gap-3">
@@ -68,6 +71,13 @@ export function Header() {
                 onClick={() => setIsMenuOpen(false)}
               >
                 Features
+              </Link>
+              <Link
+                to="/future"
+                className="block py-2 text-muted-foreground hover:text-primary font-medium"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                Future
               </Link>
               <Link
                 to="/pricing"

@@ -40,19 +40,21 @@ export function Footer() {
               Helping you achieve excellent academic results with AI-powered tools.
             </p>
             <div className="flex items-center gap-4">
-              <a 
-                href="mailto:jamiketribe@gmail.com" 
+              <a
+                href="mailto:support@jmk.life"
                 className="flex items-center gap-2 text-sm text-primary-foreground/70 hover:text-accent transition-colors"
               >
                 <Mail className="w-4 h-4" />
-                jamiketribe@gmail.com
+                support@jmk.life
               </a>
-              <a 
-                href="https://wa.me/2347017067943" 
+              <a
+                href="https://wa.me/2347017067943"
                 className="flex items-center gap-2 text-sm text-primary-foreground/70 hover:text-accent transition-colors"
+                target="_blank"
+                rel="noopener noreferrer"
               >
                 <MessageCircle className="w-4 h-4" />
-                WhatsApp (+2347017067943) / @JMK_SERVICE1
+                WhatsApp +234(0)7017067943 / @JMK_SERVICE1
               </a>
             </div>
           </div>
@@ -60,10 +62,15 @@ export function Footer() {
           {/* Quick Links */}
           <div>
             <h4 className="font-heading font-semibold mb-4">Quick Links</h4>
-            <ul className="space-y-3">
+             <ul className="space-y-3">
               <li>
                 <Link to="/#features" className="text-primary-foreground/70 hover:text-accent transition-colors">
                   Features
+                </Link>
+              </li>
+              <li>
+                <Link to="/future" className="text-primary-foreground/70 hover:text-accent transition-colors">
+                  Future
                 </Link>
               </li>
               <li>

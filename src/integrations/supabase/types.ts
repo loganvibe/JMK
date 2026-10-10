@@ -1524,6 +1524,74 @@ export type Database = {
         }
         Relationships: []
       }
+      support_conversations: {
+        Row: {
+          id: string
+          user_id: string
+          subject: string
+          category: string
+          status: string
+          last_message_at: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          subject: string
+          category: string
+          status?: string
+          last_message_at?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          subject?: string
+          category?: string
+          status?: string
+          last_message_at?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      support_messages: {
+        Row: {
+          id: string
+          conversation_id: string
+          sender_id: string
+          message: string
+          is_admin: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          conversation_id: string
+          sender_id: string
+          message: string
+          is_admin?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          conversation_id?: string
+          sender_id?: string
+          message?: string
+          is_admin?: boolean
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "support_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       subscription_plans: {
         Row: {
           active: boolean
