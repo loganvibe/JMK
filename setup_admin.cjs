@@ -1,12 +1,26 @@
 const { createClient } = require('@supabase/supabase-js');
+require('dotenv').config();
 
 const supabase = createClient(
-  'https://vkwpcxbizxwlcgjtxwxo.supabase.co',
-  'REDACTED_SERVICE_ROLE_KEY'
+  process.env.SUPABASE_URL || 'https://vkwpcxbizxwlcgjtxwxo.supabase.co',
+  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 );
 
-const ADMIN_EMAIL = 'loganleo2224@gmail.com';
-const ADMIN_PASSWORD = '12345654321';
+if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  console.error('Error: SUPABASE_SERVICE_ROLE_KEY environment variable not set');
+  process.exit(1);
+}
+
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'loganleo2224@gmail.com';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+
+if (!ADMIN_PASSWORD) {
+  console.error('Error: ADMIN_PASSWORD environment variable not set');
+  process.exit(1);
+}
+
+const SUPABASE_MANAGEMENT_TOKEN = process.env.SUPABASE_MANAGEMENT_TOKEN;
+const SUPABASE_PROJECT_REF = process.env.SUPABASE_PROJECT_REF || 'vkwpcxbizxwlcgjtxwxo';
 
 // Check available admin methods
 console.log('Admin methods:', Object.keys(supabase.auth.admin || {}));
@@ -38,7 +52,10 @@ console.log('Admin methods:', Object.keys(supabase.auth.admin || {}));
   if (!updated) {
     // Use management API directly
     const https = require('https');
-    const token = 'REDACTED_SUPABASE_TOKEN';
+    if (!SUPABASE_MANAGEMENT_TOKEN) {
+      console.error('Error: SUPABASE_MANAGEMENT_TOKEN environment variable not set');
+      process.exit(1);
+    }
     const body = JSON.stringify({
       email: ADMIN_EMAIL,
       password: ADMIN_PASSWORD,
@@ -46,10 +63,10 @@ console.log('Admin methods:', Object.keys(supabase.auth.admin || {}));
     });
     const opts = {
       hostname: 'api.supabase.com',
-      path: '/v1/projects/vkwpcxbizxwlcgjtxwxo/auth/users/' + adminUser.id,
+      path: '/v1/projects/' + SUPABASE_PROJECT_REF + '/auth/users/' + adminUser.id,
       method: 'PUT',
       headers: {
-        'Authorization': 'Bearer ' + token,
+        'Authorization': 'Bearer ' + SUPABASE_MANAGEMENT_TOKEN,
         'Content-Type': 'application/json',
       }
     };

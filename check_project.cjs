@@ -1,6 +1,12 @@
 const https = require('https');
-const token = 'REDACTED_SUPABASE_TOKEN';
-const ref = 'vkwpcxbizxwlcgjtxwxo';
+require('dotenv').config();
+const token = process.env.SUPABASE_MANAGEMENT_TOKEN;
+const ref = process.env.SUPABASE_PROJECT_REF || 'vkwpcxbizxwlcgjtxwxo';
+
+if (!token) {
+  console.error('Error: SUPABASE_MANAGEMENT_TOKEN environment variable not set');
+  process.exit(1);
+}
 
 function mgmtApi(path, method = 'GET', body) {
   return new Promise((resolve, reject) => {
