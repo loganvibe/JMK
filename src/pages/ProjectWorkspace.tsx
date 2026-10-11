@@ -204,9 +204,9 @@ const ProjectWorkspace = () => {
           const nested = errObj.error as Record<string, unknown>;
           if (typeof nested.message === "string") message = nested.message;
         }
-        else if (typeof errObj.code === "string" && typeof errObj.message === "string") {
+        else if (typeof errObj.code === "string") {
           // Supabase error format: { code, message, details, hint }
-          message = `${errObj.code}: ${errObj.message}`;
+          message = `${errObj.code}: ${errObj.message ?? "unknown error"}`;
         }
         else message = JSON.stringify(e);
       } else {

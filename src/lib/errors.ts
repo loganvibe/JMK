@@ -56,8 +56,20 @@ export function friendlyError(err: unknown, scope: ErrorScope = "app"): string {
   if (lower.includes("upgrade_required") || lower.includes("upgrade your plan"))
     return msg || "This feature isn't included in your current plan. Upgrade to unlock it.";
 
-  if (lower.includes("rate limit") || lower.includes("429"))
-    return "The AI is handling a lot of requests right now. Please wait a few seconds and try again.";
+  if (lower.includes("rate limit") || lower.includes("429")) {
+    if (scope === "ai") return "The AI is handling a lot of requests right now. Please wait a few seconds and try again.";
+    if (scope === "auth") return "Too many requests. Please wait a moment before trying again.";
+    return "Too many requests. Please wait a moment before trying again.";
+  }
+
+  const authRateLimitCodes = ["over_request_rate_limit", "over_email_send_rate_limit", "over_sms_send_rate_limit"];
+  if (err && typeof err === "object" && "code" in err) {
+    const code = (err as { code?: string }).code;
+    if (code && authRateLimitCodes.includes(code)) {
+      if (scope === "auth") return "Too many requests. Please wait a moment before trying again.";
+      return "Too many requests. Please wait a moment before trying again.";
+    }
+  }
 
   if (lower.includes("payment required") || lower.includes("402"))
     return "AI usage requires an active plan or workspace credits.";

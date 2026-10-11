@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useState, useRef } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,22 +18,46 @@ const ResetPassword = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [recoveryState, setRecoveryState] = useState<RecoveryState>("checking");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const submitInFlight = useRef(false);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
 
   useEffect(() => {
     let mounted = true;
+    let recoverySessionConfirmed = false;
+
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       if (!mounted) return;
       if (event === "PASSWORD_RECOVERY" && session) {
+        recoverySessionConfirmed = true;
         setRecoveryState("valid");
-      } else if (event === "SIGNED_IN" && session) {
-        setRecoveryState("valid");
+      } else if (event === "SIGNED_IN" && session && recoverySessionConfirmed) {
+        // Password was updated, user is now signed in
+        navigate("/dashboard", { replace: true });
       }
     });
 
     const checkRecoverySession = async () => {
       try {
+        // First check if there's a code in the URL that needs to be exchanged
+        const code = searchParams.get("code");
+        const type = searchParams.get("type");
+        
+        if (code && type === "recovery") {
+          // Exchange the code for a session
+          const { error } = await supabase.auth.exchangeCodeForSession(code);
+          if (!mounted) return;
+          if (error) {
+            setRecoveryState("invalid");
+            setErrorMessage(friendlyError(error, "auth"));
+            return;
+          }
+          // After successful exchange, the PASSWORD_RECOVERY event should fire
+          return;
+        }
+
+        // No code in URL, check for existing session
         const { data: { session }, error } = await supabase.auth.getSession();
         if (!mounted) return;
         if (error) {
@@ -42,6 +66,7 @@ const ResetPassword = () => {
           return;
         }
         if (session) {
+          recoverySessionConfirmed = true;
           setRecoveryState("valid");
         } else {
           setRecoveryState("invalid");
@@ -59,7 +84,7 @@ const ResetPassword = () => {
       mounted = false;
       sub.subscription.unsubscribe();
     };
-  }, []);
+  }, [navigate, searchParams]);
 
   const validatePassword = (pwd: string): string | null => {
     if (pwd.length < 8) return "Password must be at least 8 characters long.";
@@ -73,6 +98,8 @@ const ResetPassword = () => {
     e.preventDefault();
     setErrorMessage(null);
 
+    if (submitInFlight.current || isLoading) return;
+    
     if (!password || !confirm) {
       setErrorMessage("Both password fields are required.");
       return;
@@ -94,13 +121,14 @@ const ResetPassword = () => {
       return;
     }
 
+    submitInFlight.current = true;
     setIsLoading(true);
     try {
       const { error } = await supabase.auth.updateUser({ password });
       if (error) throw error;
 
       toast({ title: "Password updated", description: "Your password has been changed. Please sign in with your new password." });
-      navigate("/login", { replace: true });
+      // The SIGNED_IN event from onAuthStateChange will handle navigation
     } catch (error: unknown) {
       const msg = friendlyError(error, "auth");
       if (/session.*expired|token.*expired|invalid.*token|already.*used/i.test(msg)) {
@@ -111,6 +139,7 @@ const ResetPassword = () => {
       }
     } finally {
       setIsLoading(false);
+      submitInFlight.current = false;
     }
   };
 
