@@ -16,6 +16,7 @@ const Signup = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [resending, setResending] = useState(false);
+  const requestInFlight = useRef(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -31,9 +32,14 @@ const Signup = () => {
       toast({ title: "Please enter your full name", variant: "destructive" });
       return;
     }
+    if (requestInFlight.current) return;
+    requestInFlight.current = true;
     setIsLoading(true);
 
     try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
+
       const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
         password,
@@ -42,6 +48,8 @@ const Signup = () => {
           emailRedirectTo: `${window.location.origin}/dashboard`,
         },
       });
+
+      clearTimeout(timeout);
 
       if (error) throw error;
 
@@ -57,16 +65,27 @@ const Signup = () => {
         description: "We've sent you a confirmation link to verify your email address.",
       });
     } catch (error: unknown) {
-      const msg = friendlyError(error, "auth");
-      await reportError("auth", error, { flow: "signup", email: email.trim() });
-      toast({
-        title: "Signup failed",
-        description: /already registered|already exists/i.test(msg)
-          ? "That email already has an account. Try signing in instead."
-          : msg || "Please try again.",
-        variant: "destructive",
-      });
+      if (error instanceof DOMException && error.name === "AbortError") {
+        await reportError("auth", error, { flow: "signup", email: email.trim(), timeout: true });
+        toast({
+          title: "Signup timed out",
+          description:
+            "The request took too long. Your account may still be created. Please check your email for a verification link, or try signing in.",
+          variant: "destructive",
+        });
+      } else {
+        const msg = friendlyError(error, "auth");
+        await reportError("auth", error, { flow: "signup", email: email.trim() });
+        toast({
+          title: "Signup failed",
+          description: /already registered|already exists/i.test(msg)
+            ? "That email already has an account. Try signing in instead."
+            : msg || "Please try again.",
+          variant: "destructive",
+        });
+      }
     } finally {
+      requestInFlight.current = false;
       setIsLoading(false);
     }
   };
