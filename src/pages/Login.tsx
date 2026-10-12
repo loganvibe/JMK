@@ -78,30 +78,6 @@ const Login = () => {
     }
   };
 
-  const handleAuth0Login = async () => {
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "custom:auth0",
-        options: { redirectTo: `${window.location.origin}/auth/callback` },
-      });
-      if (error) throw error;
-    } catch (error: unknown) {
-      const err = error instanceof Error ? error : new Error(String(error));
-      const message = err.message || "";
-      let description = "Please try again.";
-      if (/invalid.*request|access blocked|unauthorized_client|redirect_uri_mismatch/i.test(message)) {
-        description = "Auth0 sign-in is not configured correctly. Please contact support or try email sign-in.";
-      } else if (/popup.*closed|user.*denied/i.test(message)) {
-        description = "Auth0 sign-in was cancelled or blocked by the browser.";
-      }
-      toast({
-        title: "Auth0 login failed",
-        description,
-        variant: "destructive",
-      });
-    }
-  };
-
   return (
     <div className="min-h-screen bg-gradient-hero flex items-center justify-center p-4">
       {/* Back Button */}
@@ -140,7 +116,7 @@ const Login = () => {
           <Button
             variant="outline"
             size="lg"
-            className="w-full mb-4"
+            className="w-full mb-6"
             onClick={handleGoogleLogin}
           >
             <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
@@ -162,19 +138,6 @@ const Login = () => {
               />
             </svg>
             Continue with Google
-          </Button>
-
-          {/* Auth0 Login */}
-          <Button
-            variant="outline"
-            size="lg"
-            className="w-full mb-6"
-            onClick={handleAuth0Login}
-          >
-            <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 0C5.374 0 0 5.373 0 12c0 6.627 5.373 12 12 12s12-5.373 12-12C24 5.373 18.627 0 12 0zm1.5 15.5c0 .828-.672 1.5-1.5 1.5H12v-4h3c.828 0 1.5.672 1.5 1.5v1zm-1.5 1.5H7.5c-.828 0-1.5-.672-1.5-1.5v-1c0-.828.672-1.5 1.5-1.5h1.5v-1.5c0-.828.672-1.5 1.5-1.5h3c.828 0 1.5.672 1.5 1.5V12h1.5c.828 0 1.5.672 1.5 1.5v3c0 .828-.672 1.5-1.5 1.5z"/>
-            </svg>
-            Continue with Auth0
           </Button>
 
           {/* Divider */}
