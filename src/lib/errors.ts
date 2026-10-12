@@ -104,8 +104,10 @@ export async function logError(
 ) {
   try {
     const { data } = await supabase.auth.getUser();
+    const userId = data?.user?.id;
+    if (!userId) return;
     await supabase.from("error_logs").insert({
-      user_id: data?.user?.id ?? null,
+      user_id: userId,
       scope,
       source: typeof window !== "undefined" ? window.location.pathname : null,
       message: String(message).slice(0, 2000),
