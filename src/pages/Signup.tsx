@@ -7,6 +7,7 @@ import { GraduationCap, Mail, Lock, User, ArrowLeft, Loader2, MailCheck } from "
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { friendlyError, reportError } from "@/lib/errors";
 
 const Signup = () => {
   const [name, setName] = useState("");
@@ -56,7 +57,8 @@ const Signup = () => {
         description: "We've sent you a confirmation link to verify your email address.",
       });
     } catch (error: unknown) {
-      const msg = String((error as Error | undefined)?.message ?? "");
+      const msg = friendlyError(error, "auth");
+      await reportError("auth", error, { flow: "signup", email: email.trim() });
       toast({
         title: "Signup failed",
         description: /already registered|already exists/i.test(msg)
@@ -82,9 +84,11 @@ const Signup = () => {
       toast({ title: "Verification email resent", description: `Sent again to ${sentTo}.` });
     } catch (error: unknown) {
       const err = error instanceof Error ? error : new Error(String(error));
+      const msg = friendlyError(error, "auth");
+      await reportError("auth", error, { flow: "signup_resend", email: sentTo });
       toast({
         title: "Could not resend",
-        description: err?.message || "Please wait a moment and try again.",
+        description: msg || err?.message || "Please wait a moment and try again.",
         variant: "destructive",
       });
     } finally {
@@ -111,6 +115,30 @@ const Signup = () => {
       }
       toast({
         title: "Google signup failed",
+        description,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleAuth0Signup = async () => {
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "custom:auth0",
+        options: { redirectTo: `${window.location.origin}/auth/callback` },
+      });
+      if (error) throw error;
+    } catch (error: unknown) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      const message = err.message || "";
+      let description = "Please try again.";
+      if (/invalid.*request|access blocked|unauthorized_client|redirect_uri_mismatch/i.test(message)) {
+        description = "Auth0 sign-up is not configured correctly. Please contact support or use email sign-up.";
+      } else if (/popup.*closed|user.*denied/i.test(message)) {
+        description = "Auth0 sign-up was cancelled or blocked by the browser.";
+      }
+      toast({
+        title: "Auth0 signup failed",
         description,
         variant: "destructive",
       });
@@ -191,7 +219,7 @@ const Signup = () => {
           <Button
             variant="outline"
             size="lg"
-            className="w-full mb-6"
+            className="w-full mb-4"
             onClick={handleGoogleSignup}
           >
             <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
@@ -213,6 +241,19 @@ const Signup = () => {
               />
             </svg>
             Continue with Google
+          </Button>
+
+          {/* Auth0 Signup */}
+          <Button
+            variant="outline"
+            size="lg"
+            className="w-full mb-6"
+            onClick={handleAuth0Signup}
+          >
+            <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 0C5.374 0 0 5.373 0 12c0 6.627 5.373 12 12 12s12-5.373 12-12C24 5.373 18.627 0 12 0zm1.5 15.5c0 .828-.672 1.5-1.5 1.5H12v-4h3c.828 0 1.5.672 1.5 1.5v1zm-1.5 1.5H7.5c-.828 0-1.5-.672-1.5-1.5v-1c0-.828.672-1.5 1.5-1.5h1.5v-1.5c0-.828.672-1.5 1.5-1.5h3c.828 0 1.5.672 1.5 1.5V12h1.5c.828 0 1.5.672 1.5 1.5v3c0 .828-.672 1.5-1.5 1.5z"/>
+            </svg>
+            Continue with Auth0
           </Button>
 
           {/* Divider */}

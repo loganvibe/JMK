@@ -3,11 +3,11 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { GraduationCap, Mail, ArrowLeft, Loader2, CheckCircle2 } from "lucide-react";
+import { GraduationCap, Mail, ArrowLeft, Loader2, CheckCircle2, Clock } from "lucide-react";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { friendlyError } from "@/lib/errors";
+import { friendlyError, reportError } from "@/lib/errors";
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState("");
@@ -30,9 +30,23 @@ const ForgotPassword = () => {
       if (error) throw error;
       setSent(true);
     } catch (error: unknown) {
+      // Extract error code for specific rate limit handling
+      const errCode = error && typeof error === "object" && "code" in error
+        ? String((error as Record<string, unknown>).code)
+        : "";
+      const isRateLimit = errCode === "over_email_send_rate_limit" || errCode === "over_request_rate_limit";
+      
+      let description = friendlyError(error, "auth");
+      if (isRateLimit) {
+        description = "We've hit a temporary limit on password reset emails. Please wait a few minutes before trying again, or check your spam folder for an earlier email.";
+      }
+      
+      // Log for debugging
+      await reportError("auth", error, { flow: "forgot_password", email: email.trim(), code: errCode });
+      
       toast({
         title: "Could not send reset link",
-        description: friendlyError(error, "auth"),
+        description,
         variant: "destructive",
       });
     } finally {
