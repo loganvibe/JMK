@@ -33,6 +33,7 @@ const RefineProject = lazy(() => import("./pages/RefineProject"));
 const Billing = lazy(() => import("./pages/Billing"));
 const Services = lazy(() => import("./pages/Services"));
 const Support = lazy(() => import("./pages/Support"));
+const SupportConversation = lazy(() => import("./pages/SupportConversation"));
 const Admin = lazy(() => import("./pages/Admin"));
 const AdminLogin = lazy(() => import("./pages/admin/AdminLogin"));
 
@@ -80,6 +81,7 @@ const App = () => (
               <Route path="/billing" element={<Billing />} />
               <Route path="/services" element={<Services />} />
               <Route path="/support" element={<Support />} />
+              <Route path="/support/:id" element={<SupportConversation />} />
               <Route path="/admin/login" element={<AdminLogin />} />
               <Route path="/admin" element={<Admin />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

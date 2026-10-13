@@ -79,7 +79,7 @@ const Support = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const loadData = async () => {
+const loadData = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       navigate("/login");
@@ -95,16 +95,34 @@ const Support = () => {
         category,
         status,
         last_message_at,
-        created_at,
-        support_messages(count)
+        created_at
       `)
       .eq("user_id", user.id)
       .order("last_message_at", { ascending: false });
 
     if (error) {
       toast({ title: "Failed to load conversations", description: error.message, variant: "destructive" });
+      setConversations([]);
+    } else if (convs && convs.length > 0) {
+      // Fetch message counts for all conversations in one query
+      const conversationIds = convs.map(c => c.id);
+      const { data: msgCounts } = await supabase
+        .from("support_messages")
+        .select("conversation_id")
+        .in("conversation_id", conversationIds);
+
+      const countMap = new Map<string, number>();
+      msgCounts?.forEach(m => {
+        countMap.set(m.conversation_id, (countMap.get(m.conversation_id) || 0) + 1);
+      });
+
+      const conversationsWithCounts = convs.map(c => ({
+        ...c,
+        message_count: countMap.get(c.id) || 0,
+      }));
+      setConversations(conversationsWithCounts);
     } else {
-      setConversations((convs as Conversation[]) || []);
+      setConversations([]);
     }
     setLoading(false);
   };
