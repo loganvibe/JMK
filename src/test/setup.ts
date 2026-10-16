@@ -14,4 +14,16 @@ if (typeof window !== "undefined") {
       dispatchEvent: () => {},
     }),
   });
+  if (!URL.createObjectURL) {
+    Object.defineProperty(URL, "createObjectURL", {
+      writable: true,
+      value: () => "blob:test-url",
+    });
+  }
+  if (!URL.revokeObjectURL) {
+    Object.defineProperty(URL, "revokeObjectURL", {
+      writable: true,
+      value: () => {},
+    });
+  }
 }

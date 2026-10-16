@@ -5,6 +5,7 @@ import type { User } from "@supabase/supabase-js";
 import {
   Upload, FileCheck2, Loader2, Sparkles, ArrowLeft, ArrowRight, Download,
   CheckCircle2, AlertTriangle, TrendingUp, Wand2, GraduationCap, FileText,
+  FileDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,10 +13,23 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { extractTextFromFile } from "@/lib/extractText";
 import { invokeFunction } from "@/lib/errors";
+import {
+  downloadRefineMarkdown,
+  exportRefineToDocx,
+  exportRefineToPdf,
+  type RefineSection,
+} from "@/lib/export";
 import type { Json } from "@/integrations/supabase/types";
 
 type Analysis = {
@@ -70,6 +84,7 @@ const RefineProject = () => {
   const [splitting, setSplitting] = useState(false);
   const [refiningIdx, setRefiningIdx] = useState<number | null>(null);
   const [refinementId, setRefinementId] = useState<string | null>(null);
+  const [exporting, setExporting] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -252,10 +267,33 @@ const RefineProject = () => {
   };
 
   const exportMarkdown = () => {
-    const md = sections.map((s) =>
-      `# ${s.chapter}\n## ${s.section}\n\n${s.refined ?? s.content}\n`
-    ).join("\n\n");
-    downloadBlob(md, "refined-project.md", "text/markdown");
+    downloadRefineMarkdown(sections as unknown as RefineSection[], "refined-project.md");
+  };
+
+  const exportDocx = async () => {
+    setExporting("docx");
+    try {
+      await exportRefineToDocx(sections as unknown as RefineSection[], "refined-project.docx");
+      toast({ title: "Exported", description: "Refined project downloaded as Word." });
+    } catch (e: unknown) {
+      const err = e instanceof Error ? e : new Error(String(e));
+      toast({ title: "Export failed", description: err.message, variant: "destructive" });
+    } finally {
+      setExporting(null);
+    }
+  };
+
+  const exportPdf = async () => {
+    setExporting("pdf");
+    try {
+      await exportRefineToPdf(sections as unknown as RefineSection[], "refined-project.pdf");
+      toast({ title: "Exported", description: "Refined project downloaded as PDF." });
+    } catch (e: unknown) {
+      const err = e instanceof Error ? e : new Error(String(e));
+      toast({ title: "Export failed", description: err.message, variant: "destructive" });
+    } finally {
+      setExporting(null);
+    }
   };
 
   const exportReport = () => {
@@ -549,10 +587,33 @@ const RefineProject = () => {
         {step === 5 && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-card border border-border rounded-2xl p-6 space-y-4">
             <h2 className="text-xl font-heading font-semibold">Download your refined project</h2>
-            <p className="text-sm text-muted-foreground">Export the improved project or the analysis report. Open the .md file in Word or Google Docs to save as PDF/DOCX.</p>
+            <p className="text-sm text-muted-foreground">Export the improved project in your preferred format. The refined content uses AI-edited text, not the original upload.</p>
             <div className="flex flex-wrap gap-3">
-              <Button onClick={exportMarkdown}><Download className="w-4 h-4 mr-2" />Refined Project (.md)</Button>
-              <Button variant="outline" onClick={exportReport}><FileText className="w-4 h-4 mr-2" />Improvement Report (.md)</Button>
+              <Button onClick={exportMarkdown} disabled={exporting !== null}>
+                {exporting === "md" ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
+                Refined Project (.md)
+              </Button>
+              <Button variant="outline" onClick={exportDocx} disabled={exporting !== null}>
+                {exporting === "docx" ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileDown className="w-4 h-4 mr-2" />}
+                Refined Project (.docx)
+              </Button>
+              <Button variant="outline" onClick={exportPdf} disabled={exporting !== null}>
+                {exporting === "pdf" ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileDown className="w-4 h-4 mr-2" />}
+                Refined Project (.pdf)
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" disabled={exporting !== null}>
+                    <FileText className="w-4 h-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={exportReport}>
+                    <FileText className="w-4 h-4 mr-2" />
+                    Improvement Report (.md)
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
             <p className="text-xs text-muted-foreground">
               Reminder: This AI output is a reference. Read, understand, adapt in your own words, and be ready to defend your work.

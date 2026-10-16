@@ -14,6 +14,9 @@ import {
   CheckCircle2,
   Circle,
   BookOpen,
+  Download,
+  FileText,
+  FileDown,
 } from "lucide-react";
 import AcademicAssistant from "@/components/project/AcademicAssistant";
 import DefensePreparation from "@/components/project/DefensePreparation";
@@ -24,9 +27,24 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { invokeFunction } from "@/lib/errors";
+import {
+  downloadMarkdown,
+  exportToDocx,
+  exportToPdf,
+  type ProjectData,
+  type SectionRow as ExportSectionRow,
+} from "@/lib/export";
 
 type SectionRow = {
   id?: string;
@@ -97,6 +115,7 @@ const ProjectWorkspace = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
+  const [exporting, setExporting] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -256,10 +275,47 @@ const ProjectWorkspace = () => {
       toast({ title: "AI updated the draft", description: "Review, edit, then save." });
     } catch (e: unknown) {
       const err = e instanceof Error ? e : new Error(String(e));
-      toast({ title: "AI request failed", description: err.message, variant: "destructive" });
+       toast({ title: "AI request failed", description: err.message, variant: "destructive" });
     } finally {
       setBusyAction(null);
     }
+  };
+
+  const handleExport = async (fmt: "markdown" | "docx" | "pdf") => {
+    if (!project || !user) return;
+    setExporting(fmt);
+    try {
+      const proj = project as ProjectData;
+      const secs = sections as unknown as ExportSectionRow[];
+      if (fmt === "markdown") {
+        downloadMarkdown(proj, secs);
+      } else if (fmt === "docx") {
+        await exportToDocx(proj, secs);
+      } else {
+        await exportToPdf(proj, secs);
+      }
+      toast({ title: "Exported", description: `Project exported as ${fmt.toUpperCase()}.` });
+    } catch (e: unknown) {
+      const err = e instanceof Error ? e : new Error(String(e));
+      toast({ title: "Export failed", description: err.message, variant: "destructive" });
+    } finally {
+      setExporting(null);
+    }
+  };
+
+  const handleShare = async () => {
+    if (!project || !user) return;
+    const proj = project as ProjectData;
+    const text = `${proj.title ?? "Project"} - ${proj.status ?? ""}`;
+    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+      try {
+        await navigator.share({ title: proj.title ?? "Project", text });
+        return;
+      } catch {
+        // fall through to download
+      }
+    }
+    handleExport("markdown");
   };
 
   if (loading) {
@@ -291,6 +347,62 @@ const ProjectWorkspace = () => {
             <div className="hidden md:flex flex-col items-end">
               <span className="text-xs text-muted-foreground">{completionPercent}% complete</span>
               <Progress value={completionPercent} className="h-1.5 w-32" />
+            </div>
+            <div className="flex items-center gap-2">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" disabled={exporting !== null}>
+                    {exporting ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Download className="w-4 h-4 mr-2" />
+                    )}
+                    Export
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>Download / Export</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => handleExport("markdown")}
+                    disabled={exporting !== null}
+                  >
+                    <FileText className="w-4 h-4 mr-2" />
+                    Markdown (.md)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => handleExport("docx")}
+                    disabled={exporting !== null}
+                  >
+                    <FileDown className="w-4 h-4 mr-2" />
+                    Word (.docx)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => handleExport("pdf")}
+                    disabled={exporting !== null}
+                  >
+                    <FileDown className="w-4 h-4 mr-2" />
+                    PDF (.pdf)
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  {typeof navigator !== "undefined" && typeof navigator.share === "function" && (
+                    <DropdownMenuItem
+                      onClick={() => handleShare()}
+                      disabled={exporting !== null}
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Share
+                    </DropdownMenuItem>
+                  )}  
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => handleExport("docx")}
+                    disabled={exporting !== null}
+                  >
+                    <FileDown className="w-4 h-4 mr-2" />
+                    Word (.docx)
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
             </div>
             <Link to="/" className="hidden sm:flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-gradient-accent flex items-center justify-center">
