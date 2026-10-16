@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -336,7 +336,7 @@ const ProjectWorkspace = () => {
             </Link>
             <div className="min-w-0">
               <p className="text-xs text-muted-foreground">
-                {project.department ?? "Project"} · {project.status}
+                {project.department ?? "Project"} Â· {project.status}
               </p>
               <h1 className="text-base sm:text-lg font-heading font-semibold text-foreground truncate">
                 {project.title}
@@ -403,6 +403,7 @@ const ProjectWorkspace = () => {
                     Word (.docx)
                   </DropdownMenuItem>
                 </DropdownMenuContent>
+              </DropdownMenu>
             </div>
             <Link to="/" className="hidden sm:flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-gradient-accent flex items-center justify-center">
@@ -530,7 +531,7 @@ const ProjectWorkspace = () => {
                     <Textarea
                       value={draft}
                       onChange={(e) => setDraft(e.target.value)}
-                      placeholder="Start writing, or click 'Generate' to let the AI draft this section…"
+                      placeholder="Start writing, or click 'Generate' to let the AI draft this sectionâ€¦"
                       className="min-h-[320px] font-mono text-sm leading-relaxed"
                     />
                   </div>
@@ -563,7 +564,7 @@ const ProjectWorkspace = () => {
                       </AIBtn>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      AI outputs are learning aids — always review, edit, and cite properly.
+                      AI outputs are learning aids â€” always review, edit, and cite properly.
                     </p>
                   </div>
 
@@ -670,12 +671,12 @@ const OverviewPanel = ({
         <h3 className="font-heading font-semibold mb-3">AI Recommendations</h3>
         <ul className="text-sm text-muted-foreground list-disc list-inside space-y-1">
           {remaining > 0 ? (
-            <li>{remaining} sections remain — start with Chapter 1 sections you haven't drafted.</li>
+            <li>{remaining} sections remain â€” start with Chapter 1 sections you haven't drafted.</li>
           ) : (
             <li>All sections completed. Review each chapter before defense preparation.</li>
           )}
           <li>Ask the AI to <span className="text-foreground">Improve</span> any draft that feels rough.</li>
-          <li>Move to Defense Preparation once Chapters 1–5 are marked complete.</li>
+          <li>Move to Defense Preparation once Chapters 1â€“5 are marked complete.</li>
         </ul>
       </div>
     </div>
@@ -698,3 +699,4 @@ const Info = ({ title, text }: { title: string; text?: string | null }) =>
   ) : null;
 
 export default ProjectWorkspace;
+
