@@ -40,6 +40,9 @@ import { useToast } from "@/hooks/use-toast";
 import { invokeFunction } from "@/lib/errors";
 import {
   downloadMarkdown,
+  downloadSectionMarkdown,
+  exportSectionToDocx,
+  exportSectionToPdf,
   exportToDocx,
   exportToPdf,
   type ProjectData,
@@ -116,6 +119,7 @@ const ProjectWorkspace = () => {
   const [saving, setSaving] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [exporting, setExporting] = useState<string | null>(null);
+  const [exportingSection, setExportingSection] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -318,6 +322,31 @@ const ProjectWorkspace = () => {
     handleExport("markdown");
   };
 
+  const handleSectionExport = async (
+    section: SectionRow,
+    fmt: "markdown" | "docx" | "pdf",
+  ) => {
+    if (!project || !user) return;
+    const key = `${section.chapter}:${section.section_type}:${fmt}`;
+    setExportingSection(key);
+    try {
+      const proj = project as ProjectData;
+      if (fmt === "markdown") {
+        downloadSectionMarkdown(proj, section);
+      } else if (fmt === "docx") {
+        await exportSectionToDocx(proj, section);
+      } else {
+        await exportSectionToPdf(proj, section);
+      }
+      toast({ title: "Exported", description: `${section.section_type} exported as ${fmt.toUpperCase()}.` });
+    } catch (e: unknown) {
+      const err = e instanceof Error ? e : new Error(String(e));
+      toast({ title: "Export failed", description: err.message, variant: "destructive" });
+    } finally {
+      setExportingSection(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -492,23 +521,59 @@ const ProjectWorkspace = () => {
                     (s) => s.chapter === activeChapter && s.section_type === sec,
                   );
                   const active = activeSection === sec;
+                  const hasContent = Boolean(rec?.content && rec.content.trim());
                   return (
-                    <button
-                      key={sec}
-                      onClick={() => setActiveSection(sec)}
-                      className={`px-3 py-1.5 rounded-full text-sm border flex items-center gap-1.5 transition ${
-                        active
-                          ? "bg-primary text-primary-foreground border-primary"
-                          : "bg-background hover:border-accent/50"
-                      }`}
-                    >
-                      {rec?.status === "completed" ? (
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                      ) : rec?.content ? (
-                        <Circle className="w-3.5 h-3.5" />
-                      ) : null}
-                      {sec}
-                    </button>
+                    <div key={sec} className="relative">
+                      <button
+                        key={sec}
+                        onClick={() => setActiveSection(sec)}
+                        className={`px-3 py-1.5 rounded-full text-sm border flex items-center gap-1.5 transition ${
+                          active
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-background hover:border-accent/50"
+                        }`}
+                      >
+                        {rec?.status === "completed" ? (
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                        ) : rec?.content ? (
+                          <Circle className="w-3.5 h-3.5" />
+                        ) : null}
+                        {sec}
+                      </button>
+                      {hasContent && rec && (
+                        <div className="absolute top-full left-1/2 mt-1 transform -translate-x-1/2">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="outline" size="sm" disabled={exportingSection !== null}>
+                                <Download className="w-3 h-3 mr-1" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start">
+                              <DropdownMenuLabel>{sec}</DropdownMenuLabel>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() => handleSectionExport(rec as SectionRow, "markdown")}
+                                disabled={exportingSection !== null}
+                              >
+                                <FileText className="w-3 h-3 mr-2" /> Markdown
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handleSectionExport(rec as SectionRow, "docx")}
+                                disabled={exportingSection !== null}
+                              >
+                                <FileDown className="w-3 h-3 mr-2" /> Word (.docx)
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handleSectionExport(rec as SectionRow, "pdf")}
+                                disabled={exportingSection !== null}
+                              >
+                                <FileDown className="w-3 h-3 mr-2" /> PDF (.pdf)
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      )}
+                    </div>
                   );
                 })}
               </div>

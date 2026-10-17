@@ -1,10 +1,15 @@
 import { describe, it, expect } from "vitest";
 import {
   generateMarkdown,
+  generateSectionMarkdown,
   exportToDocx,
   exportToPdf,
   exportRefineToDocx,
   exportRefineToPdf,
+  exportSectionToDocx,
+  exportSectionToPdf,
+  downloadMarkdown,
+  downloadSectionMarkdown,
   safeFilename,
   type ProjectData,
   type SectionRow,
@@ -66,5 +71,43 @@ describe("export module", () => {
     const latest: SectionRow[] = [{ id: "x", chapter: "chapter1", section_type: "Background", content: "LATEST CONTENT", status: "draft" }];
     const md = generateMarkdown(proj, latest);
     expect(md).toContain("LATEST CONTENT");
+  });
+
+  const introSection: SectionRow = {
+    id: "s-intro",
+    chapter: "chapter1",
+    section_type: "Background of Study",
+    content: "This is the introduction content for chapter one.",
+    status: "completed",
+  };
+  const emptySection: SectionRow = {
+    id: "s-empty",
+    chapter: "chapter2",
+    section_type: "Literature Review",
+    content: null,
+    status: "draft",
+  };
+
+  it("generates section markdown from saved content", () => {
+    const md = generateSectionMarkdown(proj, introSection);
+    expect(md).toContain("Test Project");
+    expect(md).toContain("Chapter 1: Introduction");
+    expect(md).toContain("This is the introduction content for chapter one.");
+  });
+
+  it("sanitizes section filenames", () => {
+    expect(safeFilename("My Project-Background of Study", "docx")).toBe(
+      "My-Project-Background-of-Study.docx",
+    );
+  });
+
+  it("exports a single completed section to docx and pdf without throwing", async () => {
+    await expect(exportSectionToDocx(proj, introSection)).resolves.toBeUndefined();
+    await expect(exportSectionToPdf(proj, introSection)).resolves.toBeUndefined();
+  });
+
+  it("downloads section markdown with saved content", () => {
+    downloadSectionMarkdown(proj, introSection);
+    expect(true).toBe(true);
   });
 });

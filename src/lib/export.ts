@@ -129,6 +129,31 @@ export function generateMarkdown(
   return parts.join("\n").trim();
 }
 
+export function generateSectionMarkdown(
+  project: ProjectData,
+  section: SectionRow,
+): string {
+  const parts: string[] = [];
+  parts.push(`# ${project.title ?? "Untitled Project"}`);
+  if (project.department) parts.push(`\n**Department:** ${project.department}`);
+  if (project.course) parts.push(`\n**Course:** ${project.course}`);
+  const chapterTitle = {
+    chapter1: "Chapter 1: Introduction",
+    chapter2: "Chapter 2: Literature Review",
+    chapter3: "Chapter 3: Methodology",
+    chapter4: "Chapter 4: Results and Analysis",
+    chapter5: "Chapter 5: Conclusion",
+    references: "References",
+    appendix: "Appendix",
+  }[section.chapter] ?? section.chapter;
+  parts.push(`\n## ${chapterTitle}\n`);
+  const title = section.title ?? section.section_type;
+  parts.push(`\n### ${title}`);
+  const marker = section.status === "completed" ? "" : " *(Incomplete)*";
+  parts.push(`${marker}\n\n${section.content ?? ""}\n`);
+  return parts.join("\n").trim();
+}
+
 export function generateRefineMarkdown(sections: RefineSection[]): string {
   return sections
     .map((s) => `# ${s.chapter}\n## ${s.section}\n\n${s.refined ?? s.content}\n`)
@@ -429,6 +454,154 @@ export async function exportRefineToPdf(
 export function downloadMarkdown(project: ProjectData, sections: SectionRow[]): void {
   const md = generateMarkdown(project, sections);
   downloadBlob(md, safeFilename(project.title ?? "project", "md"), "text/markdown");
+}
+
+export function downloadSectionMarkdown(
+  project: ProjectData,
+  section: SectionRow,
+): void {
+  const md = generateSectionMarkdown(project, section);
+  const filePart = safeFilename(
+    `${project.title ?? "project"}-${section.section_type}`, "md",
+  );
+  downloadBlob(md, filePart, "text/markdown");
+}
+
+export async function exportSectionToDocx(
+  project: ProjectData,
+  section: SectionRow,
+): Promise<void> {
+  const md = generateSectionMarkdown(project, section);
+  const lines = md.split("\n");
+
+  const children: (Paragraph | TextRun)[] = [];
+  for (const line of lines) {
+    if (line.startsWith("# ")) {
+      children.push(new Paragraph({ text: line.slice(2), heading: HeadingLevel.TITLE, spacing: { after: 240 } }));
+    } else if (line.startsWith("## ")) {
+      children.push(new Paragraph({ text: line.slice(3), heading: HeadingLevel.HEADING_1, spacing: { before: 240, after: 120 } }));
+    } else if (line.startsWith("### ")) {
+      children.push(new Paragraph({ text: line.slice(4), heading: HeadingLevel.HEADING_2, spacing: { before: 240, after: 120 } }));
+    } else if (line.startsWith("- ")) {
+      children.push(new Paragraph({ text: line.slice(2), bullet: { level: 0 } }));
+    } else if (line.trim() === "") {
+      children.push(new Paragraph({ spacing: { after: 120 } }));
+    } else if (line.startsWith("**") && line.includes("**", 2)) {
+      const firstIdx = line.indexOf("**");
+      const secondIdx = line.indexOf("**", firstIdx + 2);
+      if (firstIdx !== -1 && secondIdx !== -1) {
+        const before = line.slice(0, firstIdx);
+        const bold = line.slice(firstIdx + 2, secondIdx);
+        const after = line.slice(secondIdx + 2);
+        children.push(new Paragraph({
+          children: [
+            new TextRun(before || ""),
+            new TextRun({ text: bold, bold: true }),
+            new TextRun(after || ""),
+          ],
+        }));
+      } else {
+        children.push(new Paragraph(line.replace(/\*\*/g, "")));
+      }
+    } else {
+      children.push(new Paragraph(line.replace(/\*\*/g, "")));
+    }
+  }
+
+  const doc = new Document({
+    sections: [{
+      properties: { page: { margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 } } },
+      children,
+    }],
+  });
+
+  const blob = await Packer.toBlob(doc);
+  downloadFileFromBlob(
+    blob,
+    safeFilename(`${project.title ?? "project"}-${section.section_type}`, "docx"),
+  );
+}
+
+export async function exportSectionToPdf(
+  project: ProjectData,
+  section: SectionRow,
+): Promise<void> {
+  const md = generateSectionMarkdown(project, section);
+  const lines = md.split("\n");
+  const doc = new jsPDF({ unit: "pt", format: "a4", orientation: "portrait" });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 50;
+  const maxLine = pageWidth - margin * 2;
+
+  let y = margin;
+  doc.setFontSize(20);
+  doc.setFont("helvetica", "bold");
+  const title = doc.splitTextToSize(project.title ?? "Project", maxLine);
+  doc.text(title, margin, y);
+  y += title.length * 24 + 8;
+
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "normal");
+  const meta = [project.department, project.course]
+    .filter(Boolean)
+    .join(" · ");
+  if (meta) { doc.text(meta, margin, y); y += 20; }
+
+  const chapterTitle = {
+    chapter1: "Chapter 1: Introduction",
+    chapter2: "Chapter 2: Literature Review",
+    chapter3: "Chapter 3: Methodology",
+    chapter4: "Chapter 4: Results and Analysis",
+    chapter5: "Chapter 5: Conclusion",
+    references: "References",
+    appendix: "Appendix",
+  }[section.chapter] ?? section.chapter;
+  const chapterSplit = doc.splitTextToSize(chapterTitle, maxLine);
+  doc.setFontSize(14);
+  doc.setFont("helvetica", "bold");
+  doc.text(chapterSplit, margin, y);
+  y += chapterSplit.length * 18 + 6;
+
+  const label = section.title ?? section.section_type;
+  const marker = section.status === "completed" ? "" : " (Incomplete)";
+  const labelSplit = doc.splitTextToSize(`${label}${marker}`, maxLine);
+  doc.setFontSize(12);
+  doc.setFont("helvetica", "bold");
+  doc.text(labelSplit, margin, y);
+  y += labelSplit.length * 14 + 4;
+
+  for (const line of lines) {
+    if (line.startsWith("# ") || line.startsWith("## ") || line.startsWith("### ")) {
+      continue;
+    } else if (line.startsWith("- ")) {
+      const text = line.slice(2);
+      const split = doc.splitTextToSize(text, maxLine - 12);
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "normal");
+      doc.text("• " + split, margin + 12, y);
+      y += split.length * 14 + 2;
+    } else if (line.trim() === "") {
+      y += 6;
+    } else {
+      const text = line.replace(/\*\*/g, "");
+      const split = doc.splitTextToSize(text, maxLine);
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "normal");
+      doc.text(split, margin, y);
+      y += split.length * 14 + 2;
+    }
+    if (y > pageHeight - margin) {
+      doc.addPage();
+      y = margin;
+    }
+  }
+
+  const blob = doc.output("blob");
+  downloadFileFromBlob(
+    blob,
+    safeFilename(`${project.title ?? "project"}-${section.section_type}`, "pdf"),
+  );
 }
 
 export function downloadRefineMarkdown(sections: RefineSection[], filename = "refined-project.md"): void {
