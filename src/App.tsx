@@ -15,6 +15,7 @@ import NotFound from "./pages/NotFound";
 import Terms from "./pages/Terms";
 import Privacy from "./pages/Privacy";
 import RefundPolicy from "./pages/RefundPolicy";
+import AcademicIntegrity from "./pages/AcademicIntegrity";
 import Resources from "./pages/Resources";
 import ArticleTopics from "./pages/ArticleTopics";
 import ArticleChapterOne from "./pages/ArticleChapterOne";
