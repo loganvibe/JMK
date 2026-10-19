@@ -16,6 +16,9 @@ import Terms from "./pages/Terms";
 import Privacy from "./pages/Privacy";
 import RefundPolicy from "./pages/RefundPolicy";
 import Resources from "./pages/Resources";
+import ArticleTopics from "./pages/ArticleTopics";
+import ArticleChapterOne from "./pages/ArticleChapterOne";
+import ArticleDefence from "./pages/ArticleDefence";
 import Features from "./pages/Features";
 import Future from "./pages/Future";
 import AuthCallback from "./pages/AuthCallback";
@@ -69,6 +72,9 @@ const App = () => (
               <Route path="/refund-policy" element={<RefundPolicy />} />
                <Route path="/academic-integrity" element={<AcademicIntegrity />} />
                <Route path="/resources" element={<Resources />} />
+              <Route path="/resources/final-year-project-topics" element={<ArticleTopics />} />
+              <Route path="/resources/how-to-write-chapter-one" element={<ArticleChapterOne />} />
+              <Route path="/resources/project-defence-preparation" element={<ArticleDefence />} />
                <Route path="/future" element={<Future />} />
 
               <Route path="/dashboard" element={<Dashboard />} />
