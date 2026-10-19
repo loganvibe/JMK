@@ -1,4 +1,4 @@
-import { Suspense, lazy } from "react";
+﻿import { Suspense, lazy } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -15,7 +15,7 @@ import NotFound from "./pages/NotFound";
 import Terms from "./pages/Terms";
 import Privacy from "./pages/Privacy";
 import RefundPolicy from "./pages/RefundPolicy";
-import AcademicIntegrity from "./pages/AcademicIntegrity";
+import Resources from "./pages/Resources";
 import Features from "./pages/Features";
 import Future from "./pages/Future";
 import AuthCallback from "./pages/AuthCallback";
@@ -55,7 +55,7 @@ const App = () => (
       <Sonner />
       <ErrorBoundary>
         <BrowserRouter>
-          <Suspense fallback={<div className="min-h-screen"><LoadingState label="Loading…" /></div>}>
+          <Suspense fallback={<div className="min-h-screen"><LoadingState label="Loadingâ€¦" /></div>}>
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/login" element={<Login />} />
@@ -68,6 +68,7 @@ const App = () => (
               <Route path="/privacy" element={<Privacy />} />
               <Route path="/refund-policy" element={<RefundPolicy />} />
                <Route path="/academic-integrity" element={<AcademicIntegrity />} />
+               <Route path="/resources" element={<Resources />} />
                <Route path="/future" element={<Future />} />
 
               <Route path="/dashboard" element={<Dashboard />} />
@@ -95,3 +96,5 @@ const App = () => (
 );
 
 export default App;
+
+

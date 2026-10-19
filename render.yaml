@@ -16,5 +16,11 @@ services:
         value: strict-origin-when-cross-origin
     routes:
       - type: rewrite
+        source: /sitemap.xml
+        destination: /sitemap.xml
+      - type: rewrite
+        source: /robots.txt
+        destination: /robots.txt
+      - type: rewrite
         source: /*
         destination: /index.html
