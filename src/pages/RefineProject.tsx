@@ -56,7 +56,7 @@ const RefineProject = () => {
   const { toast } = useToast();
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Record<string, unknown>>({});
-  const [tier, setTier] = useState<string>("free");
+  const ent = useEntitlements();
   const [step, setStep] = useState(0);
 
   // Upload
@@ -91,19 +91,15 @@ const RefineProject = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return navigate("/login");
       setUser(user);
-      const [{ data: prof }, { data: sub }] = await Promise.all([
-        supabase.from("profiles").select("*").eq("id", user.id).maybeSingle(),
-        supabase.from("subscriptions").select("tier").eq("user_id", user.id).maybeSingle(),
-      ]);
+      const { data: prof } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
       if (prof) {
         setProfile(prof);
         setAnswers((a) => ({ ...a, university: prof.university ?? "", department: prof.department ?? "" }));
       }
-      if (sub) setTier(sub.tier ?? "free");
     })();
   }, [navigate]);
 
-  const isPremium = tier === "premium" || tier === "premium_plus";
+  const canRefineAI = ent.canUseAI && ent.isFeatureEnabled("refinement");
 
   const handleFile = async (f: File | null) => {
     if (!f) return;
@@ -159,11 +155,8 @@ const RefineProject = () => {
 
   const runAnalysis = async () => {
     if (!extracted) return;
-    if (!isPremium && tier === "free") {
-      toast({
-        title: "Preview only",
-        description: "Free plan shows analysis preview. Upgrade for full refinement.",
-      });
+    if (!canRefineAI) {
+      toast({ title: "Contribution required", description: "AI refinement requires active weekly access and credits." });
     }
     setAnalyzing(true);
     try {
@@ -182,12 +175,8 @@ const RefineProject = () => {
   };
 
   const saveInterview = async () => {
-    if (!isPremium) {
-      toast({
-        title: "Upgrade required",
-        description: "Full AI refinement is available on Premium+. Free plan shows analysis only.",
-        variant: "destructive",
-      });
+    if (!canRefineAI) {
+      toast({ title: "Contribution required", description: "Make a weekly contribution to use AI refinement features.", variant: "destructive" });
       return;
     }
     if (!user) return;
@@ -443,14 +432,12 @@ const RefineProject = () => {
 
             <div className="flex flex-wrap justify-between gap-3">
               <Button variant="outline" onClick={exportReport}><Download className="w-4 h-4 mr-2" />Download Report</Button>
-              <Button onClick={() => setStep(2)} disabled={!isPremium} title={!isPremium ? "Upgrade to refine" : ""}>
+              <Button onClick={() => setStep(2)} disabled={!canRefineAI} title={!canRefineAI ? "Active contribution and credits required" : ""}>
                 Continue to AI Interview <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </div>
-            {!isPremium && (
-              <div className="p-4 rounded-xl bg-accent/5 border border-accent/20 text-sm">
-                <b>Preview only.</b> Free plan shows the analysis report. <Link to="/pricing" className="text-accent underline">Upgrade to Premium+</Link> to unlock full AI refinement of every chapter.
-              </div>
+            {!canRefineAI && (
+              <UpgradeGate feature="refinement" compact amount={Number(ent.plan?.price ?? 1500)} message={ent.creditsRemaining <= 0 && ent.hasActiveAccess ? "You've used your AI credits for this period. Contribute again to get a fresh 50 credits." : undefined} />
             )}
           </motion.div>
         )}

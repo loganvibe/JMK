@@ -1,7 +1,6 @@
-import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
-import { adminClient, requireUser, AccessError } from "../_shared/entitlements.ts";
-import { nextDailyResetUtc, nextMonthlyResetUtc } from "../_shared/credit-rules.ts";
-import { resolvePlanActivation } from "../_shared/plan-activation.ts";
+﻿import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import { adminClient, requireUser, AccessError, grantWeeklyAccess } from "../_shared/entitlements.ts";
+import { resolvePlanActivation, weeklyAmountForPlan, weeklyCreditsForPlan, weeklyDaysForPlan, WEEKLY_CONTRIBUTION_SLUG } from "../_shared/plan-activation.ts";
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -10,10 +9,13 @@ function json(body: unknown, status = 200) {
   });
 }
 
+function toSmallestUnit(amount: number) {
+  return Math.round(Number(amount) * 100);
+}
+
 async function paystackInitialize(provider: Record<string, unknown>, payload: Record<string, unknown>) {
   const secret = String(provider.secret_key ?? "");
   if (!secret) throw new AccessError("Paystack secret key is not configured.", 503, "provider_unconfigured");
-
   const res = await fetch("https://api.paystack.co/transaction/initialize", {
     method: "POST",
     headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },
@@ -23,8 +25,7 @@ async function paystackInitialize(provider: Record<string, unknown>, payload: Re
   let data: Record<string, unknown> = {};
   try { data = JSON.parse(text); } catch { data = { raw: text }; }
   if (!res.ok || data?.status === false) {
-    console.error(`Paystack initialize failed [${res.status}]: ${text}`);
-    throw new AccessError(data?.message || "Paystack error", res.status || 502, "provider_error");
+    throw new AccessError(String(data?.message || "Paystack error"), res.status || 502, "provider_error");
   }
   return data.data as Record<string, unknown>;
 }
@@ -32,7 +33,6 @@ async function paystackInitialize(provider: Record<string, unknown>, payload: Re
 async function paystackVerify(provider: Record<string, unknown>, reference: string) {
   const secret = String(provider.secret_key ?? "");
   if (!secret) throw new AccessError("Paystack secret key is not configured.", 503, "provider_unconfigured");
-
   const res = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`, {
     headers: { Authorization: `Bearer ${secret}` },
   });
@@ -40,8 +40,7 @@ async function paystackVerify(provider: Record<string, unknown>, reference: stri
   let data: Record<string, unknown> = {};
   try { data = JSON.parse(text); } catch { data = { raw: text }; }
   if (!res.ok || data?.status === false) {
-    console.error(`Paystack verify failed [${res.status}]: ${text}`);
-    throw new AccessError(data?.message || "Paystack verify error", res.status || 502, "provider_error");
+    throw new AccessError(String(data?.message || "Paystack verify error"), res.status || 502, "provider_error");
   }
   return data.data as Record<string, unknown>;
 }
@@ -49,21 +48,16 @@ async function paystackVerify(provider: Record<string, unknown>, reference: stri
 async function flutterwaveInitialize(provider: Record<string, unknown>, payload: Record<string, unknown>) {
   const secret = String(provider.secret_key ?? "");
   if (!secret) throw new AccessError("Flutterwave secret key is not configured.", 503, "provider_unconfigured");
-
   const res = await fetch("https://api.flutterwave.com/v3/payments", {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${secret}`,
-      "Content-Type": "application/json",
-    },
+    headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
   const text = await res.text();
   let data: Record<string, unknown> = {};
   try { data = JSON.parse(text); } catch { data = { raw: text }; }
   if (!res.ok || data?.status !== "success") {
-    console.error(`Flutterwave initialize failed [${res.status}]: ${text}`);
-    throw new AccessError(data?.message || "Flutterwave error", res.status || 502, "provider_error");
+    throw new AccessError(String(data?.message || "Flutterwave error"), res.status || 502, "provider_error");
   }
   return data.data as Record<string, unknown>;
 }
@@ -71,16 +65,14 @@ async function flutterwaveInitialize(provider: Record<string, unknown>, payload:
 async function flutterwaveVerify(provider: Record<string, unknown>, reference: string) {
   const secret = String(provider.secret_key ?? "");
   if (!secret) throw new AccessError("Flutterwave secret key is not configured.", 503, "provider_unconfigured");
-
-  const res = await fetch(`https://api.flutterwave.com/v3/transactions/${encodeURIComponent(reference)}/verify`, {
+  const res = await fetch(`https://api.flutterwave.com/v3/transactions/verify_by_reference?tx_ref=${encodeURIComponent(reference)}`, {
     headers: { Authorization: `Bearer ${secret}` },
   });
   const text = await res.text();
   let data: Record<string, unknown> = {};
   try { data = JSON.parse(text); } catch { data = { raw: text }; }
   if (!res.ok || data?.status !== "success") {
-    console.error(`Flutterwave verify failed [${res.status}]: ${text}`);
-    throw new AccessError(data?.message || "Flutterwave verify error", res.status || 502, "provider_error");
+    throw new AccessError(String(data?.message || "Flutterwave verify error"), res.status || 502, "provider_error");
   }
   return data.data as Record<string, unknown>;
 }
@@ -88,22 +80,18 @@ async function flutterwaveVerify(provider: Record<string, unknown>, reference: s
 async function stripeInitialize(provider: Record<string, unknown>, payload: Record<string, unknown>) {
   const secret = String(provider.secret_key ?? "");
   if (!secret) throw new AccessError("Stripe secret key is not configured.", 503, "provider_unconfigured");
-
   const callbackUrl = String(payload.callback_url ?? "");
-  const planSlug = String(payload.plan_slug ?? "");
-  const planName = String(payload.plan_name ?? "");
+  const planName = String(payload.plan_name ?? "Support JMK");
   const amountSmallestUnit = Math.round(Number(payload.amount ?? 0));
-  const currency = String(payload.currency ?? "usd");
+  const currency = String(payload.currency ?? "ngn").toLowerCase();
   const userReference = String(payload.user_reference ?? "");
+  const planSlug = String(payload.plan_slug ?? WEEKLY_CONTRIBUTION_SLUG);
 
   const res = await fetch("https://api.stripe.com/v1/checkout/sessions", {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${secret}`,
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
+    headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
-      mode: "subscription",
+      mode: "payment",
       success_url: `${callbackUrl}?reference={CHECKOUT_SESSION_ID}`,
       cancel_url: `${callbackUrl}?status=cancelled`,
       "line_items[0][price_data][currency]": currency,
@@ -117,9 +105,8 @@ async function stripeInitialize(provider: Record<string, unknown>, payload: Reco
   const text = await res.text();
   let data: Record<string, unknown> = {};
   try { data = JSON.parse(text); } catch { data = { raw: text }; }
-  if (!res.ok || data?.error) {
-    console.error(`Stripe initialize failed [${res.status}]: ${text}`);
-    throw new AccessError((data as Record<string, unknown>)?.error?.message || "Stripe error", res.status || 502, "provider_error");
+  if (!res.ok || (data as any)?.error) {
+    throw new AccessError(String((data as any)?.error?.message || "Stripe error"), res.status || 502, "provider_error");
   }
   return data as Record<string, unknown>;
 }
@@ -127,367 +114,212 @@ async function stripeInitialize(provider: Record<string, unknown>, payload: Reco
 async function stripeVerify(provider: Record<string, unknown>, reference: string) {
   const secret = String(provider.secret_key ?? "");
   if (!secret) throw new AccessError("Stripe secret key is not configured.", 503, "provider_unconfigured");
-
   const res = await fetch(`https://api.stripe.com/v1/checkout/sessions/${encodeURIComponent(reference)}`, {
     headers: { Authorization: `Bearer ${secret}` },
   });
   const text = await res.text();
   let data: Record<string, unknown> = {};
   try { data = JSON.parse(text); } catch { data = { raw: text }; }
-  if (!res.ok || data?.error) {
-    console.error(`Stripe verify failed [${res.status}]: ${text}`);
-    throw new AccessError((data as Record<string, unknown>)?.error?.message || "Stripe verify error", res.status || 502, "provider_error");
+  if (!res.ok || (data as any)?.error) {
+    throw new AccessError(String((data as any)?.error?.message || "Stripe verify error"), res.status || 502, "provider_error");
   }
   return data as Record<string, unknown>;
+}
+
+function contributionPlanResponse(plan: Record<string, unknown>) {
+  return {
+    slug: String(plan.slug),
+    name: String(plan.name ?? "Support JMK"),
+    amount: weeklyAmountForPlan(plan as any),
+    credits: weeklyCreditsForPlan(plan as any),
+    durationDays: weeklyDaysForPlan(plan as any),
+  };
+}
+
+async function verifyAndGrant(db: ReturnType<typeof adminClient>, txn: any, provider: Record<string, unknown>) {
+  const providerSlug = String(txn.provider ?? "paystack");
+  let verified: Record<string, unknown> | null = null;
+  let ok = false;
+  let paidAmount = 0;
+  let paidCurrency = String(txn.currency ?? "NGN");
+
+  if (providerSlug === "paystack") {
+    verified = await paystackVerify(provider, String(txn.reference));
+    ok = (verified as any)?.status === "success";
+    paidAmount = Number((verified as any)?.amount ?? 0) / 100;
+    paidCurrency = String((verified as any)?.currency ?? paidCurrency);
+  } else if (providerSlug === "flutterwave") {
+    // verify_by_reference above for user verify; if tx_ref differs try same path
+    verified = await flutterwaveVerify(provider, String(txn.reference));
+    const st = String((verified as any)?.status ?? "").toLowerCase();
+    ok = st === "successful" || st === "success";
+    paidAmount = Number((verified as any)?.amount ?? 0);
+    paidCurrency = String((verified as any)?.currency ?? paidCurrency);
+  } else if (providerSlug === "stripe") {
+    verified = await stripeVerify(provider, String(txn.reference));
+    ok = String((verified as any)?.payment_status ?? "") === "paid";
+    paidAmount = Number((verified as any)?.amount_total ?? 0) / 100;
+    paidCurrency = String((verified as any)?.currency ?? paidCurrency).toUpperCase();
+  } else {
+    throw new AccessError(`Unsupported payment provider: ${providerSlug}`, 400, "provider_unsupported");
+  }
+
+  const planSlug = String((txn.metadata as any)?.plan_slug ?? WEEKLY_CONTRIBUTION_SLUG);
+  const { data: plan } = await db.from("subscription_plans").select("*").eq("slug", planSlug).maybeSingle();
+  const expectedAmount = weeklyAmountForPlan(plan as any);
+  const expectedCurrency = String((plan as any)?.currency ?? txn.currency ?? "NGN").toUpperCase();
+  const amountOk = paidAmount <= 0 || Math.abs(paidAmount - expectedAmount) < 0.01;
+  const currencyOk = !paidCurrency || String(paidCurrency).toUpperCase() === expectedCurrency;
+  const finalOk = ok && amountOk && currencyOk;
+
+  await db.from("payment_transactions").update({
+    status: finalOk ? "success" : "failed",
+    metadata: { ...(txn.metadata ?? {}), gateway: verified, verified_at: new Date().toISOString(), amount_verified: paidAmount, currency_verified: paidCurrency },
+  }).eq("id", txn.id);
+
+  if (!finalOk) return { ok: false, provider: providerSlug };
+  if (!plan) throw new AccessError("Contribution plan not found.", 500, "plan_missing");
+
+  const granted = await grantWeeklyAccess(String(txn.user_id), plan as any, String(txn.reference), new Date());
+  await db.from("notifications").insert({
+    user_id: txn.user_id,
+    title: "Contribution received",
+    body: `Thank you for supporting JMK. You now have ${granted.creditsGranted} AI credits until ${new Date(granted.expiresAt).toLocaleString()}.`,
+    type: "success",
+    link: "/billing",
+  });
+  return { ok: true, provider: providerSlug, granted, plan };
 }
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
-    const body = await req.json();
+    const rawText = await req.text();
+    let body: any = {};
+    try { body = rawText ? JSON.parse(rawText) : {}; } catch { body = {}; }
     const action = String(body?.action ?? "");
-    const user = await requireUser(req);
     const db = adminClient();
 
-    console.log(`[payments] action=${action} user_id=${user.id} email=${user.email}`);
+    // Webhook path (Paystack) - verify signature, then securely verify transaction with provider API
+    if (action === "webhook" || (req.headers.get("x-paystack-signature") && body?.event)) {
+      const providerSlug = String(body?.provider ?? "paystack");
+      if (providerSlug !== "paystack") return json({ error: "Unsupported webhook provider" }, 400);
+      const signature = req.headers.get("x-paystack-signature") || "";
+      const { data: provider } = await db.from("payment_providers").select("*").eq("slug", "paystack").maybeSingle();
+      const secret = String((provider as any)?.secret_key ?? "");
+      if (!secret || !signature) return json({ error: "Invalid webhook request" }, 400);
+      const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-512" }, false, ["sign"]);
+      const sigBuf = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(rawText));
+      const computed = Array.from(new Uint8Array(sigBuf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+      if (computed !== signature) return json({ error: "Invalid signature" }, 401);
+
+      if (body?.event === "charge.success") {
+        const reference = String(body?.data?.reference ?? "");
+        if (reference) {
+          const { data: txn } = await db.from("payment_transactions").select("*").eq("reference", reference).maybeSingle();
+          if (txn && txn.status !== "success") {
+            await verifyAndGrant(db, txn, provider as Record<string, unknown>);
+          }
+        }
+      }
+      return json({ received: true });
+    }
+
+    const user = await requireUser(req);
 
     if (action === "activate_plan") {
-      const planSlug = String(body?.planSlug ?? "");
-      console.log(`[payments] activate_plan: planSlug=${planSlug}`);
-      
-      if (!planSlug) {
-        console.log(`[payments] activate_plan: missing planSlug`);
-        return json({ success: false, error: { code: "PLAN_SLUG_REQUIRED", message: "planSlug is required" } }, 400);
-      }
-
-      const { data: settings } = await db
-        .from("app_settings")
-        .select("pricing_mode, payments_enabled")
-        .eq("id", "global")
-        .maybeSingle();
-
-      console.log(`[payments] activate_plan: pricing_mode=${settings?.pricing_mode}`);
-
-      const { data: plan } = await db
-        .from("subscription_plans")
-        .select("*")
-        .eq("slug", planSlug)
-        .eq("active", true)
-        .maybeSingle();
-
-      console.log(`[payments] activate_plan: plan found=${!!plan} slug=${plan?.slug} id=${plan?.id}`);
-
-      // One decision, shared with the pricing UI and the unit tests: Free Mode
-      // waives payment only, and never the entitlements of the selected plan.
-      const resolution = resolvePlanActivation({
-        pricingMode: settings?.pricing_mode,
-        planSlug,
-        plan,
-      });
-
-      if (resolution.action === "quote") {
-        return json({ success: false, error: { code: "PLAN_NOT_SELECTABLE", message: "This plan is activated by a team member after a quote." } }, 400);
-      }
-      if (resolution.action === "rejected") {
-        console.log(`[payments] activate_plan: rejected code=${resolution.code}`);
-        return json({ success: false, error: { code: resolution.code, message: resolution.message } }, 400);
-      }
-      if (resolution.action === "payment_required") {
-        // Paid mode: this endpoint must never grant a paid plan. The caller has
-        // to go through initialize -> verify first.
-        console.log(`[payments] activate_plan: free mode disabled`);
-        return json({ success: false, error: { code: "FREE_MODE_DISABLED", message: "Plan activation without payment is only available when free mode is enabled." } }, 400);
-      }
-
-      const { data: existingSub } = await db
-        .from("user_subscriptions")
-        .select("*")
-        .eq("user_id", user.id)
-        .eq("status", "active")
-        .maybeSingle();
-      console.log(`[payments] activate_plan: existing active subscription=${!!existingSub}`);
-
-      console.log("[PLAN_ACTIVATION]", {
-        userId: user.id,
-        requestedPlanSlug: planSlug,
-        pricingMode: settings?.pricing_mode ?? "paid",
-        paymentsEnabled: settings?.payments_enabled ?? null,
-        selectedPlanId: plan.id,
-        existingSubscription: existingSub ? { id: existingSub.id, plan_id: existingSub.plan_id, expiry_date: existingSub.expiry_date } : null,
-      });
-
-      await db.from("user_subscriptions").update({ status: "expired" })
-        .eq("user_id", user.id).eq("status", "active");
-      console.log(`[payments] activate_plan: expired previous subscriptions`);
-
-      const expiry = new Date();
-      expiry.setMonth(expiry.getMonth() + 1);
-
-      const { error: insertError } = await db.from("user_subscriptions").insert({
-        user_id: user.id,
-        plan_id: plan.id,
-        status: "active",
-        start_date: new Date().toISOString(),
-        expiry_date: expiry.toISOString(),
-        payment_reference: `free_mode_${planSlug}_${Date.now()}`,
-      });
-      console.log(`[payments] activate_plan: insert user_subscriptions error=${insertError?.message ?? "none"}`);
-
-      if (insertError) {
-        throw insertError;
-      }
-
-      const tierMap: Record<string, string> = {
-        free: "free",
-        student: "beta",
-        premium_plus: "premium",
-      };
-
-      const { error: upsertError } = await db.from("subscriptions").upsert(
-        {
-          user_id: user.id,
-          tier: tierMap[planSlug] ?? "free",
-          status: "active",
-          provider: "free_mode",
-          expires_at: expiry.toISOString(),
-        },
-        { onConflict: "user_id" }
-      );
-      console.log(`[payments] activate_plan: upsert subscriptions error=${upsertError?.message ?? "none"}`);
-
-      if (upsertError) {
-        throw upsertError;
-      }
-
-      await db.from("notifications").insert({
-        user_id: user.id,
-        title: "Plan activated",
-        body: `Your ${plan.name} plan is now active until ${expiry.toDateString()}.`,
-        type: "success",
-        link: "/billing",
-      });
-      console.log(`[payments] activate_plan: notification inserted`);
-
-      // Reset ai_credit_balances to match the newly activated plan. The daily
-      // allowance comes from the same resolution that approved the activation,
-      // and the reset boundaries come from credit-rules.ts, so this edge
-      // function and getCreditBalance() can never disagree.
-      const dailyLimit = resolution.dailyCredits;
-      const monthlyLimit = dailyLimit * 30;
-      const now = new Date();
-      const dailyReset = nextDailyResetUtc(now);
-      const monthlyReset = nextMonthlyResetUtc(now);
-
-      const { error: balanceError } = await db.from("ai_credit_balances").upsert({
-        user_id: user.id,
-        daily_credits: dailyLimit,
-        daily_reset_at: dailyReset.toISOString(),
-        monthly_credits: monthlyLimit,
-        monthly_reset_at: monthlyReset.toISOString(),
-      }, { onConflict: "user_id" });
-      console.log(`[payments] activate_plan: upsert ai_credit_balances error=${balanceError?.message ?? "none"} dailyLimit=${dailyLimit}`);
-
-      if (balanceError) {
-        throw balanceError;
-      }
-
-      console.log("[PLAN_ACTIVATION_SUCCESS]", { userId: user.id, planSlug: plan.slug, pricingMode: "free", dailyCredits: dailyLimit });
-      console.log(`[payments] activate_plan: success`);
-      return json({
-        success: true,
-        plan: { slug: plan.slug, name: plan.name, dailyCredits: dailyLimit },
-        pricing_mode: "free",
-        data: {
-          plan: { slug: plan.slug, name: plan.name },
-          status: "active",
-          expiry_date: expiry.toISOString(),
-        },
-      });
+      return json({ success: false, error: { code: "PAYMENT_REQUIRED", message: "Please complete a verified contribution to get access." } }, 400);
     }
 
     if (action === "initialize") {
-      const planSlug = String(body?.planSlug ?? "");
+      const planSlug = String(body?.planSlug ?? WEEKLY_CONTRIBUTION_SLUG);
       const callbackUrl = String(body?.callbackUrl ?? "");
-      if (!planSlug) return json({ error: "planSlug is required" }, 400);
+      if (planSlug !== WEEKLY_CONTRIBUTION_SLUG) return json({ error: "Only the weekly JMK contribution is available." }, 400);
 
-      const { data: settings } = await db
-        .from("app_settings").select("pricing_mode, payments_enabled").eq("id", "global").maybeSingle();
-      if (settings?.pricing_mode === "free" || settings?.payments_enabled === false) {
-        return json({ error: "Payments are currently disabled — every feature is free right now." }, 400);
+      const { data: settings } = await db.from("app_settings").select("pricing_mode, payments_enabled").eq("id", "global").maybeSingle();
+      const { data: plan } = await db.from("subscription_plans").select("*").eq("slug", WEEKLY_CONTRIBUTION_SLUG).eq("active", true).maybeSingle();
+      const resolution = resolvePlanActivation({ pricingMode: settings?.pricing_mode, paymentsEnabled: settings?.payments_enabled, planSlug, plan });
+      if (resolution.action === "rejected" || resolution.action === "quote") {
+        return json({ error: resolution.action === "rejected" ? resolution.message : "This option is unavailable." }, 400);
       }
 
-      const { data: plan } = await db
-        .from("subscription_plans")
-        .select("*")
-        .eq("slug", planSlug)
-        .eq("active", true)
-        .maybeSingle();
-      if (!plan) return json({ error: "Unknown plan" }, 400);
-      if (!plan.price || plan.price <= 0) return json({ error: "This plan cannot be purchased directly" }, 400);
-
-      const { data: providerRow } = await db
-        .from("payment_providers")
-        .select("*")
-        .eq("active", true)
-        .order("sort_order")
-        .limit(1)
-        .maybeSingle();
-
+      const { data: providerRow } = await db.from("payment_providers").select("*").eq("active", true).order("sort_order").limit(1).maybeSingle();
       const provider = providerRow as Record<string, unknown> | null;
       if (!provider) return json({ error: "No payment provider is active. Please contact support." }, 503);
 
-      const reference = `jmk_${planSlug}_${user.id.slice(0, 8)}_${Date.now()}`;
-      const amountKobo = Math.round(Number(plan.price) * 100);
-      const currency = String(plan.currency || "NGN");
-      const metadata: Record<string, unknown> = { user_id: user.id, plan_slug: planSlug, plan_name: plan.name, provider: provider.slug };
+      const reference = `jmk_weekly_${user.id.slice(0, 8)}_${Date.now()}`;
+      const amount = weeklyAmountForPlan(plan);
+      const credits = weeklyCreditsForPlan(plan);
+      const durationDays = weeklyDaysForPlan(plan);
+      const currency = String((plan as any)?.currency || "NGN");
+      const metadata = { user_id: user.id, plan_slug: WEEKLY_CONTRIBUTION_SLUG, plan_id: (plan as any).id, credits, duration_days: durationDays, contribution: true };
 
-      let authorizationUrl: string | undefined;
+      let authorizationUrl = "";
       let finalReference = reference;
 
       if (provider.slug === "paystack") {
-        const result = await paystackInitialize(provider, {
-          email: user.email,
-          amount: amountKobo,
-          currency,
-          reference,
-          callback_url: callbackUrl || undefined,
-          metadata,
-        });
-        authorizationUrl = result.authorization_url as string;
-        finalReference = reference;
+        const result = await paystackInitialize(provider, { email: user.email, amount: toSmallestUnit(amount), currency, reference, callback_url: callbackUrl || undefined, metadata });
+        authorizationUrl = String(result.authorization_url ?? "");
       } else if (provider.slug === "flutterwave") {
         const result = await flutterwaveInitialize(provider, {
-          tx_ref: reference,
-          amount: Number(plan.price),
-          currency,
+          tx_ref: reference, amount, currency,
           redirect_url: callbackUrl || "https://jmk.life/billing",
           payment_options: "card,banktransfer,ussd",
           customer: { email: user.email, name: user.email },
-          customizations: { title: "jmk Subscription", description: plan.name },
+          customizations: { title: "Support JMK", description: `NGN ${amount} / ${durationDays} days` },
           meta: metadata,
         });
-        authorizationUrl = result.link as string;
-        finalReference = reference;
+        authorizationUrl = String(result.link ?? "");
       } else if (provider.slug === "stripe") {
         const result = await stripeInitialize(provider, {
           callback_url: callbackUrl || "https://jmk.life/billing",
-          user_reference: reference,
-          plan_slug: planSlug,
-          plan_name: plan.name,
-          amount: amountKobo,
-          currency,
+          user_reference: reference, plan_slug: WEEKLY_CONTRIBUTION_SLUG,
+          plan_name: String((plan as any)?.name ?? "Support JMK"),
+          amount: toSmallestUnit(amount), currency,
         });
-        authorizationUrl = result.url as string;
+        authorizationUrl = String(result.url ?? "");
         finalReference = String(result.id ?? reference);
       } else {
         return json({ error: `Unsupported payment provider: ${provider.slug}` }, 400);
       }
 
+      if (!authorizationUrl) return json({ error: "Payment provider did not return a checkout link." }, 502);
+
       await db.from("payment_transactions").insert({
-        user_id: user.id,
-        amount: plan.price,
-        currency,
-        provider: String(provider.slug),
-        reference: finalReference,
-        status: "pending",
-        transaction_type: "subscription",
-        metadata: { plan_slug: planSlug, plan_id: plan.id, user_reference: reference },
+        user_id: user.id, amount, currency,
+        provider: String(provider.slug), reference: finalReference,
+        status: "pending", transaction_type: "contribution",
+        metadata: { ...metadata, user_reference: reference },
       });
 
-      return json({ authorization_url: authorizationUrl, reference: finalReference, provider: provider.slug });
+      return json({ authorization_url: authorizationUrl, reference: finalReference, provider: provider.slug, contribution: contributionPlanResponse(plan as any) });
     }
 
     if (action === "verify") {
       const reference = String(body?.reference ?? "");
       if (!reference) return json({ error: "reference is required" }, 400);
 
-      const { data: txn } = await db
-        .from("payment_transactions")
-        .select("*")
-        .eq("reference", reference)
-        .eq("user_id", user.id)
-        .maybeSingle();
+      const { data: txn } = await db.from("payment_transactions").select("*").eq("reference", reference).eq("user_id", user.id).maybeSingle();
       if (!txn) return json({ error: "Transaction not found" }, 404);
-      if (txn.status === "success") return json({ status: "success", alreadyProcessed: true });
+      if (txn.status === "success") {
+        const { data: balance } = await db.from("ai_credit_balances").select("daily_credits, access_expires_at, credits_total").eq("user_id", user.id).maybeSingle();
+        return json({ status: "success", alreadyProcessed: true, credits_remaining: Number(balance?.daily_credits ?? 0), access_expires_at: balance?.access_expires_at ?? null, credits_granted: Number(balance?.credits_total ?? 0) });
+      }
 
-      const providerSlug = String(txn.provider ?? "paystack");
-      const { data: providerRow } = await db
-        .from("payment_providers")
-        .select("*")
-        .eq("slug", providerSlug)
-        .maybeSingle();
-
-      const provider = providerRow as Record<string, unknown> | null;
+      const { data: provider } = await db.from("payment_providers").select("*").eq("slug", String(txn.provider ?? "paystack")).maybeSingle();
       if (!provider) return json({ error: "Payment provider not found." }, 400);
 
-      let verified: Record<string, unknown> | null = null;
-      let ok = false;
-
-      if (providerSlug === "paystack") {
-        verified = await paystackVerify(provider, reference);
-        ok = verified?.status === "success";
-      } else if (providerSlug === "flutterwave") {
-        verified = await flutterwaveVerify(provider, reference);
-        ok = verified?.status === "success" && String(verified?.data?.tx_ref ?? "") === reference;
-      } else if (providerSlug === "stripe") {
-        verified = await stripeVerify(provider, reference);
-        ok = String(verified?.payment_status ?? "") === "paid";
-      } else {
-        return json({ error: `Unsupported payment provider: ${providerSlug}` }, 400);
-      }
-
-      await db
-        .from("payment_transactions")
-        .update({ status: ok ? "success" : "failed", metadata: { ...(txn.metadata ?? {}), gateway: verified } })
-        .eq("id", txn.id);
-
-      if (!ok) return json({ status: "failed", provider: providerSlug });
-
-      const planSlug = (txn.metadata as Record<string, unknown>)?.plan_slug as string | undefined;
-      const { data: plan } = await db
-        .from("subscription_plans")
-        .select("id, name, slug")
-        .eq("slug", planSlug)
-        .maybeSingle();
-
-      if (plan) {
-        const expiry = new Date();
-        expiry.setMonth(expiry.getMonth() + 1);
-
-        await db.from("user_subscriptions").update({ status: "expired" })
-          .eq("user_id", user.id).eq("status", "active");
-
-        await db.from("user_subscriptions").insert({
-          user_id: user.id,
-          plan_id: plan.id,
-          status: "active",
-          start_date: new Date().toISOString(),
-          expiry_date: expiry.toISOString(),
-          payment_reference: reference,
-        });
-
-        await db.from("subscriptions").upsert(
-          {
-            user_id: user.id,
-            tier: plan.slug === "premium_plus" ? "premium" : plan.slug === "student" ? "beta" : "free",
-            status: "active",
-            provider: providerSlug,
-            expires_at: expiry.toISOString(),
-          },
-          { onConflict: "user_id" },
-        );
-
-        await db.from("notifications").insert({
-          user_id: user.id,
-          title: "Payment successful",
-          body: `Your ${plan.name} subscription is now active until ${expiry.toDateString()}.`,
-          type: "success",
-          link: "/billing",
-        });
-      }
-
-      return json({ status: "success", provider: providerSlug });
+      const outcome = await verifyAndGrant(db, txn, provider as Record<string, unknown>);
+      if (!outcome.ok) return json({ status: "failed", provider: outcome.provider, error: "Payment could not be verified." });
+      return json({
+        status: "success",
+        provider: outcome.provider,
+        plan: contributionPlanResponse(outcome.plan as any),
+        credits_granted: outcome.granted.creditsGranted,
+        credits_remaining: outcome.granted.creditsGranted,
+        access_expires_at: outcome.granted.expiresAt,
+      });
     }
 
     return json({ error: "Unknown action" }, 400);

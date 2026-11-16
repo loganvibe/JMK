@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+﻿import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { GraduationCap, ArrowLeft, Sparkles, BookOpen, FileText, ShieldCheck, Zap } from "lucide-react";
 
@@ -40,8 +40,8 @@ const Features = () => {
 
           <div className="bg-card rounded-2xl border border-border p-6">
             <ShieldCheck className="w-8 h-8 text-accent mb-4" />
-            <h3 className="text-lg font-semibold text-foreground mb-2">Plagiarism Checker</h3>
-            <p className="text-muted-foreground">Check your work for originality and get suggestions to improve uniqueness before submission.</p>
+            <h3 className="text-lg font-semibold text-foreground mb-2">Quality & Originality Support</h3>
+            <p className="text-muted-foreground">Review your work for quality and originality concerns and get suggestions to improve it before submission.</p>
           </div>
 
           <div className="bg-card rounded-2xl border border-border p-6">
@@ -52,8 +52,8 @@ const Features = () => {
 
           <div className="bg-card rounded-2xl border border-border p-6">
             <Sparkles className="w-8 h-8 text-accent mb-4" />
-            <h3 className="text-lg font-semibold text-foreground mb-2">Premium+ Modify</h3>
-            <p className="text-muted-foreground">Upload existing projects and get AI-powered modifications, improvements, and restructuring.</p>
+            <h3 className="text-lg font-semibold text-foreground mb-2">Modify Existing Projects</h3>
+            <p className="text-muted-foreground">Upload existing projects and get AI-powered analysis, refinement, and restructuring with active weekly access.</p>
           </div>
         </div>
       </div>

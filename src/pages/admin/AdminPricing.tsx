@@ -1,89 +1,65 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { formatNaira } from "@/hooks/useEntitlements";
-import { Gift, Loader2, Save, Wallet } from "lucide-react";
+import { HeartHandshake, Loader2, Save, Wallet } from "lucide-react";
 
-type PlanRow = {
-  id: string;
-  slug: string;
-  name: string;
-  price: number;
-  description: string | null;
-  active: boolean;
-  sort_order: number;
-};
+type PlanRow = { id: string; slug: string; name: string; price: number; description: string | null; active: boolean; ai_limits: any };
 
-/** Admin controls: global free/paid mode and per-plan pricing. */
+/** Admin controls: weekly contribution configuration and payment availability. */
 const AdminPricing = () => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [savingSettings, setSavingSettings] = useState(false);
-  const [savingPlan, setSavingPlan] = useState<string | null>(null);
-
-  const [freeMode, setFreeMode] = useState(false);
+  const [savingPlan, setSavingPlan] = useState(false);
   const [paymentsEnabled, setPaymentsEnabled] = useState(true);
-  const [message, setMessage] = useState("");
-  const [plans, setPlans] = useState<PlanRow[]>([]);
+  const [plan, setPlan] = useState<PlanRow | null>(null);
+  const [credits, setCredits] = useState(50);
+  const [days, setDays] = useState(7);
+  const [amount, setAmount] = useState(1500);
 
   const load = async () => {
-    const [{ data: settings }, { data: rows }] = await Promise.all([
+    const [{ data: settings }, { data: row }] = await Promise.all([
       supabase.from("app_settings").select("*").eq("id", "global").maybeSingle(),
-      supabase.from("subscription_plans").select("*").order("sort_order"),
+      supabase.from("subscription_plans").select("*").eq("slug", "weekly_support").maybeSingle(),
     ]);
-    if (settings) {
-      setFreeMode(settings.pricing_mode === "free");
-      setPaymentsEnabled(!!settings.payments_enabled);
-      setMessage(settings.free_mode_message ?? "");
+    if (settings) setPaymentsEnabled(!!settings.payments_enabled);
+    if (row) {
+      const p = row as any as PlanRow;
+      setPlan(p);
+      setAmount(Number(p.price ?? 1500));
+      setCredits(Number(p.ai_limits?.credits ?? 50));
+      setDays(Number(p.ai_limits?.duration_days ?? 7));
     }
-    setPlans((rows as PlanRow[]) ?? []);
     setLoading(false);
   };
 
   useEffect(() => { load(); }, []);
 
-  const saveSettings = async (next?: Partial<{ freeMode: boolean; paymentsEnabled: boolean }>) => {
-    const mode = (next?.freeMode ?? freeMode) ? "free" : "paid";
-    const pay = next?.paymentsEnabled ?? paymentsEnabled;
+  const saveSettings = async (nextPayments?: boolean) => {
+    const pay = nextPayments ?? paymentsEnabled;
     setSavingSettings(true);
-    const { error } = await supabase
-      .from("app_settings")
-      .update({ pricing_mode: mode, payments_enabled: pay, free_mode_message: message })
-      .eq("id", "global");
+    const { error } = await supabase.from("app_settings").update({ payments_enabled: pay, pricing_mode: "paid" }).eq("id", "global");
     setSavingSettings(false);
     if (error) return toast({ title: "Could not save", description: error.message, variant: "destructive" });
-    toast({
-      title: mode === "free" ? "Platform is now free for everyone" : "Paid plans are active",
-      description: mode === "free"
-        ? "All premium features are unlocked for every student."
-        : "Students now need a paid plan for premium features.",
-    });
+    toast({ title: "Settings saved", description: pay ? "Contributions are enabled." : "Contribution checkout is disabled." });
   };
 
-  const updatePlan = async (plan: PlanRow) => {
-    setSavingPlan(plan.id);
-    const { error } = await supabase
-      .from("subscription_plans")
-      .update({
-        name: plan.name,
-        price: Number(plan.price) || 0,
-        description: plan.description,
-        active: plan.active,
-      })
-      .eq("id", plan.id);
-    setSavingPlan(null);
+  const savePlan = async () => {
+    if (!plan) return;
+    setSavingPlan(true);
+    const ai_limits = { ...(plan.ai_limits ?? {}), credits: Number(credits) || 50, duration_days: Number(days) || 7, all_ai_features: true };
+    const { error } = await supabase.from("subscription_plans").update({ name: "Support JMK", price: Number(amount) || 1500, description: `${credits} AI credits • ${days} days access`, active: true, ai_limits }).eq("id", plan.id);
+    setSavingPlan(false);
     if (error) return toast({ title: "Update failed", description: error.message, variant: "destructive" });
-    toast({ title: `${plan.name} updated` });
+    toast({ title: "Weekly contribution updated" });
+    await load();
   };
-
-  const patch = (id: string, values: Partial<PlanRow>) =>
-    setPlans((list) => list.map((p) => (p.id === id ? { ...p, ...values } : p)));
 
   if (loading) return <div className="py-16 grid place-items-center"><Loader2 className="w-6 h-6 animate-spin text-accent" /></div>;
 
@@ -92,85 +68,36 @@ const AdminPricing = () => {
       <div className="border border-border rounded-xl p-5 bg-card space-y-5">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 className="font-heading font-bold text-foreground flex items-center gap-2">
-              <Gift className="w-4 h-4 text-accent" /> Free for everyone
-            </h2>
-            <p className="text-sm text-muted-foreground mt-1 max-w-xl">
-              Turn this on to unlock every premium feature for all students, ignoring plans and AI credit limits.
-              Turn it off to go back to paid subscriptions.
-            </p>
+            <h2 className="font-heading font-bold text-foreground flex items-center gap-2"><Wallet className="w-4 h-4 text-accent" /> Contributions enabled</h2>
+            <p className="text-sm text-muted-foreground mt-1 max-w-xl">Disable to temporarily prevent new contribution checkouts while keeping existing access/history intact.</p>
           </div>
-          <Switch
-            checked={freeMode}
-            onCheckedChange={(v) => { setFreeMode(v); saveSettings({ freeMode: v }); }}
-            disabled={savingSettings}
-          />
+          <Switch checked={paymentsEnabled} onCheckedChange={(v) => { setPaymentsEnabled(v); saveSettings(v); }} disabled={savingSettings} />
         </div>
-
-        <div className="flex items-start justify-between gap-4 pt-4 border-t border-border">
-          <div>
-            <h3 className="font-medium text-foreground flex items-center gap-2">
-              <Wallet className="w-4 h-4 text-accent" /> Payments enabled
-            </h3>
-            <p className="text-sm text-muted-foreground mt-1">
-              Disable to hide checkout buttons while you make pricing changes.
-            </p>
-          </div>
-          <Switch
-            checked={paymentsEnabled}
-            onCheckedChange={(v) => { setPaymentsEnabled(v); saveSettings({ paymentsEnabled: v }); }}
-            disabled={savingSettings}
-          />
-        </div>
-
-        <div className="space-y-2 pt-4 border-t border-border">
-          <Label htmlFor="free-msg">Banner message shown while free mode is on</Label>
-          <Textarea id="free-msg" value={message} onChange={(e) => setMessage(e.target.value)} rows={2} />
-          <Button size="sm" onClick={() => saveSettings()} disabled={savingSettings}>
-            {savingSettings ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-4 h-4 mr-1" />Save message</>}
-          </Button>
-        </div>
-
-        <Badge variant={freeMode ? "default" : "secondary"}>
-          Current mode: {freeMode ? "Everything free" : "Paid plans"}
-        </Badge>
+        <Badge variant={paymentsEnabled ? "default" : "secondary"}>Checkout: {paymentsEnabled ? "enabled" : "disabled"}</Badge>
       </div>
 
-      <div className="space-y-3">
-        <h2 className="font-heading font-bold text-foreground">Plan pricing</h2>
-        {plans.map((p) => (
-          <div key={p.id} className="border border-border rounded-xl p-4 bg-card space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <p className="font-medium truncate">{p.name} <span className="text-xs text-muted-foreground">({p.slug})</span></p>
-                <p className="text-xs text-muted-foreground">
-                  {freeMode ? "Free while free mode is on" : formatNaira(Number(p.price) || 0)}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">Active</span>
-                <Switch checked={p.active} onCheckedChange={(v) => patch(p.id, { active: v })} />
-              </div>
+      <div className="border border-border rounded-xl p-5 bg-card space-y-4">
+        <div>
+          <h2 className="font-heading font-bold text-foreground flex items-center gap-2"><HeartHandshake className="w-4 h-4 text-accent" /> Weekly contribution configuration</h2>
+          <p className="text-sm text-muted-foreground mt-1">Configure the single contribution amount, AI credits granted, and access duration. Changes apply to new successful contributions.</p>
+        </div>
+        {plan ? (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div><Label>Amount (₦)</Label><Input type="number" min={0} value={amount} onChange={(e) => setAmount(Number(e.target.value))} /></div>
+              <div><Label>AI credits granted</Label><Input type="number" min={1} value={credits} onChange={(e) => setCredits(Number(e.target.value))} /></div>
+              <div><Label>Access duration (days)</Label><Input type="number" min={1} value={days} onChange={(e) => setDays(Number(e.target.value))} /></div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
-              <Input value={p.name} onChange={(e) => patch(p.id, { name: e.target.value })} placeholder="Plan name" />
-              <Input
-                type="number" min={0} value={String(p.price ?? 0)}
-                onChange={(e) => patch(p.id, { price: Number(e.target.value) })}
-                placeholder="Price (₦)"
-              />
-              <Input
-                value={p.description ?? ""}
-                onChange={(e) => patch(p.id, { description: e.target.value })}
-                placeholder="Short description"
-              />
-              <Button onClick={() => updatePlan(p)} disabled={savingPlan === p.id}>
-                {savingPlan === p.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-4 h-4 mr-1" />Save</>}
-              </Button>
-            </div>
-          </div>
-        ))}
-        {plans.length === 0 && <p className="text-sm text-muted-foreground">No plans configured yet.</p>}
+            <div className="rounded-lg bg-muted/40 p-3 text-sm text-muted-foreground">Preview: <b className="text-foreground">Support JMK — {formatNaira(amount)} / {days} Days</b> grants <b className="text-foreground">{credits}</b> AI credits and access to all JMK AI features.</div>
+            <Button onClick={savePlan} disabled={savingPlan}>{savingPlan ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-4 h-4 mr-1" />Save configuration</>}</Button>
+          </>
+        ) : (
+          <p className="text-sm text-muted-foreground">Weekly contribution plan not found. Run the weekly contribution migration.</p>
+        )}
+      </div>
+
+      <div className="border border-border rounded-xl p-4 bg-card text-sm text-muted-foreground">
+        Legacy subscription plans remain stored in the database for history but are deactivated from student-facing access. Contribution/payment records are never deleted.
       </div>
     </div>
   );

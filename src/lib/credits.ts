@@ -1,8 +1,5 @@
-import { supabase } from "@/integrations/supabase/client";
+﻿import { supabase } from "@/integrations/supabase/client";
 
-// The generated Database types in src/integrations/supabase/types.ts predate the
-// ai_credit_balances table, so the read is issued through a loose view of the
-// client rather than editing the generated file.
 type LooseClient = {
   from: (table: string) => {
     select: (columns: string) => {
@@ -15,23 +12,19 @@ type LooseClient = {
 
 const db = supabase as unknown as LooseClient;
 
-/**
- * The single source of truth for credit display.
- *
- * It is the same ai_credit_balances row the edge functions check in
- * checkCreditLimit() and write in deductCredits(); the dashboard and the billing
- * page both derive "used" from it instead of from a counter nothing writes to.
- */
-export async function fetchDailyCreditBalance(userId: string): Promise<number | null> {
-  const { data } = await db.from("ai_credit_balances").select("daily_credits").eq("user_id", userId).maybeSingle();
-  const value = Number(data?.daily_credits);
-  return Number.isFinite(value) ? value : null;
+export async function fetchCreditBalance(userId: string): Promise<{ creditsRemaining: number; accessExpiresAt: string | null; creditsTotal: number }> {
+  const { data } = await db.from("ai_credit_balances").select("daily_credits, access_expires_at, credits_total").eq("user_id", userId).maybeSingle();
+  const creditsRemaining = Number.isFinite(Number(data?.daily_credits)) ? Math.max(0, Number(data?.daily_credits)) : 0;
+  const accessExpiresAt = typeof data?.access_expires_at === "string" ? data.access_expires_at : null;
+  const creditsTotal = Number.isFinite(Number(data?.credits_total)) ? Math.max(0, Number(data?.credits_total)) : 50;
+  const expired = accessExpiresAt ? new Date(accessExpiresAt).getTime() <= Date.now() : true;
+  return { creditsRemaining: expired ? 0 : creditsRemaining, accessExpiresAt, creditsTotal };
 }
 
-/** The daily allowance configured on the plan, used as the "/ N" denominator. */
-export async function fetchDailyPlanLimit(planSlug = "free"): Promise<number> {
+/** Weekly contribution allowance (default 50). */
+export async function fetchWeeklyPlanCredits(planSlug = "weekly_support"): Promise<number> {
   const { data } = await db.from("subscription_plans").select("ai_limits").eq("slug", planSlug).maybeSingle();
   const limits = (data?.ai_limits ?? {}) as Record<string, unknown>;
   const value = Number(limits.credits);
-  return Number.isFinite(value) ? value : 10;
+  return Number.isFinite(value) && value > 0 ? value : 50;
 }
