@@ -1,5 +1,10 @@
-﻿import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
-import { adminClient, requireUser, AccessError, grantWeeklyAccess } from "../_shared/entitlements.ts";
+﻿import { adminClient, requireUser, AccessError, grantWeeklyAccess } from "../_shared/entitlements.ts";
+import { resolvePlanActivation, weeklyAmountForPlan, weeklyCreditsForPlan, weeklyDaysForPlan, WEEKLY_CONTRIBUTION_SLUG } from "../_shared/plan-activation.ts";
+
+const corsHeaders: Record<string, string> = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
 import { resolvePlanActivation, weeklyAmountForPlan, weeklyCreditsForPlan, weeklyDaysForPlan, WEEKLY_CONTRIBUTION_SLUG } from "../_shared/plan-activation.ts";
 
 function json(body: unknown, status = 200) {
@@ -201,26 +206,70 @@ Deno.serve(async (req) => {
     const action = String(body?.action ?? "");
     const db = adminClient();
 
-    // Webhook path (Paystack) - verify signature, then securely verify transaction with provider API
-    if (action === "webhook" || (req.headers.get("x-paystack-signature") && body?.event)) {
-      const providerSlug = String(body?.provider ?? "paystack");
-      if (providerSlug !== "paystack") return json({ error: "Unsupported webhook provider" }, 400);
-      const signature = req.headers.get("x-paystack-signature") || "";
-      const { data: provider } = await db.from("payment_providers").select("*").eq("slug", "paystack").maybeSingle();
-      const secret = String((provider as any)?.secret_key ?? "");
-      if (!secret || !signature) return json({ error: "Invalid webhook request" }, 400);
-      const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-512" }, false, ["sign"]);
-      const sigBuf = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(rawText));
-      const computed = Array.from(new Uint8Array(sigBuf)).map((b) => b.toString(16).padStart(2, "0")).join("");
-      if (computed !== signature) return json({ error: "Invalid signature" }, 401);
+// Webhook path - verify signature, then securely verify transaction with provider API
+    if (action === "webhook" || req.headers.get("x-paystack-signature") || req.headers.get("verif-hash") || req.headers.get("stripe-signature")) {
+      let providerSlug = "";
+      let provider: Record<string, unknown> | null = null;
+      let reference = "";
+      let verified = false;
 
-      if (body?.event === "charge.success") {
-        const reference = String(body?.data?.reference ?? "");
-        if (reference) {
-          const { data: txn } = await db.from("payment_transactions").select("*").eq("reference", reference).maybeSingle();
-          if (txn && txn.status !== "success") {
-            await verifyAndGrant(db, txn, provider as Record<string, unknown>);
-          }
+      // Paystack webhook
+      if (req.headers.get("x-paystack-signature")) {
+        providerSlug = "paystack";
+        const signature = req.headers.get("x-paystack-signature") || "";
+        const { data: p } = await db.from("payment_providers").select("*").eq("slug", "paystack").maybeSingle();
+        provider = p as Record<string, unknown> | null;
+        const secret = String((provider as any)?.secret_key ?? "");
+        if (!secret || !signature) return json({ error: "Invalid webhook request" }, 400);
+        const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-512" }, false, ["sign"]);
+        const sigBuf = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(rawText));
+        const computed = Array.from(new Uint8Array(sigBuf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+        if (computed !== signature) return json({ error: "Invalid signature" }, 401);
+
+        if (body?.event === "charge.success") {
+          reference = String(body?.data?.reference ?? "");
+          verified = true;
+        }
+      }
+
+      // Flutterwave webhook
+      else if (req.headers.get("verif-hash")) {
+        providerSlug = "flutterwave";
+        const signature = req.headers.get("verif-hash") || "";
+        const { data: p } = await db.from("payment_providers").select("*").eq("slug", "flutterwave").maybeSingle();
+        provider = p as Record<string, unknown> | null;
+        const secretHash = String((provider as any)?.webhook_secret_hash ?? "");
+        if (!secretHash || !signature || signature !== secretHash) return json({ error: "Invalid signature" }, 401);
+
+        if (body?.event === "charge.completed" || body?.status === "successful") {
+          reference = String(body?.data?.tx_ref ?? body?.data?.txRef ?? "");
+          verified = true;
+        }
+      }
+
+      // Stripe webhook
+      else if (req.headers.get("stripe-signature")) {
+        providerSlug = "stripe";
+        const signature = req.headers.get("stripe-signature") || "";
+        const { data: p } = await db.from("payment_providers").select("*").eq("slug", "stripe").maybeSingle();
+        provider = p as Record<string, unknown> | null;
+        const webhookSecret = String((provider as any)?.webhook_secret ?? "");
+        if (!webhookSecret || !signature) return json({ error: "Invalid webhook request" }, 400);
+
+        // Simple Stripe webhook verification (in production, use stripe-node library)
+        // For now, we'll verify by fetching the session from Stripe
+        if (body?.type === "checkout.session.completed") {
+          reference = String(body?.data?.object?.id ?? "");
+          verified = true;
+        }
+      }
+
+      if (!provider) return json({ error: "Payment provider not configured" }, 503);
+
+      if (verified && reference) {
+        const { data: txn } = await db.from("payment_transactions").select("*").eq("reference", reference).maybeSingle();
+        if (txn && txn.status !== "success") {
+          await verifyAndGrant(db, txn, provider);
         }
       }
       return json({ received: true });

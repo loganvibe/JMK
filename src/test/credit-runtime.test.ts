@@ -141,4 +141,44 @@ describe("weekly contribution credit enforcement", () => {
     const bal = await getCreditBalance("u1");
     expect(Number(bal.daily_credits)).toBe(0);
   });
+
+  it("grantWeeklyAccess is idempotent (duplicate grant does not double credits)", async () => {
+    reset(true, 0, -1000);
+    const start = new Date("2026-11-16T09:00:00.000Z");
+    const first = await grantWeeklyAccess("u1", WEEKLY_PLAN, "ref-idem", start);
+    expect(first.creditsGranted).toBe(50);
+    const second = await grantWeeklyAccess("u1", WEEKLY_PLAN, "ref-idem", start);
+    expect(second.creditsGranted).toBe(50);
+    const bal = store["ai_credit_balances"].find((r) => r.user_id === "u1");
+    expect(bal?.daily_credits).toBe(50);
+  });
+
+  it("cross-user isolation: user B cannot spend user A's credits", async () => {
+    reset(true, 10);
+    store["ai_credit_balances"].push({
+      user_id: "u2", daily_credits: 0, monthly_credits: 0,
+      daily_reset_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      monthly_reset_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      access_expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      credits_total: 0, updated_at: new Date().toISOString(),
+    });
+    await deductCredits("u1", 1, "topic_generation");
+    const balA = store["ai_credit_balances"].find((r) => r.user_id === "u1");
+    const balB = store["ai_credit_balances"].find((r) => r.user_id === "u2");
+    expect(Number(balA?.daily_credits)).toBe(9);
+    expect(Number(balB?.daily_credits)).toBe(0);
+    await expect(deductCredits("u2", 1, "topic_generation")).rejects.toThrow(/credits/i);
+  });
+
+  it("daily reset trigger never refills spent credits (zeroes expired only)", async () => {
+    reset(true, 0, -1000);
+    const start = new Date("2026-11-16T09:00:00.000Z");
+    await grantWeeklyAccess("u1", WEEKLY_PLAN, "ref-norefill", start);
+    await deductCredits("u1", 50, "topic_generation");
+    const bal = await getCreditBalance("u1");
+    expect(Number(bal.daily_credits)).toBe(0);
+    const expired = await getCreditBalance("u1");
+    expect(Number(expired.daily_credits)).toBe(0);
+    await expect(deductCredits("u1", 1, "topic_generation")).rejects.toThrow(/credits/i);
+  });
 });

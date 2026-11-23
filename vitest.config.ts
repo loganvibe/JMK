@@ -16,7 +16,6 @@ export default defineConfig({
     alias: {
       "@": path.resolve(__dirname, "./src"),
       "npm:@supabase/supabase-js@2": "@supabase/supabase-js",
-      "npm:@supabase/supabase-js@2/cors": "@supabase/supabase-js/cors",
     },
   },
 });

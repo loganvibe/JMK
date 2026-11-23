@@ -1809,6 +1809,101 @@ export type Database = {
           },
         ]
       }
+      ai_credit_balances: {
+        Row: {
+          access_expires_at: string | null
+          credits_total: number
+          created_at: string
+          daily_credits: number
+          daily_reset_at: string
+          monthly_credits: number
+          monthly_reset_at: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_expires_at?: string | null
+          credits_total?: number
+          created_at?: string
+          daily_credits?: number
+          daily_reset_at?: string
+          monthly_credits?: number
+          monthly_reset_at?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_expires_at?: string | null
+          credits_total?: number
+          created_at?: string
+          daily_credits?: number
+          daily_reset_at?: string
+          monthly_credits?: number
+          monthly_reset_at?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      ai_credit_usage: {
+        Row: {
+          created_at: string
+          credits_used: number
+          estimated_cost: number
+          error: string | null
+          feature_key: string
+          id: number
+          input_tokens: number
+          model: string
+          output_tokens: number
+          provider: string
+          project_id: string | null
+          request_id: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          credits_used?: number
+          estimated_cost?: number
+          error?: string | null
+          feature_key: string
+          id?: number
+          input_tokens?: number
+          model: string
+          output_tokens?: number
+          provider: string
+          project_id?: string | null
+          request_id?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          credits_used?: number
+          estimated_cost?: number
+          error?: string | null
+          feature_key?: string
+          id?: number
+          input_tokens?: number
+          model?: string
+          output_tokens?: number
+          provider?: string
+          project_id?: string | null
+          request_id?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_credit_usage_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

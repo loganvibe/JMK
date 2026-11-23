@@ -38,8 +38,8 @@ const Terms = () => {
           </section>
 
           <section className="space-y-3">
-            <h2 className="text-xl font-semibold text-foreground">4. Subscriptions & Payments</h2>
-            <p>We offer tiered subscriptions including Free, Student, and Premium Plus. Payments are processed securely through Paystack and/or Stripe. Subscription fees are non-refundable except as required by law or our Refund Policy.</p>
+            <h2 className="text-xl font-semibold text-foreground">4. Weekly Contribution & Payments</h2>
+            <p>Access to JMK AI features is granted through a weekly contribution of ₦1,500 for 7 days of access and 50 AI credits. Payments are processed securely through Paystack and/or Flutterwave. Contributions are non-refundable except as required by law or our Refund Policy. Your saved projects remain available after your access window expires.</p>
           </section>
 
           <section className="space-y-3">
