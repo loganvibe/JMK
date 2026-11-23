@@ -1,4 +1,4 @@
-﻿// Weekly contribution: fixed credit bucket, 7-day access, no daily/monthly refill.
+﻿// Credit arithmetic shared by edge functions and tests. Loadable by Deno and vitest.
 export type CreditDecisionInput = {
   creditsRemaining: number;
   requestedCredits: number;
@@ -40,7 +40,9 @@ export function resolveCreditDecision(input: CreditDecisionInput): CreditDecisio
   const requestedCredits = Math.max(0, Number(input.requestedCredits ?? 0));
   const now = input.now ?? new Date();
 
-  if (isPast(input.accessExpiresAt, now)) {
+  // Only enforce expiry when an expiry timestamp is present.
+  // Free users have no access expiry (daily reset instead).
+  if (input.accessExpiresAt && isPast(input.accessExpiresAt, now)) {
     return {
       allowed: false,
       scope: "expired",
@@ -66,7 +68,7 @@ export function resolveCreditDecision(input: CreditDecisionInput): CreditDecisio
   return { allowed: true, creditsRemaining, requestedCredits };
 }
 
-// Legacy compatibility exports for older test shapes; map daily/monthly to weekly bucket.
+// Legacy compatibility exports for older test shapes.
 export function resolveLegacyCreditDecision(input: { dailyRemaining: number; monthlyRemaining: number; requestedCredits: number }) {
   const d = resolveCreditDecision({ creditsRemaining: input.dailyRemaining, requestedCredits: input.requestedCredits, accessExpiresAt: new Date(Date.now() + 86400000).toISOString() });
   if (d.allowed) return { allowed: true, dailyRemaining: d.creditsRemaining, monthlyRemaining: input.monthlyRemaining, requestedCredits: d.requestedCredits };

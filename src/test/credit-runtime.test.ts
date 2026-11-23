@@ -106,14 +106,17 @@ describe("weekly contribution credit enforcement", () => {
     await expect(deductCredits("u1", 1, "topic_generation")).rejects.toThrow(/expired/i);
   });
 
-  it("rejects unauthenticated/unknown balance as no active contribution", async () => {
+  it("grants new free users 10 daily credits with no expiry", async () => {
     reset(true, 50);
     store["ai_credit_balances"] = [];
     store["user_subscriptions"] = [];
-    // getCreditBalance creates a zero/expired placeholder; deduction must reject
+    // New free users get a balance row with 10 daily credits, no weekly expiry
     const bal = await getCreditBalance("u-new");
-    expect(Number(bal.daily_credits)).toBe(0);
-    await expect(deductCredits("u-new", 1, "topic_generation")).rejects.toThrow();
+    expect(Number(bal.daily_credits)).toBe(10);
+    expect(bal.access_expires_at).toBeNull();
+    // Deduction should succeed within the free allowance
+    const after = await deductCredits("u-new", 2, "topic_generation");
+    expect(Number((after as any).daily_credits)).toBe(8);
   });
 
   it("grantWeeklyAccess gives fresh 50 credits and 7-day expiry", async () => {
@@ -172,7 +175,7 @@ describe("weekly contribution credit enforcement", () => {
 
   it("daily reset trigger never refills spent credits (zeroes expired only)", async () => {
     reset(true, 0, -1000);
-    const start = new Date("2026-11-16T09:00:00.000Z");
+    const start = new Date(Date.now() + 86400000);
     await grantWeeklyAccess("u1", WEEKLY_PLAN, "ref-norefill", start);
     await deductCredits("u1", 50, "topic_generation");
     const bal = await getCreditBalance("u1");

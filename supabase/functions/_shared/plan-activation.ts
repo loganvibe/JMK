@@ -1,9 +1,11 @@
 // Contribution/plan activation policy shared by edge function, UI logic, and tests.
 
 export const WEEKLY_CONTRIBUTION_SLUG = "weekly_support";
+export const FREE_PLAN_SLUG = "free";
 export const DEFAULT_WEEKLY_CREDITS = 50;
 export const DEFAULT_WEEKLY_DAYS = 7;
 export const DEFAULT_WEEKLY_AMOUNT = 1500;
+export const DEFAULT_FREE_CREDITS = 10;
 export const SELF_SERVE_PLAN_SLUGS = [WEEKLY_CONTRIBUTION_SLUG] as const;
 
 export type PlanRow = {
@@ -17,6 +19,7 @@ export type PlanRow = {
 
 export type ActivationResolution =
   | { action: "payment_required"; plan: PlanRow; credits: number; durationDays: number; amount: number }
+  | { action: "free"; plan: PlanRow; credits: number; durationDays: number }
   | { action: "quote"; plan: PlanRow; reason: "custom_plan" }
   | { action: "rejected"; code: string; message: string };
 
@@ -40,6 +43,11 @@ export function weeklyDaysForPlan(plan: PlanRow | null | undefined): number {
 export function weeklyAmountForPlan(plan: PlanRow | null | undefined): number {
   const value = Number(plan?.price);
   return Number.isFinite(value) && value > 0 ? value : DEFAULT_WEEKLY_AMOUNT;
+}
+
+export function freeCreditsForPlan(plan: PlanRow | null | undefined): number {
+  const value = Number(plan?.ai_limits?.credits);
+  return Number.isFinite(value) && value > 0 ? Math.floor(value) : DEFAULT_FREE_CREDITS;
 }
 
 export function resolvePlanActivation({ paymentsEnabled, planSlug, plan }: ActivationInput): ActivationResolution {
@@ -69,5 +77,25 @@ export function resolvePlanActivation({ paymentsEnabled, planSlug, plan }: Activ
     credits: weeklyCreditsForPlan(plan),
     durationDays: weeklyDaysForPlan(plan),
     amount: weeklyAmountForPlan(plan),
+  };
+}
+
+export function resolveFreePlanActivation(plan: PlanRow | null | undefined): ActivationResolution {
+  if (!plan) {
+    return { action: "rejected", code: "PLAN_NOT_FOUND", message: "Free plan is unavailable." };
+  }
+  if (plan.slug !== FREE_PLAN_SLUG) {
+    return {
+      action: "rejected",
+      code: "PLAN_NOT_SELECTABLE",
+      message: "Only the free plan can be activated for free access.",
+    };
+  }
+
+  return {
+    action: "free",
+    plan,
+    credits: freeCreditsForPlan(plan),
+    durationDays: 1,
   };
 }

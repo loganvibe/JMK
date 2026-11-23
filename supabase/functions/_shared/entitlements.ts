@@ -1,7 +1,10 @@
-﻿// Centralised, server-side feature access + AI credit enforcement (weekly contribution model).
+﻿// Centralised, server-side feature access + AI credit enforcement.
+// Supports two user types: free users (daily credits) and weekly contributors (7-day bucket).
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { isPast, resolveCreditDecision, weeklyExpiry } from "./credit-rules.ts";
+import { isPast, resolveCreditDecision, weeklyExpiry, nextDailyResetUtc, nextMonthlyResetUtc } from "./credit-rules.ts";
 import { DEFAULT_WEEKLY_CREDITS, DEFAULT_WEEKLY_DAYS, WEEKLY_CONTRIBUTION_SLUG, weeklyCreditsForPlan, weeklyDaysForPlan } from "./plan-activation.ts";
+
+export const FREE_PLAN_SLUG = "free";
 
 export const PLAN_RANK: Record<string, number> = {
   free: 0,
@@ -25,18 +28,19 @@ export type FeatureKey =
   | "data_analysis";
 
 // Minimum plan rank required + default credit cost (FEATURE_RULES is authoritative).
+// Credit costs match ai_feature_settings seeded in migration 20260929000002.
 export const FEATURE_RULES: Record<FeatureKey, { minRank: number; credits: number; label: string }> = {
-  topic_generation: { minRank: 0, credits: 1, label: "Topic generation" },
-  chapter_generation: { minRank: 0, credits: 2, label: "Chapter generation" },
-  academic_assist: { minRank: 0, credits: 1, label: "Academic assistant" },
-  citation: { minRank: 0, credits: 1, label: "Citation tools" },
-  quality_check: { minRank: 0, credits: 1, label: "Quality check" },
-  refinement: { minRank: 0, credits: 3, label: "AI refinement" },
-  defense_basic: { minRank: 0, credits: 1, label: "Defense preparation" },
-  defense_simulation: { minRank: 0, credits: 3, label: "Mock defense simulation" },
-  originality: { minRank: 0, credits: 10, label: "Originality checker" },
-  literature: { minRank: 0, credits: 5, label: "Literature finder" },
-  data_analysis: { minRank: 0, credits: 8, label: "Data analysis assistant" },
+  topic_generation: { minRank: 0, credits: 2, label: "Topic generation" },
+  chapter_generation: { minRank: 0, credits: 20, label: "Chapter generation" },
+  academic_assist: { minRank: 0, credits: 2, label: "Academic assistant" },
+  citation: { minRank: 0, credits: 2, label: "Citation tools" },
+  quality_check: { minRank: 1, credits: 8, label: "Quality check" },
+  refinement: { minRank: 1, credits: 20, label: "AI refinement" },
+  defense_basic: { minRank: 1, credits: 10, label: "Defense preparation" },
+  defense_simulation: { minRank: 2, credits: 10, label: "Mock defense simulation" },
+  originality: { minRank: 1, credits: 10, label: "Originality checker" },
+  literature: { minRank: 1, credits: 5, label: "Literature finder" },
+  data_analysis: { minRank: 2, credits: 8, label: "Data analysis assistant" },
 };
 
 export function adminClient() {
@@ -85,22 +89,25 @@ export async function getPlan(userId: string) {
 
   const plan = data?.subscription_plans as Record<string, unknown> | null | undefined;
   const expired = data?.expiry_date ? new Date(String(data.expiry_date)).getTime() <= Date.now() : false;
-  if (plan && !expired) {
-    return { ...(plan as Record<string, unknown>), expiry_date: data?.expiry_date ?? null, payment_reference: data?.payment_reference ?? null } as Record<string, unknown>;
+  if (plan) {
+    // Return the plan even if expired, so callers can distinguish weekly contributors (rank 2)
+    // from free users (rank 0). Expired access is enforced by checkCreditLimit/deductCredits.
+    return { ...(plan as Record<string, unknown>), expiry_date: data?.expiry_date ?? null, payment_reference: data?.payment_reference ?? null, _expired: expired } as Record<string, unknown>;
   }
 
-  const { data: weekly } = await db
+  // No subscription at all: fall back to the free plan.
+  const { data: free } = await db
     .from("subscription_plans")
     .select("id, slug, name, price, ai_limits, active")
-    .eq("slug", WEEKLY_CONTRIBUTION_SLUG)
+    .eq("slug", FREE_PLAN_SLUG)
     .maybeSingle();
   return (
-    weekly ?? {
+    free ?? {
       id: null,
-      slug: WEEKLY_CONTRIBUTION_SLUG,
-      name: "Support JMK",
-      price: 1500,
-      ai_limits: { credits: DEFAULT_WEEKLY_CREDITS, duration_days: DEFAULT_WEEKLY_DAYS },
+      slug: FREE_PLAN_SLUG,
+      name: "Free Trial",
+      price: 0,
+      ai_limits: { credits: 10, chapters: ["chapter1"] },
       active: true,
     }
   ) as Record<string, unknown>;
@@ -122,12 +129,33 @@ export async function siteSettings() {
 
 export async function getCreditBalance(userId: string) {
   const db = adminClient();
-  const { data } = await db.from("ai_credit_balances").select("*").eq("user_id", userId).maybeSingle();
   const plan = await getPlan(userId);
-  const creditsLimit = weeklyCreditsForPlan(plan as any);
+  const isFree = plan.slug === FREE_PLAN_SLUG;
+  const creditsLimit = isFree ? Number((plan as any)?.ai_limits?.credits ?? 10) : weeklyCreditsForPlan(plan as any);
   const now = new Date();
 
+  const { data } = await db.from("ai_credit_balances").select("*").eq("user_id", userId).maybeSingle();
+
   if (!data) {
+    if (isFree) {
+      const dailyReset = nextDailyResetUtc(now);
+      const monthlyReset = nextMonthlyResetUtc(now);
+      const { data: created } = await db
+        .from("ai_credit_balances")
+        .insert({
+          user_id: userId,
+          daily_credits: creditsLimit,
+          daily_reset_at: dailyReset.toISOString(),
+          monthly_credits: creditsLimit * 30,
+          monthly_reset_at: monthlyReset.toISOString(),
+          access_expires_at: null,
+          credits_total: creditsLimit,
+          updated_at: now.toISOString(),
+        })
+        .select("*")
+        .single();
+      return created;
+    }
     const expiredAt = now.toISOString();
     const { data: created } = await db
       .from("ai_credit_balances")
@@ -146,6 +174,34 @@ export async function getCreditBalance(userId: string) {
     return created;
   }
 
+  if (isFree) {
+    const dailyResetPassed = isPast(data.daily_reset_at, now);
+    const monthlyResetPassed = isPast(data.monthly_reset_at, now);
+
+    if (dailyResetPassed || monthlyResetPassed) {
+      const dailyReset = nextDailyResetUtc(now);
+      const monthlyReset = nextMonthlyResetUtc(now);
+      const { data: updated } = await db
+        .from("ai_credit_balances")
+        .update({
+          daily_credits: creditsLimit,
+          monthly_credits: creditsLimit * 30,
+          daily_reset_at: dailyReset.toISOString(),
+          monthly_reset_at: monthlyReset.toISOString(),
+          access_expires_at: null,
+          credits_total: creditsLimit,
+          updated_at: now.toISOString(),
+        })
+        .eq("user_id", userId)
+        .select("*")
+        .single();
+      return updated ?? { ...data, daily_credits: creditsLimit, access_expires_at: null };
+    }
+
+    return { ...data, access_expires_at: null };
+  }
+
+  // Weekly contributor: expiry-safe normalization, no refill.
   const accessExpiresAt = data.access_expires_at ?? data.monthly_reset_at ?? data.daily_reset_at ?? null;
   const expired = isPast(accessExpiresAt, now);
   const rawCredits = Number(data.daily_credits ?? 0);
@@ -165,7 +221,7 @@ export async function getCreditBalance(userId: string) {
       .eq("user_id", userId)
       .select("*")
       .single();
-    return updated ?? { ...data, daily_credits: normalizedCredits, monthly_credits: normalizedCredits, access_expires_at: accessExpiresAt, credits_total: creditsTotal };
+    return updated ?? { ...data, daily_credits: normalizedCredits, access_expires_at: accessExpiresAt, credits_total: creditsTotal };
   }
 
   return { ...data, access_expires_at: accessExpiresAt, credits_total: creditsTotal };
@@ -193,18 +249,25 @@ export async function checkCreditLimit(userId: string, featureKey: string): Prom
   const settings = await getFeatureSettings(featureKey);
   if (!settings) return { allowed: true };
 
+  const plan = await getPlan(userId);
+  const isFree = plan.slug === FREE_PLAN_SLUG;
   const requestedCredits = FEATURE_RULES[featureKey as FeatureKey]?.credits ?? settings.credits;
-  const accessExpiresAt = (balance?.access_expires_at ?? null) as string | null;
+
+  // Free users use daily_reset_at as the access boundary; weekly contributors use access_expires_at.
+  const accessExpiresAt = isFree
+    ? ((balance as any)?.daily_reset_at ?? null)
+    : ((balance?.access_expires_at ?? null) as string | null);
+
   const decision = resolveCreditDecision({
-    creditsRemaining: Number(balance?.daily_credits ?? 0),
+    creditsRemaining: Number((balance as any)?.daily_credits ?? 0),
     requestedCredits,
     accessExpiresAt,
   });
 
   if (!decision.allowed) {
-    return { allowed: false, reason: decision.reason, creditsRemaining: Number(balance?.daily_credits ?? 0), accessExpiresAt, requestedCredits };
+    return { allowed: false, reason: decision.reason, creditsRemaining: Number((balance as any)?.daily_credits ?? 0), accessExpiresAt, requestedCredits };
   }
-  return { allowed: true, creditsRemaining: Number(balance?.daily_credits ?? 0), accessExpiresAt, requestedCredits };
+  return { allowed: true, creditsRemaining: Number((balance as any)?.daily_credits ?? 0), accessExpiresAt, requestedCredits };
 }
 
 export async function deductCredits(
@@ -230,7 +293,11 @@ export async function deductCredits(
 
   for (let attempt = 0; attempt < 2; attempt++) {
     const creditsRemaining = Math.max(0, Number(current.daily_credits ?? 0));
-    const accessExpiresAt = (current.access_expires_at ?? current.monthly_reset_at ?? current.daily_reset_at ?? null) as string | null;
+    const plan = await getPlan(userId);
+    const isFree = plan.slug === FREE_PLAN_SLUG;
+    const accessExpiresAt = isFree
+      ? ((current.daily_reset_at ?? null) as string | null)
+      : ((current.access_expires_at ?? current.monthly_reset_at ?? current.daily_reset_at ?? null) as string | null);
     const decision = resolveCreditDecision({ creditsRemaining, requestedCredits: credits, accessExpiresAt, now });
 
     if (!decision.allowed) {
@@ -238,17 +305,25 @@ export async function deductCredits(
     }
 
     const nextCredits = creditsRemaining - credits;
+    const updateValues: Record<string, unknown> = {
+      daily_credits: nextCredits,
+      monthly_credits: nextCredits,
+      updated_at: nowIso,
+    };
+    if (isFree) {
+      updateValues["access_expires_at"] = current.daily_reset_at;
+      updateValues["daily_reset_at"] = current.daily_reset_at;
+      updateValues["monthly_reset_at"] = current.monthly_reset_at;
+    } else {
+      updateValues["access_expires_at"] = accessExpiresAt;
+      updateValues["daily_reset_at"] = accessExpiresAt ?? current.daily_reset_at;
+      updateValues["monthly_reset_at"] = accessExpiresAt ?? current.monthly_reset_at;
+    }
+    updateValues["credits_total"] = Math.max(Number(current.credits_total ?? 0), creditsRemaining);
+
     const { data: rows, error: updateError } = await db
       .from("ai_credit_balances")
-      .update({
-        daily_credits: nextCredits,
-        monthly_credits: nextCredits,
-        access_expires_at: accessExpiresAt,
-        daily_reset_at: accessExpiresAt ?? current.daily_reset_at,
-        monthly_reset_at: accessExpiresAt ?? current.monthly_reset_at,
-        credits_total: Math.max(Number(current.credits_total ?? 0), creditsRemaining),
-        updated_at: nowIso,
-      })
+      .update(updateValues)
       .eq("user_id", userId)
       .eq("updated_at", current.updated_at)
       .eq("daily_credits", creditsRemaining)
@@ -294,16 +369,41 @@ export async function enforce(
   const user = await requireUser(req);
   const plan = await getPlan(user.id);
   const rule = FEATURE_RULES[feature];
+  const rank = PLAN_RANK[plan.slug as keyof typeof PLAN_RANK] ?? 0;
+
+  if (rank < rule.minRank) {
+    throw new AccessError(
+      `${rule.label} is not available on the ${plan.name}. Upgrade your plan to continue.`,
+      402,
+      "upgrade_required",
+    );
+  }
 
   const featureSettings = await getFeatureSettings(feature);
   if (featureSettings && !featureSettings.enabled) {
     throw new AccessError(`${rule.label} is currently disabled by the administrator.`, 403, "feature_disabled");
   }
 
+  // Free users: Chapter 1 only (from ai_limits.chapters).
+  const limits = (plan as any)?.ai_limits ?? {};
+  if (plan.slug === FREE_PLAN_SLUG && opts.chapter) {
+    const allowedChapters = Array.isArray(limits.chapters) ? limits.chapters : [];
+    if (allowedChapters.length) {
+      const m = String(opts.chapter).match(/chapter\s*(\d+)/i);
+      const chapterKey = m ? `chapter${m[1]}` : null;
+      if (chapterKey && !allowedChapters.includes(chapterKey)) {
+        throw new AccessError(
+          `Your ${plan.name} only covers Chapter 1. Upgrade to unlock Chapters 2-5.`,
+          402,
+          "upgrade_required",
+        );
+      }
+    }
+  }
+
   const creditCheck = await checkCreditLimit(user.id, feature);
   if (!creditCheck.allowed) {
-    const code = creditCheck.reason?.includes("expired") ? "access_expired" : "credits_exhausted";
-    throw new AccessError(creditCheck.reason ?? "Contribution required.", 402, code);
+    throw new AccessError(creditCheck.reason ?? "Credit limit exceeded.", 402, "credits_exhausted");
   }
 
   return {

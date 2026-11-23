@@ -72,7 +72,7 @@ const Billing = () => {
   const total = ent.creditsTotal || 50;
   const used = Math.max(0, Math.min(total, ent.creditsUsed));
   const creditPct = Math.min(100, Math.round((used / Math.max(1, total)) * 100));
-  const expired = !ent.hasActiveAccess || (ent.accessExpiresAt ? new Date(ent.accessExpiresAt).getTime() <= Date.now() : true);
+  const expired = ent.isFree ? false : (!ent.hasActiveAccess || (ent.accessExpiresAt ? new Date(ent.accessExpiresAt).getTime() <= Date.now() : true));
   const needsContribution = expired || ent.creditsRemaining <= 0;
 
   return (

@@ -99,7 +99,7 @@ const RefineProject = () => {
     })();
   }, [navigate]);
 
-  const canRefineAI = ent.canUseAI && ent.isFeatureEnabled("refinement");
+  const canRefineAI = ent.can("refinement") && ent.isFeatureEnabled("refinement");
 
   const handleFile = async (f: File | null) => {
     if (!f) return;
