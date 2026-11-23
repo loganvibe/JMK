@@ -16,13 +16,13 @@ export async function fetchCreditBalance(userId: string): Promise<{ creditsRemai
   const { data } = await db.from("ai_credit_balances").select("daily_credits, access_expires_at, credits_total, daily_reset_at").eq("user_id", userId).maybeSingle();
 
   if (!data) {
-    // No balance yet: return free plan defaults (10 daily credits, no weekly expiry)
-    return { creditsRemaining: 10, accessExpiresAt: null, creditsTotal: 10 };
+    // No balance yet: return free plan defaults (5 daily credits, no weekly expiry)
+    return { creditsRemaining: 5, accessExpiresAt: null, creditsTotal: 5 };
   }
 
   const creditsRemaining = Number.isFinite(Number(data?.daily_credits)) ? Math.max(0, Number(data?.daily_credits)) : 0;
   const accessExpiresAt = typeof data?.access_expires_at === "string" ? data.access_expires_at : null;
-  const creditsTotal = Number.isFinite(Number(data?.credits_total)) ? Math.max(0, Number(data?.credits_total)) : 10;
+  const creditsTotal = Number.isFinite(Number(data?.credits_total)) ? Math.max(0, Number(data?.credits_total)) : 5;
 
   // Free users have null access_expires_at: no weekly expiry.
   // Weekly contributors: check if access has expired.
@@ -38,10 +38,10 @@ export async function fetchWeeklyPlanCredits(planSlug = "weekly_support"): Promi
   return Number.isFinite(value) && value > 0 ? value : 50;
 }
 
-/** Free plan daily allowance (default 10). */
+/** Free plan daily allowance (default 5). */
 export async function fetchFreePlanCredits(): Promise<number> {
   const { data } = await db.from("subscription_plans").select("ai_limits").eq("slug", "free").maybeSingle();
   const limits = (data?.ai_limits ?? {}) as Record<string, unknown>;
   const value = Number(limits.credits);
-  return Number.isFinite(value) && value > 0 ? value : 10;
+  return Number.isFinite(value) && value > 0 ? value : 5;
 }

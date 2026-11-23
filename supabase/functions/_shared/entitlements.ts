@@ -107,7 +107,7 @@ export async function getPlan(userId: string) {
       slug: FREE_PLAN_SLUG,
       name: "Free Trial",
       price: 0,
-      ai_limits: { credits: 10, chapters: ["chapter1"] },
+      ai_limits: { credits: 5, chapters: ["chapter1"] },
       active: true,
     }
   ) as Record<string, unknown>;
@@ -131,7 +131,7 @@ export async function getCreditBalance(userId: string) {
   const db = adminClient();
   const plan = await getPlan(userId);
   const isFree = plan.slug === FREE_PLAN_SLUG;
-  const creditsLimit = isFree ? Number((plan as any)?.ai_limits?.credits ?? 10) : weeklyCreditsForPlan(plan as any);
+  const creditsLimit = isFree ? Number((plan as any)?.ai_limits?.credits ?? 5) : weeklyCreditsForPlan(plan as any);
   const now = new Date();
 
   const { data } = await db.from("ai_credit_balances").select("*").eq("user_id", userId).maybeSingle();
@@ -244,14 +244,24 @@ export async function getFeatureSettings(featureKey: string) {
   };
 }
 
-export async function checkCreditLimit(userId: string, featureKey: string): Promise<{ allowed: boolean; reason?: string; creditsRemaining?: number; accessExpiresAt?: string | null; requestedCredits?: number }> {
+export async function checkCreditLimit(userId: string, featureKey: string, chapter?: string | null): Promise<{ allowed: boolean; reason?: string; creditsRemaining?: number; accessExpiresAt?: string | null; requestedCredits?: number }> {
   const balance = await getCreditBalance(userId);
   const settings = await getFeatureSettings(featureKey);
   if (!settings) return { allowed: true };
 
   const plan = await getPlan(userId);
   const isFree = plan.slug === FREE_PLAN_SLUG;
-  const requestedCredits = FEATURE_RULES[featureKey as FeatureKey]?.credits ?? settings.credits;
+  let requestedCredits = FEATURE_RULES[featureKey as FeatureKey]?.credits ?? settings.credits;
+
+  // Free users get Chapter One generation at no credit cost (free allowance).
+  // Chapters 2-5 remain blocked by the chapter restriction in enforce().
+  if (isFree && featureKey === "chapter_generation" && chapter) {
+    const m = String(chapter).match(/chapter\s*(\d+)/i);
+    const chapterKey = m ? `chapter${m[1]}` : null;
+    if (chapterKey === "chapter1") {
+      requestedCredits = 0;
+    }
+  }
 
   // Free users use daily_reset_at as the access boundary; weekly contributors use access_expires_at.
   const accessExpiresAt = isFree
@@ -276,6 +286,7 @@ export async function deductCredits(
   featureKey: string,
   projectId?: string | null,
   usageInfo?: { provider?: string; model?: string; inputTokens?: number; outputTokens?: number; estimatedCost?: number },
+  chapter?: string | null,
 ) {
   const db = adminClient();
   const now = new Date();
@@ -298,13 +309,24 @@ export async function deductCredits(
     const accessExpiresAt = isFree
       ? ((current.daily_reset_at ?? null) as string | null)
       : ((current.access_expires_at ?? current.monthly_reset_at ?? current.daily_reset_at ?? null) as string | null);
-    const decision = resolveCreditDecision({ creditsRemaining, requestedCredits: credits, accessExpiresAt, now });
+
+    // Free users get Chapter One generation at no credit cost.
+    let effectiveCredits = credits;
+    if (isFree && featureKey === "chapter_generation" && chapter) {
+      const m = String(chapter).match(/chapter\s*(\d+)/i);
+      const chapterKey = m ? `chapter${m[1]}` : null;
+      if (chapterKey === "chapter1") {
+        effectiveCredits = 0;
+      }
+    }
+
+    const decision = resolveCreditDecision({ creditsRemaining, requestedCredits: effectiveCredits, accessExpiresAt, now });
 
     if (!decision.allowed) {
       throw new AccessError(decision.reason, 402, decision.scope === "expired" ? "access_expired" : "credits_exhausted");
     }
 
-    const nextCredits = creditsRemaining - credits;
+    const nextCredits = creditsRemaining - effectiveCredits;
     const updateValues: Record<string, unknown> = {
       daily_credits: nextCredits,
       monthly_credits: nextCredits,
@@ -351,7 +373,7 @@ export async function deductCredits(
       input_tokens: usageInfo?.inputTokens ?? 0,
       output_tokens: usageInfo?.outputTokens ?? 0,
       estimated_cost: usageInfo?.estimatedCost ?? 0,
-      credits_used: credits,
+      credits_used: effectiveCredits,
       status: "success",
     });
 
@@ -401,7 +423,7 @@ export async function enforce(
     }
   }
 
-  const creditCheck = await checkCreditLimit(user.id, feature);
+  const creditCheck = await checkCreditLimit(user.id, feature, opts.chapter ?? null);
   if (!creditCheck.allowed) {
     throw new AccessError(creditCheck.reason ?? "Credit limit exceeded.", 402, "credits_exhausted");
   }

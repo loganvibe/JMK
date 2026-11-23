@@ -5,7 +5,7 @@ export const FREE_PLAN_SLUG = "free";
 export const DEFAULT_WEEKLY_CREDITS = 50;
 export const DEFAULT_WEEKLY_DAYS = 7;
 export const DEFAULT_WEEKLY_AMOUNT = 1500;
-export const DEFAULT_FREE_CREDITS = 10;
+export const DEFAULT_FREE_CREDITS = 5;
 export const SELF_SERVE_PLAN_SLUGS = [WEEKLY_CONTRIBUTION_SLUG] as const;
 
 export type PlanRow = {

@@ -8,7 +8,7 @@ VALUES (
   'NGN',
   'Explore the platform and test the AI',
   '["Account creation","AI topic suggestions","Generate Chapter 1 of one project","Limited AI questions","Preview premium features"]'::jsonb,
-  '{"credits":10,"max_projects":1,"chapters":["chapter1"],"refinement":false,"defense":"preview"}'::jsonb,
+  '{"credits":5,"max_projects":1,"chapters":["chapter1"],"refinement":false,"defense":"preview"}'::jsonb,
   1,
   true
 )
@@ -23,11 +23,11 @@ ON CONFLICT (slug) DO UPDATE SET
   active = EXCLUDED.active,
   updated_at = now();
 
--- Grant new users a free credit balance row so they receive 10 daily credits.
+-- Grant new users a free credit balance row so they receive 5 daily credits.
 -- Existing backend fallback covers users with no balance row, but an explicit
 -- row makes entitlement resolution deterministic across all code paths.
 INSERT INTO public.ai_credit_balances (user_id, daily_credits, credits_total, daily_reset_at, monthly_reset_at)
-SELECT p.id, 10, 10, now(), now()
+SELECT p.id, 5, 5, now(), now()
 FROM public.profiles p
 WHERE NOT EXISTS (
   SELECT 1 FROM public.ai_credit_balances acb WHERE acb.user_id = p.id

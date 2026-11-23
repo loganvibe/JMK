@@ -111,7 +111,7 @@ export function useEntitlements() {
     const effectiveExpired = effectiveExpiry ? new Date(effectiveExpiry).getTime() <= Date.now() : true;
 
     const creditsTotalValue = planIsFree
-      ? Number((effectivePlan?.ai_limits as any)?.credits ?? 10)
+      ? Number((effectivePlan?.ai_limits as any)?.credits ?? 5)
       : Number((weeklyPlan?.ai_limits as any)?.credits ?? balanceRes.creditsTotal ?? 50);
 
     // Free users always have access (daily credits); weekly contributors need non-expired access

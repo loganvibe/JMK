@@ -87,12 +87,12 @@ Student inputs:
 
 Generate 5 topic ideas now.`;
        const raw = await callAI(system, user, true);
-      const creditsUsed = FEATURE_RULES.topic_generation.credits;
-      
-      const parsed = safeParseJson<{ topics: unknown[] }>(raw.content);
-      const topics = parsed?.topics ?? [];
-      
-      await deductCredits(ctx.user.id, creditsUsed, feature, body.project?.id ?? null, { provider: raw.provider, model: raw.model, inputTokens: raw.input_tokens, outputTokens: raw.output_tokens });
+    const creditsUsed = FEATURE_RULES.topic_generation.credits;
+    
+    const parsed = safeParseJson<{ topics: unknown[] }>(raw.content);
+    const topics = parsed?.topics ?? [];
+    
+    await deductCredits(ctx.user.id, creditsUsed, feature, body.project?.id ?? null, { provider: raw.provider, model: raw.model, inputTokens: raw.input_tokens, outputTokens: raw.output_tokens });
       return new Response(JSON.stringify(createAIResponse(raw, { topics }, creditsUsed)), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -149,9 +149,11 @@ ${currentContent ? `\nCurrent draft:\n"""\n${currentContent}\n"""` : ""}
 ${ctxBlock}`;
 
     const response = await callAI(baseSystem, user);
-    const creditsUsed = FEATURE_RULES.chapter_generation.credits;
-    await deductCredits(ctx.user.id, creditsUsed, feature, body.project?.id ?? null, { provider: response.provider, model: response.model, inputTokens: response.input_tokens, outputTokens: response.output_tokens });
-    return new Response(JSON.stringify(createAIResponse(response, null, creditsUsed)), {
+    const isFree = ctx.plan.slug === "free";
+    const isChapter1 = body.chapter && /chapter\s*1/i.test(body.chapter);
+    const chapterCredits = (isFree && isChapter1) ? 0 : FEATURE_RULES.chapter_generation.credits;
+    await deductCredits(ctx.user.id, chapterCredits, feature, body.project?.id ?? null, { provider: response.provider, model: response.model, inputTokens: response.input_tokens, outputTokens: response.output_tokens }, body.chapter ?? null);
+    return new Response(JSON.stringify(createAIResponse(response, null, chapterCredits)), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: unknown) {

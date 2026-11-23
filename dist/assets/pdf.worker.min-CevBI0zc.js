@@ -1,1 +1,0 @@
-const e="/assets/pdf.worker.min-CHFwMXne.mjs";export{e as default};

@@ -106,17 +106,36 @@ describe("weekly contribution credit enforcement", () => {
     await expect(deductCredits("u1", 1, "topic_generation")).rejects.toThrow(/expired/i);
   });
 
-  it("grants new free users 10 daily credits with no expiry", async () => {
+  it("grants new free users 5 daily credits with no expiry", async () => {
     reset(true, 50);
     store["ai_credit_balances"] = [];
     store["user_subscriptions"] = [];
-    // New free users get a balance row with 10 daily credits, no weekly expiry
+    // New free users get a balance row with 5 daily credits, no weekly expiry
     const bal = await getCreditBalance("u-new");
-    expect(Number(bal.daily_credits)).toBe(10);
+    expect(Number(bal.daily_credits)).toBe(5);
     expect(bal.access_expires_at).toBeNull();
-    // Deduction should succeed within the free allowance
+    // Deduction should succeed within the free allowance (topic generation costs 2)
     const after = await deductCredits("u-new", 2, "topic_generation");
-    expect(Number((after as any).daily_credits)).toBe(8);
+    expect(Number((after as any).daily_credits)).toBe(3);
+  });
+
+  it("allows free users to generate Chapter One at no credit cost", async () => {
+    reset(true, 50);
+    store["ai_credit_balances"] = [];
+    store["user_subscriptions"] = [];
+    const bal = await getCreditBalance("u-new");
+    expect(Number(bal.daily_credits)).toBe(5);
+    // Chapter One generation for free users costs 0 credits
+    const after = await deductCredits("u-new", 20, "chapter_generation", null, undefined, "chapter1");
+    expect(Number((after as any).daily_credits)).toBe(5);
+  });
+
+  it("blocks free users from generating Chapters 2-5 at no credit cost", async () => {
+    reset(true, 50);
+    store["ai_credit_balances"] = [];
+    store["user_subscriptions"] = [];
+    // Chapter 2 generation should still cost 20 credits (which free users cannot afford)
+    await expect(deductCredits("u-new", 20, "chapter_generation", null, undefined, "chapter2")).rejects.toThrow();
   });
 
   it("grantWeeklyAccess gives fresh 50 credits and 7-day expiry", async () => {
